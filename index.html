@@ -14,6 +14,7 @@
     #analyze-button { background-color: #007bff; }
     #analyze-piece-button { background-color: #17a2b8; }
     #flip-button { background-color: #28a745; }
+    #freeze-button { background-color: #dc3545; }
     button:disabled { background-color: #cccccc; cursor: not-allowed; }
     .highlight-move-from, .highlight-move-to { background-color: rgba(255,255,0,0.5) !important; }
     #status { margin-top: 10px; font-weight: bold; }
@@ -37,6 +38,7 @@
       <button id="analyze-button" disabled>Analyze Position</button>
       <button id="analyze-piece-button" disabled>Analyze Moves</button>
       <button id="flip-button">Flip Board</button>
+      <button id="freeze-button">Freeze Position</button>
     </div>
   </div>
   <script>
@@ -50,34 +52,41 @@
       var evalEl = $('#evaluation');
       var highlights = [];
       var selectedSquare = null;
-      var isPieceAnalysis = false;function selectSquare(sq) {
-    var pieceObj = game.get(sq);
-    if (!pieceObj || pieceObj.color !== game.turn()) return;
-    var moves = game.moves({ verbose: true, square: sq });
-    if (!moves || moves.length === 0) return;
-    boardEl.find('.highlight-selection').removeClass('highlight-selection');
-    selectedSquare = sq;
-    boardEl.find('.square-' + sq).addClass('highlight-selection');
-    $('#analyze-piece-button').prop('disabled', false);
-  }
-
-  function initBoard(fen) {
-    if (board && board.destroy) board.destroy();
-    board = Chessboard('board', {
-      position: fen || 'start',
-      draggable: true,
+      var isPieceAnalysis = false;
+      var freezeMode = false;function renderBoard() {
+    var config = {
+      position: game.fen(),
+      draggable: !freezeMode,
       orientation: game.turn() === 'b' ? 'black' : 'white',
       onDragStart: onDragStart,
       onDrop: onDrop,
       onSnapEnd: onSnapEnd,
+      onSquareClick: freezeMode ? onSquareClick : null,
       pieceTheme: function(piece) {
         if (!piece) return '';
         var color = piece.charAt(0) === 'w' ? 'white' : 'black';
         var map = { 'K': 'king', 'Q': 'queen', 'R': 'rook', 'B': 'bishop', 'N': 'knight', 'P': 'pawn' };
         return 'pieces/' + color + '-' + map[piece.charAt(1)] + '.png';
       }
-    });
-    updateStatus();
+    };
+    if (board) board.destroy();
+    board = Chessboard('board', config);
+  }
+
+  function onSquareClick(sq, piece) {
+    if (!freezeMode) return;
+    selectSquare(sq);
+  }
+
+  function selectSquare(sq) {
+    var pieceObj = game.get(sq);
+    if (!pieceObj || pieceObj.color !== game.turn()) return;
+    var moves = game.moves({ verbose: true, square: sq });
+    if (!moves.length) return;
+    boardEl.find('.highlight-selection').removeClass('highlight-selection');
+    selectedSquare = sq;
+    boardEl.find('.square-' + sq).addClass('highlight-selection');
+    $('#analyze-piece-button').prop('disabled', false);
   }
 
   function updateStatus() {
@@ -87,24 +96,21 @@
     else if (game.in_draw()) { text = 'Game over, drawn position'; statusEl.css('color','blue'); }
     else { text = turnColor + ' to move' + (game.in_check() ? ', ' + turnColor + ' is in check' : ''); statusEl.css('color','black'); }
     statusEl.text(text);
-    selectedSquare = null;
-    boardEl.find('.highlight-selection').removeClass('highlight-selection');
-    $('#analyze-piece-button').prop('disabled', true);
   }
 
   function onDragStart(src, piece) {
-    return !(game.game_over() || (game.turn() === 'w' && piece.charAt(0) === 'b') || (game.turn() === 'b' && piece.charAt(0) === 'w'));
+    return !freezeMode && !(game.game_over() || (game.turn() === 'w' && piece.charAt(0) === 'b') || (game.turn() === 'b' && piece.charAt(0) === 'w'));
   }
 
   function onDrop(src, tgt) {
     clearHighlights(); clearRatings();
     var move = game.move({ from: src, to: tgt, promotion: 'q' });
     if (!move) return 'snapback';
+    renderBoard(); updateStatus();
   }
 
   function onSnapEnd() {
     board.position(game.fen());
-    updateStatus();
   }
 
   function clearHighlights() {
@@ -157,9 +163,10 @@
     engine.postMessage('position fen '+game.fen()); engine.postMessage('go depth 15');
   }
 
-  function analyzePiece(square) {
+  function analyzePiece() {
+    if (!selectedSquare) return;
     clearHighlights(); clearRatings();
-    var moves = game.moves({verbose:true}).filter(m=>m.from===square);
+    var moves = game.moves({verbose:true}).filter(m=>m.from===selectedSquare);
     if (!moves.length) return;
     isPieceAnalysis = true;
     engine.postMessage('setoption name MultiPV value '+moves.length);
@@ -168,16 +175,16 @@
   }
 
   $('#analyze-button').on('click', analyzePosition);
-  $('#analyze-piece-button').on('click', function() { if (selectedSquare) analyzePiece(selectedSquare); });
-  $('#flip-button').on('click', function() { board.flip(); });
-
-  // delegated square click
-  boardEl.on('click', 'div.square-55d63', function() {
-    var cls = $(this).attr('class').match(/square-[a-h][1-8]/);
-    if (cls) selectSquare(cls[0].split('-')[1]);
+  $('#analyze-piece-button').on('click', analyzePiece);
+  $('#flip-button').on('click', function() { game.flip(); renderBoard(); });
+  $('#freeze-button').on('click', function() {
+    freezeMode = !freezeMode;
+    $('#freeze-button').text(freezeMode ? 'Unfreeze Position' : 'Freeze Position');
+    if (!freezeMode) selectedSquare = null;
+    renderBoard();
   });
 
-  initBoard(game.fen()); initEngine();
+  renderBoard(); initEngine(); updateStatus();
 });
 
   </script>
