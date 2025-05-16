@@ -51,15 +51,12 @@
       var highlights = [];
       var selectedSquare = null;
       var isPieceAnalysis = false;function selectSquare(sq) {
-    // only allow selecting a piece of the side to move that has legal moves
     var pieceObj = game.get(sq);
     if (!pieceObj || pieceObj.color !== game.turn()) return;
     var moves = game.moves({ verbose: true, square: sq });
     if (!moves || moves.length === 0) return;
-    // clear old highlight
     boardEl.find('.highlight-selection').removeClass('highlight-selection');
     selectedSquare = sq;
-    // highlight selected square
     boardEl.find('.square-' + sq).addClass('highlight-selection');
     $('#analyze-piece-button').prop('disabled', false);
   }
@@ -73,7 +70,6 @@
       onDragStart: onDragStart,
       onDrop: onDrop,
       onSnapEnd: onSnapEnd,
-      onSquareClick: function(sq, piece) { selectSquare(sq); },
       pieceTheme: function(piece) {
         if (!piece) return '';
         var color = piece.charAt(0) === 'w' ? 'white' : 'black';
@@ -91,7 +87,6 @@
     else if (game.in_draw()) { text = 'Game over, drawn position'; statusEl.css('color','blue'); }
     else { text = turnColor + ' to move' + (game.in_check() ? ', ' + turnColor + ' is in check' : ''); statusEl.css('color','black'); }
     statusEl.text(text);
-    // reset selection when turn changes
     selectedSquare = null;
     boardEl.find('.highlight-selection').removeClass('highlight-selection');
     $('#analyze-piece-button').prop('disabled', true);
@@ -175,6 +170,12 @@
   $('#analyze-button').on('click', analyzePosition);
   $('#analyze-piece-button').on('click', function() { if (selectedSquare) analyzePiece(selectedSquare); });
   $('#flip-button').on('click', function() { board.flip(); });
+
+  // delegated square click
+  boardEl.on('click', 'div.square-55d63', function() {
+    var cls = $(this).attr('class').match(/square-[a-h][1-8]/);
+    if (cls) selectSquare(cls[0].split('-')[1]);
+  });
 
   initBoard(game.fen()); initEngine();
 });
