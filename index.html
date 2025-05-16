@@ -50,7 +50,13 @@ $(function(){
      onDragStart:onDragStart,
      onDrop:onDrop,
      onSnapEnd:onSnapEnd,
-     pieceTheme:'https://cdn.jsdelivr.net/npm/@chrisoakman/chessboardjs@1.0.0/dist/img/chesspieces/wikipedia/{piece}.png'
+     pieceTheme: function(piece) {
+       if (!piece) return '';
+       var color = piece.charAt(0) === 'w' ? 'white' : 'black';
+       var typeMap = { 'K': 'king', 'Q': 'queen', 'R': 'rook', 'B': 'bishop', 'N': 'knight', 'P': 'pawn' };
+       var type = typeMap[piece.charAt(1)];
+       return 'pieces/' + color + '-' + type + '.png';
+     }
    });
    updateStatus();
  }
