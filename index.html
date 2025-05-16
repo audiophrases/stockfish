@@ -2,31 +2,32 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chess with Engine Feedback</title>
+  <title>Chess with Engine & Position Editor</title>
   <style>
     .highlight-selection { box-shadow: inset 0 0 0 3px #ff0 !important; }
-    body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f0f0f0; margin: 0; padding: 20px; }
-    .container { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; width: 100%; max-width: 600px; }
-    #board { width: 100%; max-width: 400px; margin: 20px auto; position: relative; }
-    #engine-output { text-align: left; margin-top: 20px; }
-    #controls { margin-top: 10px; }
-    button { margin: 0 5px; padding: 8px 16px; border: none; border-radius: 5px; color: #fff; cursor: pointer; }
-    #analyze-button { background: #007bff; }
-    #analyze-piece-button { background: #17a2b8; }
-    #flip-button { background: #28a745; }
-    #freeze-button { background: #dc3545; }
-    #edit-button { background: #ffc107; }
-    button:disabled { background: #ccc; cursor: not-allowed; }
-    .highlight-move-from, .highlight-move-to { background: rgba(255,255,0,0.5) !important; }
-    #status { margin-top: 10px; font-weight: bold; }
-    .move-rating { position: absolute; bottom: 5px; right: 5px; background: rgba(0,0,0,0.7); color: #fff; font-size: 12px; padding: 2px 4px; border-radius: 3px; pointer-events: none; z-index: 5; }
-  </style>  <script src="libs/jquery.min.js"></script>  <link href="libs/chessboard-1.0.0.min.css" rel="stylesheet">
+    body { font-family: sans-serif; display:flex;justify-content:center;align-items:center;min-height:100vh;background:#f0f0f0;margin:0;padding:20px }
+    .container{background:#fff;padding:20px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);width:100%;max-width:600px;text-align:center}
+    #board{width:100%;max-width:400px;margin:20px auto;position:relative}
+    #controls{margin-top:10px}
+    button{margin:0 5px;padding:8px 16px;border:none;border-radius:5px;color:#fff;cursor:pointer}
+    #analyze-button{background:#007bff}
+    #analyze-piece-button{background:#17a2b8}
+    #flip-button{background:#28a745}
+    #freeze-button{background:#dc3545}
+    #edit-button{background:#ffc107;color:#000}
+    button:disabled{background:#ccc;cursor:not-allowed}
+    .highlight-move-from,.highlight-move-to{background:rgba(255,255,0,0.5)!important}
+    #status{margin-top:10px;font-weight:bold}
+    .move-rating{position:absolute;bottom:5px;right:5px;background:rgba(0,0,0,0.7);color:#fff;font-size:12px;padding:2px 4px;border-radius:3px;pointer-events:none;z-index:5}
+  </style>
+  <script src="libs/jquery.min.js"></script>
+  <link href="libs/chessboard-1.0.0.min.css" rel="stylesheet">
   <script src="libs/chessboard-1.0.0.min.js"></script>
   <script src="libs/chess.min.js"></script>
 </head>
 <body>
   <div class="container">
-    <h1>Chess with Engine Feedback</h1>
+    <h1>Chess with Engine & Position Editor</h1>
     <div id="board"></div>
     <p id="status"></p>
     <div id="engine-output">
@@ -41,7 +42,7 @@
       <button id="edit-button">Edit Mode</button>
     </div>
   </div>  <script>
-    $(function() {
+    $(function(){
       let board, engine;
       const game = new Chess();
       const boardEl = $('#board');
@@ -52,194 +53,143 @@
       let editMode = false;
       let clickMoveSource = null;
 
-      function renderBoard() {
+      function renderBoard(){
         const cfg = {
           position: game.fen(),
           draggable: !freezeMode && !editMode,
-          orientation: game.turn() === 'b' ? 'black' : 'white',
+          sparePieces: editMode,
+          orientation: game.turn()==='b'?'black':'white',
           onDragStart: onDragStart,
           onDrop: onDrop,
           onSnapEnd: onSnapEnd,
-          pieceTheme: piece => {
-            if (!piece) return '';
-            const color = piece[0] === 'w' ? 'white' : 'black';
-            const map = { K:'king', Q:'queen', R:'rook', B:'bishop', N:'knight', P:'pawn' };
-            return `pieces/${color}-${map[piece[1]]}.png`;
+          pieceTheme: p=>{
+            if(!p) return '';
+            const color = p[0]==='w'?'white':'black';
+            const map={K:'king',Q:'queen',R:'rook',B:'bishop',N:'knight',P:'pawn'};
+            return `pieces/${color}-${map[p[1]]}.png`;
           }
         };
-        if (board) board.destroy();
-        board = Chessboard('board', cfg);
+        if(board) board.destroy();
+        board = Chessboard('board',cfg);
 
-        // freeze-mode for analysis selection
-        boardEl.off('click.freeze').on('click.freeze', 'div.square-55d63', function() {
-          if (!freezeMode) return;
-          const cls = $(this).attr('class').split(/\s+/);
-          const sq = cls.find(c => /^square-[a-h][1-8]$/.test(c));
-          if (sq) selectSquare(sq.replace('square-',''));
-        });
-
-        // edit-mode for click-to-move
-        boardEl.off('click.edit').on('click.edit', 'div.square-55d63', function() {
-          if (!editMode) return;
-          const cls = $(this).attr('class').split(/\s+/);
-          const sq = cls.find(c => /^square-[a-h][1-8]$/.test(c));
-          if (sq) handleClickMove(sq.replace('square-',''));
+        boardEl.off('click.freeze').on('click.freeze','div.square-55d63',function(){
+          if(!freezeMode) return;
+          const cls=$(this).attr('class').split(/\s+/);
+          const sq=cls.find(c=>/^square-[a-h][1-8]$/.test(c));
+          if(sq) selectSquare(sq.replace('square-',''));
         });
       }
 
-      function selectSquare(sq) {
+      function selectSquare(sq){
         const p = game.get(sq);
-        if (!p || p.color !== game.turn()) return;
-        const moves = game.moves({ verbose:true, square: sq });
-        if (!moves.length) return;
+        if(!p||p.color!==game.turn()) return;
+        const moves = game.moves({verbose:true,square:sq});
+        if(!moves.length) return;
         boardEl.find('.highlight-selection').removeClass('highlight-selection');
-        selectedSquare = sq;
+        selectedSquare=sq;
         boardEl.find(`.square-${sq}`).addClass('highlight-selection');
-        $('#analyze-piece-button').prop('disabled', false);
+        $('#analyze-piece-button').prop('disabled',false);
       }
 
-      function handleClickMove(sq) {
-        if (!clickMoveSource) {
-          const p = game.get(sq);
-          if (!p || p.color !== game.turn()) return;
-          clickMoveSource = sq;
-          boardEl.find('.highlight-selection').removeClass('highlight-selection');
-          boardEl.find(`.square-${sq}`).addClass('highlight-selection');
-        } else {
-          const move = game.move({ from: clickMoveSource, to: sq, promotion:'q' });
-          clickMoveSource = null;
-          boardEl.find('.highlight-selection').removeClass('highlight-selection');
-          if (move) { renderBoard(); updateStatus(); }
-        }
-      }
-
-      function updateStatus() {
-        const turn = game.turn() === 'b' ? 'Black' : 'White';
-        let txt = '';
-        if (game.in_checkmate()) {
-          txt = `Game over, ${turn} in checkmate.`;
-          statusEl.css('color','green');
-        } else if (game.in_draw()) {
-          txt = 'Game over, drawn position';
-          statusEl.css('color','blue');
-        } else {
-          txt = `${turn} to move` + (game.in_check() ? `, ${turn} is in check` : '');
-          statusEl.css('color','black');
-        }
-        statusEl.text(txt);
-        // reset selections when turn changes
-        selectedSquare = null;
-        clickMoveSource = null;
-        $('#analyze-piece-button').prop('disabled', true);
-        boardEl.find('.highlight-selection').removeClass('highlight-selection');
-      }
-
-      function onDragStart(src,piece) {
-        return !freezeMode && !editMode && !game.game_over() &&
+      function onDragStart(src,piece){
+        if(editMode) return true;
+        if(freezeMode) return false;
+        return !game.game_over()&&
                ((game.turn()==='w'&&piece[0]==='w')||(game.turn()==='b'&&piece[0]==='b'));
       }
 
-      function onDrop(src,tgt) {
+      function onDrop(src,tgt, piece, newPos, oldPos){
         clearHighlights(); clearRatings();
-        const m = game.move({ from: src, to: tgt, promotion:'q' });
-        if (!m) return 'snapback';
+        if(editMode){
+          // just update position
+          board.position(newPos);
+          game.load(board.fen());
+          updateStatus();
+          return;
+        }
+        if(freezeMode) return 'snapback';
+        const m = game.move({from:src,to:tgt,promotion:'q'});
+        if(!m) return 'snapback';
         renderBoard(); updateStatus();
       }
 
-      function onSnapEnd() { board.position(game.fen()); }
+      function onSnapEnd(){ if(!editMode) board.position(game.fen()); }
 
-      function clearHighlights() {
+      function clearHighlights(){
         boardEl.find('.highlight-selection').removeClass('highlight-selection');
         boardEl.find('.highlight-move-from, .highlight-move-to').removeClass('highlight-move-from highlight-move-to');
       }
 
-      function clearRatings() { boardEl.find('.move-rating').remove(); }
+      function clearRatings(){ boardEl.find('.move-rating').remove(); }
 
-      function initEngine() {
-        engine = new Worker('./engine/stockfish.js');
-        engine.onmessage = e => {
-          const line = String(e.data).trim();
-          if (line==='uciok') engine.postMessage('isready');
-          else if (line==='readyok') {
-            $('#analyze-button').prop('disabled', false);
+      function initEngine(){
+        engine=new Worker('./engine/stockfish.js');
+        engine.onmessage=e=>{
+          const line=String(e.data).trim();
+          if(line==='uciok') engine.postMessage('isready');
+          else if(line==='readyok'){
+            $('#analyze-button').prop('disabled',false);
             engine.postMessage('ucinewgame');
             statusEl.append(' (Engine Ready)');
-          }
-          else if (isPieceAnalysis && line.startsWith('info') && line.includes('multipv')) {
-            const cp = line.match(/score cp (-?\d+)/);
-            const mate = line.match(/score mate (-?\d+)/);
-            const pv = line.match(/pv ([a-h][1-8][a-h][1-8])/);
-            if (pv) {
-              const dest = pv[1].slice(2);
-              const score = cp ? (parseInt(cp[1],10)/100).toFixed(2) : mate ? `M${mate[1]}` : '';
+          } else if(isPieceAnalysis&&line.startsWith('info')&&line.includes('multipv')){
+            const cp=line.match(/score cp (-?\d+)/);
+            const mate=line.match(/score mate (-?\d+)/);
+            const pv=line.match(/pv ([a-h][1-8][a-h][1-8])/);
+            if(pv){
+              const dest=pv[1].slice(2);
+              const score=cp?(parseInt(cp[1],10)/100).toFixed(2):mate?`M${mate[1]}`:'';
               boardEl.find(`.square-${dest}`).append(`<div class="move-rating">${score}</div>`);
             }
-          }
-          else if (line.startsWith('bestmove')) {
-            const b = line.split(' ')[1];
-            $('#best-move').text(b);
-            visualize(b);
-            isPieceAnalysis = false;
-            engine.postMessage('setoption name MultiPV value 1');
-          }
-          else if (!isPieceAnalysis && line.includes('info depth') && line.includes('score')) {
-            const cp2 = line.match(/score cp (-?\d+)/);
-            const mate2 = line.match(/score mate (-?\d+)/);
-            if (cp2) $('#evaluation').text((parseInt(cp2[1],10)/100).toFixed(2));
-            else if (mate2) $('#evaluation').text(`Mate in ${mate2[1]}`);
+          } else if(line.startsWith('bestmove')){
+            const b=line.split(' ')[1];$('#best-move').text(b);visualize(b);
+            isPieceAnalysis=false;engine.postMessage('setoption name MultiPV value 1');
+          } else if(!isPieceAnalysis&&line.includes('info depth')&&line.includes('score')){
+            const cp2=line.match(/score cp (-?\d+)/);
+            const mate2=line.match(/score mate (-?\d+)/);
+            if(cp2) $('#evaluation').text((parseInt(cp2[1],10)/100).toFixed(2));
+            else if(mate2) $('#evaluation').text(`Mate in ${mate2[1]}`);
           }
         };
         engine.postMessage('uci');
       }
 
-      function visualize(uci) {
-        clearHighlights(); if(!uci||uci.length<4) return;
-        const f = uci.slice(0,2), t = uci.slice(2,4);
+      function visualize(uci){
+        clearHighlights();
+        if(!uci||uci.length<4) return;
+        const f=uci.slice(0,2), t=uci.slice(2,4);
         boardEl.find(`.square-${f}`).addClass('highlight-move-from');
         boardEl.find(`.square-${t}`).addClass('highlight-move-to');
       }
 
-      function analyzePosition() {
+      function analyzePosition(){
         clearHighlights(); clearRatings();
-        $('#best-move').text('Thinking...');
-        $('#evaluation').text('Thinking...');
-        isPieceAnalysis = false;
+        $('#best-move').text('Thinking...'); $('#evaluation').text('Thinking...');
+        isPieceAnalysis=false;
         engine.postMessage('setoption name MultiPV value 1');
         engine.postMessage(`position fen ${game.fen()}`);
         engine.postMessage('go depth 15');
       }
 
-      function analyzeMoves() {
-        if (!selectedSquare) return;
+      function analyzeMoves(){
+        if(!selectedSquare) return;
         clearHighlights(); clearRatings();
-        const moves = game.moves({ verbose:true }).filter(m => m.from === selectedSquare);
-        if (!moves.length) return;
-        isPieceAnalysis = true;
+        const moves=game.moves({verbose:true}).filter(m=>m.from===selectedSquare);
+        if(!moves.length) return;
+        isPieceAnalysis=true;
         engine.postMessage(`setoption name MultiPV value ${moves.length}`);
         engine.postMessage(`position fen ${game.fen()}`);
         engine.postMessage(`go depth 15 searchmoves ${moves.map(m=>m.from+m.to).join(' ')}`);
       }
 
       // UI hooks
-      $('#analyze-button').on('click', analyzePosition);
-      $('#analyze-piece-button').on('click', analyzeMoves);
-      $('#flip-button').on('click', () => board.flip());
-      $('#freeze-button').on('click', () => {
-        freezeMode = !freezeMode;
-        $('#freeze-button').text(freezeMode ? 'Unfreeze Position' : 'Freeze Position');
-        renderBoard();
-      });
-      $('#edit-button').on('click', () => {
-        editMode = !editMode;
-        $('#edit-button').text(editMode ? 'Exit Edit' : 'Edit Mode');
-        if (!editMode) clickMoveSource = null;
-        renderBoard();
-      });
+      $('#analyze-button').on('click',analyzePosition);
+      $('#analyze-piece-button').on('click',analyzeMoves);
+      $('#flip-button').on('click',()=>board.flip());
+      $('#freeze-button').on('click',()=>{ freezeMode=!freezeMode;$('#freeze-button').text(freezeMode?'Unfreeze':'Freeze Position');renderBoard(); });
+      $('#edit-button').on('click',()=>{ editMode=!editMode;$('#edit-button').text(editMode?'Exit Edit':'Edit Mode'); renderBoard(); updateStatus(); });
 
-      // initialize
-      renderBoard();
-      initEngine();
-      updateStatus();
+      // init
+      renderBoard(); initEngine(); updateStatus();
     });
   </script></body>
 </html>
