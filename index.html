@@ -1,29 +1,29 @@
 <!DOCTYPE html><html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Chess with Engine, Editor & Advantage Gauge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chess with Editor & Advantage Gauge</title>
   <style>
     .highlight-selection { box-shadow: inset 0 0 0 3px #ff0 !important; }
-    body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f0f0f0; margin: 0; padding: 20px; }
-    .container { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 750px; width: 100%; text-align: center; }
-    .board-wrapper { display: inline-flex; align-items: flex-start; }
-    #board { width: 400px; height: 400px; position: relative; }
-    #gauge { width: 20px; height: 400px; background: #000; margin-left: 10px; position: relative; }
-    #gauge-white { width: 100%; background: #fff; position: absolute; bottom: 0; height: 50%; }
-    #engine-output { text-align: left; margin-top: 20px; }
-    #controls { margin-top: 10px; }
-    button { margin: 0 5px; padding: 8px 16px; border: none; border-radius: 5px; color: #fff; cursor: pointer; }
-    #analyze-button { background: #007bff; }
-    #analyze-piece-button { background: #17a2b8; }
-    #gauge-button { background: #6610f2; }
-    #flip-button { background: #28a745; }
-    #freeze-button { background: #dc3545; }
-    #edit-button { background: #ffc107; color: #000; }
-    button:disabled { background: #ccc; cursor: not-allowed; }
-    .highlight-move-from, .highlight-move-to { background: rgba(255,255,0,0.5) !important; }
-    #status { margin-top: 10px; font-weight: bold; }
-    .move-rating { position: absolute; bottom: 5px; right: 5px; background: rgba(0,0,0,0.7); color: #fff; font-size: 12px; padding: 2px 4px; border-radius: 3px; pointer-events: none; z-index: 5; }
+    body { font-family: sans-serif; display:flex;justify-content:center;align-items:center;min-height:100vh;background:#f0f0f0;margin:0;padding:20px }
+    .container{background:#fff;padding:20px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);max-width:750px;width:100%;text-align:center}
+    .board-wrapper { display:inline-flex; align-items:flex-start; }
+    #board{width:400px;height:400px;position:relative}
+    #gauge{width:20px;height:400px;background:#000;margin-left:10px;position:relative}
+    #gauge-white{width:100%;background:#fff;position:absolute;bottom:0;height:50%}
+    #engine-output { text-align:left; margin-top:20px; }
+    #controls{margin-top:10px}
+    button{margin:0 5px;padding:8px 16px;border:none;border-radius:5px;color:#fff;cursor:pointer}
+    #analyze-button{background:#007bff}
+    #analyze-piece-button{background:#17a2b8}
+    #gauge-button{background:#6610f2}
+    #flip-button{background:#28a745}
+    #freeze-button{background:#dc3545}
+    #edit-button{background:#ffc107;color:#000}
+    button:disabled{background:#ccc;cursor:not-allowed}
+    .highlight-move-from,.highlight-move-to{background:rgba(255,255,0,0.5)!important}
+    #status{margin-top:10px;font-weight:bold}
+    .move-rating{position:absolute;bottom:5px;right:5px;background:rgba(0,0,0,0.7);color:#fff;font-size:12px;padding:2px 4px;border-radius:3px;pointer-events:none;z-index:5}
   </style>
   <script src="libs/jquery.min.js"></script>
   <link href="libs/chessboard-1.0.0.min.css" rel="stylesheet">
@@ -55,11 +55,11 @@
       let board, engine;
       const game = new Chess();
       const boardEl = $('#board');
-
       let selectedSquare = null;
       let isPieceAnalysis = false;
       let freezeMode = false;
       let editMode = false;
+      let gaugeMode = false;
 
       function updateGauge(cp) {
         const clamped = Math.max(-2000, Math.min(2000, cp));
@@ -85,13 +85,12 @@
         };
         if (board) board.destroy();
         board = Chessboard('board', cfg);
-
-        // Freeze selection handler
+        // freeze-mode selection
         boardEl.off('click.freeze').on('click.freeze', 'div.square-55d63', function() {
           if (!freezeMode) return;
           const cls = $(this).attr('class').split(/\s+/);
           const sq = cls.find(c => /^square-[a-h][1-8]$/.test(c));
-          if (sq) selectSquare(sq.replace('square-', ''));
+          if (sq) selectSquare(sq.replace('square-',''));
         });
       }
 
@@ -120,7 +119,6 @@
       function onDrop(source, target, piece, newPosition) {
         clearHighlights(); clearRatings();
         if (editMode) {
-          // rebuild game from newPosition
           game.clear();
           Object.entries(newPosition).forEach(([sq,p]) => {
             if (p) game.put({type:p[1].toLowerCase(), color:p[0]}, sq);
@@ -134,18 +132,10 @@
         renderBoard(); updateStatus();
       }
 
-      function onSnapEnd() {
-        if (!editMode) board.position(game.fen());
-      }
+      function onSnapEnd() { if (!editMode) board.position(game.fen()); }
 
-      function clearHighlights() {
-        boardEl.find('.highlight-selection').removeClass('highlight-selection');
-        boardEl.find('.highlight-move-from, .highlight-move-to').removeClass('highlight-move-from highlight-move-to');
-      }
-
-      function clearRatings() {
-        boardEl.find('.move-rating').remove();
-      }
+      function clearHighlights() { boardEl.find('.highlight-move-from, .highlight-move-to').removeClass('highlight-move-from highlight-move-to'); }
+      function clearRatings() { boardEl.find('.move-rating').remove(); }
 
       function selectSquare(sq) {
         const p = game.get(sq);
@@ -178,9 +168,11 @@
             }
           }
           else if (line.startsWith('bestmove')) {
-            const best = line.split(' ')[1];
-            $('#best-move').text(best);
-            visualize(best);
+            if (!gaugeMode) {
+              const best = line.split(' ')[1];
+              $('#best-move').text(best);
+              visualize(best);
+            }
             isPieceAnalysis = false;
             engine.postMessage('setoption name MultiPV value 1');
           }
@@ -200,29 +192,26 @@
         engine.postMessage('uci');
       }
 
-      function visualize(uci) {
-        clearHighlights(); if (!uci || uci.length < 4) return;
-        const from = uci.slice(0,2), to = uci.slice(2,4);
-        boardEl.find(`.square-${from}`).addClass('highlight-move-from');
-        boardEl.find(`.square-${to}`).addClass('highlight-move-to');
-      }
+      function visualize(uci) { clearHighlights(); if (!uci || uci.length < 4) return; const f = uci.slice(0,2), t = uci.slice(2,4); boardEl.find(`.square-${f}`).addClass('highlight-move-from'); boardEl.find(`.square-${t}`).addClass('highlight-move-to'); }
 
       function analyzePosition() {
         clearHighlights(); clearRatings();
-        $('#best-move').text('Thinking...');
+        if (!gaugeMode) $('#best-move').text('Thinking...');
         $('#evaluation').text('Thinking...');
         isPieceAnalysis = false;
+        gaugeMode = false;
         engine.postMessage('setoption name MultiPV value 1');
         engine.postMessage(`position fen ${game.fen()}`);
         engine.postMessage('go depth 15');
       }
 
       function analyzeMoves() {
-        if (!selectedSquare) return;
         clearHighlights(); clearRatings();
+        if (!selectedSquare) return;
         const moves = game.moves({verbose:true}).filter(m => m.from === selectedSquare);
         if (!moves.length) return;
         isPieceAnalysis = true;
+        gaugeMode = false;
         engine.postMessage(`setoption name MultiPV value ${moves.length}`);
         engine.postMessage(`position fen ${game.fen()}`);
         engine.postMessage(`go depth 15 searchmoves ${moves.map(m => m.from + m.to).join(' ')}`);
@@ -230,8 +219,10 @@
 
       function analyzeGauge() {
         clearHighlights(); clearRatings();
+        $('#best-move').text('');
         $('#evaluation').text('Thinking...');
         isPieceAnalysis = false;
+        gaugeMode = true;
         engine.postMessage('setoption name MultiPV value 1');
         engine.postMessage(`position fen ${game.fen()}`);
         engine.postMessage('go depth 15');
@@ -243,7 +234,7 @@
       $('#gauge-button').on('click', analyzeGauge);
       $('#flip-button').on('click', () => board.flip());
       $('#freeze-button').on('click', () => { freezeMode = !freezeMode; $('#freeze-button').text(freezeMode ? 'Unfreeze Position' : 'Freeze Position'); renderBoard(); });
-      $('#edit-button').on('click', () => { editMode = !editMode; $('#edit-button').text(editMode ? 'Exit Edit' : 'Edit Mode'); renderBoard(); });
+      $('#edit-button').on('click', () => { editMode = !editMode; $('#edit-button').text(editMode ? 'Exit Edit' : 'Edit Mode'); renderBoard(); $('#engine-output').toggle(!editMode); });
 
       // init
       renderBoard(); initEngine(); updateStatus();
