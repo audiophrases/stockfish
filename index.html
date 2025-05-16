@@ -8,7 +8,6 @@
 body{font-family:sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;background-color:#f0f0f0;margin:0;padding:20px;box-sizing:border-box}
 .container{background-color:#fff;padding:20px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);text-align:center;max-width:90vw}
 #board{width:400px;max-width:100%;margin:20px auto;position:relative}
-.square-55d63{position:relative}
 #engine-output{margin-top:20px;text-align:left}
 #analyze-button{margin-top:15px;padding:10px 20px;background-color:#007bff;color:#fff;border:none;border-radius:5px;cursor:pointer}
 #analyze-button:hover{background-color:#0056b3}
@@ -18,7 +17,7 @@ body{font-family:sans-serif;display:flex;justify-content:center;align-items:cent
 .move-rating{position:absolute;bottom:5px;right:5px;background:rgba(0,0,0,0.7);color:#fff;font-size:12px;padding:2px 4px;border-radius:3px;pointer-events:none;z-index:5}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js" crossorigin="anonymous"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css" crossorigin="anonymous"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css" crossorigin="anonymous" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.12.1/chess.min.js" crossorigin="anonymous"></script>
 </head>
@@ -31,33 +30,104 @@ body{font-family:sans-serif;display:flex;justify-content:center;align-items:cent
 <p>Best Move: <span id="best-move">N/A</span></p>
 <p>Evaluation: <span id="evaluation">N/A</span></p>
 </div>
-<button id="analyze-button">Analyze Position</button>
+<button id="analyze-button" disabled>Analyze Position</button>
 </div>
 <script>
 $(function(){
-var boardElement=$('#board');
-var statusElement=$('#status');
-var board=null;
-var game=new Chess();
-var stockfish;
-var bestMoveElement=$('#best-move');
-var evaluationElement=$('#evaluation');
-var highlightFromClass='highlight-move-from';
-var highlightToClass='highlight-move-to';
-var highlightedMoveSquares=[];
-var isPieceAnalysis=false;
-function initBoard(fen){if(board&&board.destroy)board.destroy();board=Chessboard('board',{position:fen||'start',draggable:true,onDragStart:onDragStart,onDrop:onDrop,onSnapEnd:onSnapEnd,pieceTheme:'https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/img/chesspieces/wikipedia/{piece}.png'});updateStatus()}
-function updateStatus(){var moveColor=game.turn()==='b'?'Black':'White';var status='';if(game.isCheckmate()){status='Game over, '+moveColor+' is in checkmate.';statusElement.css('color','green')}else if(game.isDraw()){status='Game over, drawn position';statusElement.css('color','blue')}else{status=moveColor+' to move'+(game.isCheck()?', '+moveColor+' is in check':'');statusElement.css('color','black')}statusElement.text(status)}
-function onDragStart(source,piece){return!(game.isGameOver()||(game.turn()==='w'&&piece.startsWith('b'))||(game.turn()==='b'&&piece.startsWith('w')))}
-function onDrop(source,target){removeHighlight();clearRatings();var move=game.move({from:source,to:target,promotion:'q'});if(move===null)return'snapback'}
-function onSnapEnd(){board.position(game.fen());updateStatus()}
-function removeHighlight(){highlightedMoveSquares.forEach(function(sq){boardElement.find('.square-'+sq).removeClass(highlightFromClass).removeClass(highlightToClass)});highlightedMoveSquares=[]}
-function clearRatings(){boardElement.find('.move-rating').remove()}
-function initStockfish(){stockfish=new Worker('./engine/stockfish.js');stockfish.onmessage=function(e){var line=String(e.data).trim();if(line==='uciok')stockfish.postMessage('isready');else if(line==='readyok'){$('#analyze-button').prop('disabled',false);stockfish.postMessage('ucinewgame');statusElement.append(' (Engine Ready)')}else if(isPieceAnalysis&&line.startsWith('info')&&line.includes('multipv')){var mpv=line.match(/multipv (\d+)/);var cp=line.match(/score cp (-?\d+)/);var mate=line.match(/score mate (-?\d+)/);var pv=line.match(/pv ([a-h][1-8][a-h][1-8][qrbn]?)/);if(mpv&&pv){var rating='';if(cp)rating=(parseInt(cp[1],10)/100).toFixed(2);else if(mate)rating='M'+mate[1];var toSq=pv[1].substring(2);boardElement.find('.square-'+toSq).append('<div class="move-rating">'+rating+'</div>')}}else if(line.startsWith('bestmove')){var bm=line.split(' ')[1];bestMoveElement.text(bm);visualizeBestMove(bm);stockfish.postMessage('setoption name MultiPV value 1');isPieceAnalysis=false}else if(line.includes('info depth')&&line.includes('score')){var cp=line.match(/score cp (-?\d+)/);var mate=line.match(/score mate (-?\d+)/);if(cp)evaluationElement.text((parseInt(cp[1],10)/100).toFixed(2));else if(mate)evaluationElement.text('Mate in '+mate[1])}};stockfish.postMessage('uci')}
-function visualizeBestMove(uci){removeHighlight();if(!uci||uci.length<4)return;var f=uci.substring(0,2),t=uci.substring(2,4);boardElement.find('.square-'+f).addClass(highlightFromClass);boardElement.find('.square-'+t).addClass(highlightToClass);highlightedMoveSquares.push(f,t)}
-function analyzePosition(){isPieceAnalysis=false;clearRatings();removeHighlight();bestMoveElement.text('Thinking...');evaluationElement.text('Thinking...');stockfish.postMessage('setoption name MultiPV value 1');stockfish.postMessage('position fen '+game.fen());stockfish.postMessage('go depth 15')}
-function analyzePiece(square){isPieceAnalysis=true;clearRatings();removeHighlight();var moves=game.moves({verbose:true}).filter(function(m){return m.from===square});if(!moves.length){alert('No moves from '+square);return;}stockfish.postMessage('setoption name MultiPV value '+moves.length);stockfish.postMessage('position fen '+game.fen());var uciList=moves.map(function(m){return m.from+m.to+(m.promotion||'')}).join(' ');stockfish.postMessage('go depth 15 searchmoves '+uciList)}
-$('#analyze-button').on('click',analyzePosition);$('#board').on('click','.square-55d63',function(){var cls=$(this).attr('class').split(/\s+/);var sq=cls.find(function(c){return/^square-[a-h][1-8]$/.test(c)});if(sq)analyzePiece(sq.replace('square-',''))});$('#analyze-button').prop('disabled',true);initBoard(game.fen());initStockfish();
+ var boardEl=$('#board');
+ var statusEl=$('#status');
+ var board=null;
+ var game=new Chess();
+ var engine;
+ var bestEl=$('#best-move');
+ var evalEl=$('#evaluation');
+ var highlights=[];
+ function initBoard(fen){
+   if(board&&board.destroy) board.destroy();
+   board=Chessboard('board',{
+     position:fen||'start',
+     draggable:true,
+     onDragStart:onDragStart,
+     onDrop:onDrop,
+     onSnapEnd:onSnapEnd,
+     pieceTheme:'https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/img/chesspieces/wikipedia/{piece}.png'
+   });
+   updateStatus();
+ }
+ function updateStatus(){
+   var turn=game.turn()==='b'?'Black':'White';
+   var txt='';
+   if(game.in_checkmate()){
+     txt='Game over, '+turn+' is in checkmate.';
+     statusEl.css('color','green');
+   } else if(game.in_draw()){
+     txt='Game over, drawn position';
+     statusEl.css('color','blue');
+   } else {
+     txt=turn+' to move'+(game.in_check()?(', '+turn+' is in check'):(''));
+     statusEl.css('color','black');
+   }
+   statusEl.text(txt);
+ }
+ function onDragStart(src,piece){
+   return !(game.game_over()||(game.turn()==='w'&&piece.startsWith('b'))||(game.turn()==='b'&&piece.startsWith('w')));
+ }
+ function onDrop(src,tgt){
+   clearHighlights(); clearRatings();
+   var m=game.move({from:src,to:tgt,promotion:'q'});
+   if(!m) return 'snapback';
+ }
+ function onSnapEnd(){
+   board.position(game.fen());
+   updateStatus();
+ }
+ function clearHighlights(){
+   highlights.forEach(sq=>boardEl.find('.square-'+sq).removeClass('highlight-move-from highlight-move-to'));
+   highlights=[];
+ }
+ function clearRatings(){ boardEl.find('.move-rating').remove(); }
+ function initEngine(){
+   engine=new Worker('./engine/stockfish.js');
+   engine.onmessage=e=>{
+     var line=String(e.data).trim();
+     if(line==='uciok'){
+       engine.postMessage('isready');
+     } else if(line==='readyok'){
+       $('#analyze-button').prop('disabled',false);
+       engine.postMessage('ucinewgame');
+       statusEl.append(' (Engine Ready)');
+     } else if(line.startsWith('info depth')&&line.includes('score')){
+       var cp=line.match(/score cp (-?\d+)/);
+       var mate=line.match(/score mate (-?\d+)/);
+       if(cp) evalEl.text((parseInt(cp[1],10)/100).toFixed(2));
+       else if(mate) evalEl.text('Mate in '+mate[1]);
+     } else if(line.startsWith('bestmove')){
+       var mv=line.split(' ')[1];
+       bestEl.text(mv);
+       visualize(mv);
+       engine.postMessage('setoption name MultiPV value 1');
+     }
+   };
+   engine.postMessage('uci');
+ }
+ function visualize(uci){
+   clearHighlights();
+   if(!uci||uci.length<4) return;
+   var f=uci.slice(0,2), t=uci.slice(2,4);
+   boardEl.find('.square-'+f).addClass('highlight-move-from');
+   boardEl.find('.square-'+t).addClass('highlight-move-to');
+   highlights=[f,t];
+ }
+ function analyze(){
+   clearHighlights(); clearRatings();
+   bestEl.text('Thinking...');
+   evalEl.text('Thinking...');
+   engine.postMessage('position fen '+game.fen());
+   engine.postMessage('go depth 15');
+ }
+ $('#analyze-button').on('click',analyze);
+ initBoard(game.fen());
+ initEngine();
 });
 </script>
 </body>
