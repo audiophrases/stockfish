@@ -190,6 +190,18 @@
 
       // init
       renderBoard(); initEngine(); updateStatus();
-    });
-  </script></body>
-</html>
+
+      // clicking outside board in edit mode cancels any in-progress placement/selection
+      $(document).on('mouseup', function(e) {
+        if (!editMode) return;
+        const $t = $(e.target);
+        if (!$t.closest('#board, #controls, .square-55d63').length) {
+          // cancel edit interaction
+          clickMoveSource = null;
+          selectedSquare = null;
+          boardEl.find('.highlight-selection').removeClass('highlight-selection');
+          $('#analyze-piece-button').prop('disabled', true);
+          // re-render to clear any dragging state
+          renderBoard();
+        }
+      });
