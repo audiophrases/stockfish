@@ -47,6 +47,7 @@
       var bestEl = $('#best-move');
       var evalEl = $('#evaluation');
       var highlights = [];
+      var isPieceAnalysis = false;
 
       function initBoard(fen) {
         if (board && board.destroy) board.destroy();
