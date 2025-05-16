@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess with Engine Feedback</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 20px; /* Added some padding */
+            box-sizing: border-box; /* Better layout control */
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 20px; /* Adjusted padding */
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 90vw; /* Ensure container fits on smaller screens */
+        }
+
+        #board {
+            width: 400px; /* Default width */
+            max-width: 100%; /* Make board responsive */
+            margin: 0 auto; /* Center the board */
+        }
+
+        #engine-output {
+            margin-top: 20px;
+            text-align: left; /* Better for readability */
+        }
+
+        #analyze-button {
+            margin-top: 15px;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #analyze-button:hover {
+            background-color: #0056b3;
+        }
+
+        /* Class for highlighting squares for the best move */
+        .highlight-move-from, .highlight-move-to {
+            background-color: rgba(255, 255, 0, 0.5) !important; /* Yellow highlight with some transparency */
+        }
+
+        /* Class for highlighting selected piece's possible moves (for future implementation) */
+        .highlight-possible-move {
+            background-color: rgba(0, 128, 0, 0.3) !important; /* Greenish highlight */
+        }
+        .square-label {
+            position: absolute;
+            font-size: 10px;
+            color: red;
+            font-weight: bold;
+            pointer-events: none; /* So it doesn't interfere with clicks */
+        }
+
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css" integrity="sha512-M2vQLszLpLnOlPjohYAUUv3R72x9tZ9ZlM50d8Y4h/m/g/A/5GvPqL/CqVq5r0/cR1U4nBFwY4nFf/KxoB7u1aw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+</head>
+<body>
+    <div class="container">
+        <h1>Chess with Engine Feedback</h1>
+        <div id="board"></div>
+        <p id="status"></p> <div id="engine-output">
+            <p>Best Move: <span id="best-move">N/A</span></p>
+            <p>Evaluation: <span id="evaluation">N/A</span></p>
+        </div>
+        <button id="analyze-button">Analyze Position</button>
+        </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js" integrity="sha512-v2CJ7UaYy4JwqLDIrZUI/4mqeoSoDIYq_Fm2vFjT+k1QvR3zzH2Z+vWl0X1z0/D2Wn62Y1J47E80YqM3A_w5g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js" integrity="sha512-sD2NnZ41Jk9P/Lz2L/2vsKxW3N07PqF704r2kO6P9uFfkJvO+fL0YgQ3KwnS/XzJ4Jd/08a9LgC/YmM/BvJk6bA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/1.0.0-beta.8/chess.min.js" integrity="sha512-9qN+LcGDMQn2AGfmDyA/BYo2CNFPy0BpsL12KTeY5F2R4E5KPW2NnsgqN40Jg2tL99xS7mC7Q/vjg82sH/3fQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script>
+        $(document).ready(() => {
+            const boardElement = $('#board');
+            const statusElement = $('#status');
+            let board = null;
+            let game = new Chess(); // Use 'Chess' constructor from chess.js v1.x
+            let currentFen = game.fen();
+            let stockfish = null;
+            const engineOutputElement = $('#engine-output');
+            const bestMoveElement = $('#best-move');
+            const evaluationElement = $('#evaluation');
+            const highlightFromClass = 'highlight-move-from';
+            const highlightToClass = 'highlight-move-to';
+            let highlightedMoveSquares = []; // For the single best move analysis
+
+            // --- Stockfish Engine Path ---
+            // IMPORTANT: You need to have the Stockfish JavaScript engine.
+            // Download it (e.g., stockfish.js or stockfish.wasm.js + stockfish.wasm)
+            // and place it in an 'engine' folder relative to this HTML file.
+            // Example: ./engine/stockfish.js
+            const stockfishEnginePath = './engine/stockfish.js'; // Adjust if your path is different
+
+            const initBoard = (fen) => {
+                const config = {
+                    draggable: true,
+                    position: fen,
+                    onDragStart: onDragStart,
+                    onDrop: onDrop,
+                    onSnapEnd: onSnapEnd,
+                    pieceTheme: 'https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/img/chesspieces/wikipedia/{piece}.png' // Example piece theme
+                };
+                if (board) {
+                    board.destroy();
+                }
+                board = Chessboard('board', config); // Use Chessboard global function
+                updateStatus();
+            };
+
+            const onDragStart = (source, piece, position, orientation) => {
+                if (game.isGameOver()) return false;
+                if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
+                    (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
+                    return false;
+                }
+            };
+
+            const onDrop = (source, target, piece, newPos, oldPos, orientation) => {
+                removeHighlight(highlightedMoveSquares, [highlightFromClass, highlightToClass]); // Clear previous best move highlights
+                let move = null;
+                try {
+                    move = game.move({
+                        from: source,
+                        to: target,
+                        promotion: 'q' // NOTE: always promote to a queen for example simplicity
+                    });
+                } catch (e) {
+                    // This can happen if the move is invalid for reasons chess.js catches (e.g., leaving king in check)
+                    console.warn("Invalid move attempt:", e.message);
+                    return 'snapback';
+                }
+
+                if (move === null) return 'snapback';
+
+                currentFen = game.fen();
+                // board.position(currentFen); // onSnapEnd will handle this
+                updateStatus();
+
+                // Optional: analyze after each player move
+                // analyzePosition();
+
+                // Simple AI opponent move (if you want to implement one player vs Stockfish)
+                // window.setTimeout(makeStockfishMove, 250);
+            };
+
+            const onSnapEnd = () => {
+                board.position(game.fen());
+            };
+
+            const updateStatus = () => {
+                let status = '';
+                const moveColor = (game.turn() === 'b' ? 'Black' : 'White');
+
+                if (game.isCheckmate()) {
+                    status = 'Game over, ' + moveColor + ' is in checkmate.';
+                } else if (game.isDraw()) {
+                    status = 'Game over, drawn position';
+                } else {
+                    status = moveColor + ' to move';
+                    if (game.isCheck()) {
+                        status += ', ' + moveColor + ' is in check';
+                    }
+                }
+                statusElement.html(status);
+            };
+
+
+            const initStockfish = () => {
+                try {
+                    stockfish = new Worker(stockfishEnginePath);
+
+                    stockfish.onmessage = (event) => {
+                        const line = event.data ? String(event.data).trim() : '';
+                        console.log('Stockfish Output:', line);
+
+                        if (line.startsWith('bestmove')) {
+                            const parts = line.split(' ');
+                            const bestMoveUci = parts[1];
+                            bestMoveElement.text(bestMoveUci);
+                            visualizeBestMove(bestMoveUci);
+                        } else if (line.includes('info depth') && (line.includes('score cp') || line.includes('score mate'))) {
+                            const cpScoreMatch = line.match(/score cp (-?\d+)/);
+                            const mateScoreMatch = line.match(/score mate (-?\d+)/);
+
+                            if (cpScoreMatch) {
+                                const score = parseInt(cpScoreMatch[1]);
+                                // Score is from the perspective of the current player to move according to Stockfish
+                                // Adjust if FEN turn mismatches Stockfish's internal turn concept (usually not an issue with `position fen`)
+                                evaluationElement.text((score / 100).toFixed(2));
+                            } else if (mateScoreMatch) {
+                                evaluationElement.text('Mate in ' + mateScoreMatch[1]);
+                            }
+                        } else if (line === 'uciok') {
+                            stockfish.postMessage('isready');
+                        } else if (line === 'readyok') {
+                            console.log('Stockfish is ready.');
+                            // You can enable analyze button now or perform an initial analysis
+                            $('#analyze-button').prop('disabled', false);
+                        }
+                    };
+
+                    stockfish.onerror = (error) => {
+                        console.error('Stockfish Worker Error:', error);
+                        engineOutputElement.prepend('<p style="color:red;">Error loading Stockfish. Check console and engine path.</p>');
+                        $('#analyze-button').prop('disabled', true).text('Engine Error');
+                    };
+
+                    stockfish.postMessage('uci');
+                    // 'ucinewgame' might be sent before each analysis if needed, or once initially.
+                    // For analyzing arbitrary positions, 'ucinewgame' might not be strictly necessary before each 'position fen ...'
+                    // stockfish.postMessage('ucinewgame'); // Usually good before starting analysis of a new game/position set
+                } catch (e) {
+                    console.error("Failed to initialize Stockfish Worker:", e);
+                    engineOutputElement.prepend('<p style="color:red;">Could not start Stockfish. Ensure engine files are correctly placed.</p>');
+                    $('#analyze-button').prop('disabled', true).text('Engine Unavailable');
+                }
+            };
+
+            const analyzePosition = () => {
+                if (!stockfish) {
+                    console.error('Stockfish engine not initialized or failed to load.');
+                    bestMoveElement.text('Error');
+                    evaluationElement.text('Engine N/A');
+                    alert('Stockfish engine is not available. Please check the console for errors and ensure the engine is correctly placed in the "engine" folder.');
+                    return;
+                }
+
+                bestMoveElement.text('Thinking...');
+                evaluationElement.text('Thinking...');
+                removeHighlight(highlightedMoveSquares, [highlightFromClass, highlightToClass]); // Clear previous highlights
+
+                stockfish.postMessage('position fen ' + game.fen());
+                stockfish.postMessage('go depth 15'); // Adjust depth as needed
+            };
+
+            const removeHighlight = (squareArray, classNames) => {
+                squareArray.forEach(square => {
+                    classNames.forEach(className => {
+                        boardElement.find(`.square-${square}`).removeClass(className); // Chessboard.js adds classes like .square-e2
+                    });
+                });
+                squareArray.length = 0; // Clear the array
+            };
+
+            const visualizeBestMove = (bestMoveUci) => {
+                removeHighlight(highlightedMoveSquares, [highlightFromClass, highlightToClass]);
+                if (bestMoveUci && bestMoveUci.length >= 4) {
+                    const fromSquare = bestMoveUci.substring(0, 2);
+                    const toSquare = bestMoveUci.substring(2, 4);
+
+                    // Chessboard.js adds classes like .square-e2, .square-e4 to the divs representing squares
+                    boardElement.find(`.square-${fromSquare}`).addClass(highlightFromClass);
+                    boardElement.find(`.square-${toSquare}`).addClass(highlightToClass);
+                    highlightedMoveSquares.push(fromSquare, toSquare);
+                }
+            };
+
+            $('#analyze-button').on('click', () => {
+                analyzePosition();
+            });
+
+            // Initialize
+            $('#analyze-button').prop('disabled', true); // Disable until Stockfish is ready
+            initBoard(currentFen);
+            initStockfish();
+
+            // --- Implementing "click on a piece and show all possible moves and rate them" ---
+            // This is a more advanced feature than the current "Analyze Position".
+            // The current "Analyze Position" button gets the single best move for the WHOLE board.
+            // To show all legal moves for a SPECIFIC clicked piece and their individual ratings:
+            // 1. Add an event listener to the board for piece clicks (e.g., inside onDragStart or a separate click handler).
+            // 2. When a piece is clicked:
+            //    a. Get the square of the clicked piece (e.g., 'e2').
+            //    b. Use `game.moves({ square: 'e2', verbose: true })` to get all legal moves for that piece.
+            //    c. For EACH of these legal moves:
+            //       i. Create a temporary game state: `const tempGame = new Chess(game.fen()); tempGame.move(legalMove.san);`
+            //       ii. Send `tempGame.fen()` to Stockfish for evaluation. This requires multiple separate UCI `position fen ...` and `go ...` commands.
+            //       iii. Collect all these evaluations.
+            //       iv. Display these moves (e.g., highlight squares, draw arrows) and their ratings on the board or in a list.
+            // This involves more complex logic for managing multiple Stockfish requests and updating the UI accordingly.
+            // You might want a different button or mode to enable this "piece-specific analysis".
+        });
+    </script>
+</body>
+</html>
