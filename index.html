@@ -365,14 +365,14 @@
       let moveHistory = [];
       let navigationIndex = 0;
       let autoPlayPending = false;
-      let autoPlayTargetDepth = 20;
+      let autoPlayTargetDepth = 12;
       let autoPlayFen = null;
       let currentBestMove = null;
       let currentDepth = 0;
       let pieceMoveRatings = new Map();
       let waitingForAutoBestMove = false;
       let autoMoveCandidate = null;
-      const DEFAULT_DEPTH = 20;
+      const DEFAULT_DEPTH = 12;
       const BACKGROUND_EVAL_DEPTH = 14;
       const DEFAULT_THREADS = 4;
       const DEFAULT_HASH_MB = 469;
@@ -1571,7 +1571,6 @@
     updateStatus();
   });
   $('#flip-button').on('click', () => {
-    if (replayMode) stopReplay();
     orientation = orientation === 'white' ? 'black' : 'white';
     renderBoard();
     updateStatus();
