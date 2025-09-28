@@ -45,19 +45,21 @@
       max-width: 440px;
       margin: 0 auto;
       display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: 14px;
+      gap: 8px;
     }
 
     #gauge {
       position: relative;
-      flex: 1 1 auto;
+      flex: none;
       height: 18px;
       width: 100%;
       border-radius: 999px;
       background: linear-gradient(90deg, #11131d 0%, #2f344b 100%);
       border: 1px solid rgba(255, 255, 255, 0.12);
       overflow: hidden;
+      align-self: stretch;
     }
 
     #gauge-white {
@@ -68,14 +70,30 @@
       background: linear-gradient(90deg, #d2d8f7 0%, #f3f5ff 100%);
       width: 50%;
       transition: width 0.35s ease;
+      z-index: 1;
+    }
+
+    #gauge::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      width: 2px;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.65);
+      box-shadow: 0 0 6px rgba(12, 14, 25, 0.45);
+      z-index: 2;
+      pointer-events: none;
     }
 
     #evaluation-label {
       font-size: 0.9rem;
       color: #d4d9eb;
-      min-width: 70px;
-      text-align: right;
+      min-width: 0;
+      text-align: center;
       font-weight: 600;
+      width: 100%;
     }
 
     .board-container {
@@ -228,13 +246,7 @@
 
     @media (max-width: 768px) {
       .eval-bar {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 8px;
-      }
-
-      #evaluation-label {
-        text-align: left;
+        gap: 6px;
       }
     }
 
@@ -301,6 +313,7 @@
       let board, engine;
       const game = new Chess();
       const boardEl = $('#board');
+      let baseFen = game.fen();
       let selectedSquare = null;
       let moveSourceSquare = null;
       let isPieceAnalysis = false;
@@ -370,19 +383,26 @@
         updateNavigationButtons();
       }
 
-      function resetHistory() {
+      function resetHistory(newBaseFen = null) {
         moveHistory = [];
         navigationIndex = 0;
         autoPlayPending = false;
         waitingForAutoBestMove = false;
         autoMoveCandidate = null;
         autoPlayFen = null;
+        if (typeof newBaseFen === 'string' && newBaseFen.length) {
+          baseFen = newBaseFen;
+        }
         updateNavigationButtons();
       }
 
       function rebuildPosition(targetIndex) {
         const clamped = Math.max(0, Math.min(targetIndex, moveHistory.length));
-        game.reset();
+        const loaded = game.load(baseFen);
+        if (!loaded) {
+          game.reset();
+          baseFen = game.fen();
+        }
         for (let i = 0; i < clamped; i += 1) {
           const entry = moveHistory[i];
           if (!entry) continue;
@@ -492,7 +512,7 @@
     if (editSelectionSource === 'spare') {
       game.remove(square);
       game.put({ type: editSelectedPiece.type, color: editSelectedPiece.color }, square);
-      resetHistory();
+      resetHistory(game.fen());
       renderBoard();
       updateStatus();
       requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
@@ -515,7 +535,7 @@
       game.remove(square);
       game.put(movingPiece, square);
       clearEditSelection();
-      resetHistory();
+      resetHistory(game.fen());
       renderBoard();
       updateStatus();
       requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
@@ -529,7 +549,7 @@
     if (editSelectionSource === 'board' && editSelectedSquare) {
       game.remove(editSelectedSquare);
       clearEditSelection();
-      resetHistory();
+      resetHistory(game.fen());
       renderBoard();
       updateStatus();
       requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
@@ -652,7 +672,7 @@
     if (editMode) {
       game.clear();
       Object.entries(newPos).forEach(([sq,p]) => { if (p) game.put({type:p[1].toLowerCase(), color:p[0]}, sq); });
-      resetHistory();
+      resetHistory(game.fen());
       renderBoard(); updateStatus(); requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
       return;
     }
@@ -968,7 +988,7 @@
     editSelectionSource = null;
     applySelectionHighlights();
     applySpareSelection();
-    resetHistory();
+    resetHistory(game.fen());
     renderBoard();
     updateStatus();
     requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
