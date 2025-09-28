@@ -41,7 +41,9 @@
     }
 
     .eval-bar {
-      width: 100%;
+      width: min(72vw, 440px);
+      max-width: 440px;
+      margin: 0 auto;
       display: flex;
       align-items: center;
       gap: 14px;
@@ -51,6 +53,7 @@
       position: relative;
       flex: 1 1 auto;
       height: 18px;
+      width: 100%;
       border-radius: 999px;
       background: linear-gradient(90deg, #11131d 0%, #2f344b 100%);
       border: 1px solid rgba(255, 255, 255, 0.12);
