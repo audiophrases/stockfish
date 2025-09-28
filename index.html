@@ -72,6 +72,7 @@
       width: 100%;
       height: 100%;
       display: block;
+      cursor: pointer;
     }
 
     #gauge {
@@ -381,6 +382,15 @@
       const evaluationGraphCanvas = document.getElementById('evaluation-graph');
       const evaluationGraphCtx = evaluationGraphCanvas ? evaluationGraphCanvas.getContext('2d') : null;
       let evaluationTimeline = [];
+      let backgroundEngine = null;
+      let backgroundEngineReady = false;
+      let backgroundEvaluationQueue = [];
+      let backgroundCurrentTask = null;
+      let backgroundPendingStart = false;
+      let backgroundLastScore = null;
+      let backgroundEvaluationToken = 0;
+      let backgroundEvaluationCompleted = 0;
+      let backgroundEvaluationTotal = 0;
 
       function ensureTimelineCapacity(size) {
         const target = Math.max(0, Math.floor(size));
@@ -396,6 +406,214 @@
         const size = Math.max(1, Math.floor(initialSize));
         evaluationTimeline = new Array(size).fill(null);
         renderEvaluationGraph();
+      }
+
+      function resetBackgroundEvaluationProgress() {
+        backgroundEvaluationCompleted = 0;
+        backgroundEvaluationTotal = 0;
+        updateEvaluationProgressLabel();
+      }
+
+      function updateEvaluationProgressLabel() {
+        if (backgroundEvaluationTotal > 0 && backgroundEvaluationCompleted < backgroundEvaluationTotal) {
+          $('#evaluation-label').text(`Evaluating game (${backgroundEvaluationCompleted}/${backgroundEvaluationTotal})`);
+        } else {
+          $('#evaluation-label').text('');
+        }
+      }
+
+      function createEvaluationEntryFromScore({ cp = null, mate = null, turn = 'w' }) {
+        if (typeof mate === 'number') {
+          const mateValueRaw = mate;
+          const isNegativeZero = Object.is(mateValueRaw, -0);
+          const rawSign = mateValueRaw > 0 ? 1 : mateValueRaw < 0 ? -1 : (isNegativeZero ? -1 : 1);
+          let mateValue = mateValueRaw;
+          if (turn === 'b') {
+            mateValue = -mateValue;
+          }
+          if (mateValue === 0) {
+            const gaugeSign = turn === 'b' ? -rawSign : rawSign;
+            return { value: gaugeSign >= 0 ? 2000 : -2000, text: 'Checkmate' };
+          }
+          const matePrefix = mateValue > 0 ? '' : '-';
+          return { value: mateValue > 0 ? 2000 : -2000, text: `Mate in ${matePrefix}${Math.abs(mateValue)}` };
+        }
+
+        if (typeof cp === 'number') {
+          let cpValue = cp;
+          if (turn === 'b') {
+            cpValue = -cpValue;
+          }
+          const normalized = Math.max(-2000, Math.min(2000, cpValue));
+          const prefix = cpValue > 0 ? '+' : '';
+          return { value: normalized, text: `${prefix}${(cpValue / 100).toFixed(2)}` };
+        }
+
+        return null;
+      }
+
+      function cancelBackgroundEvaluation() {
+        backgroundEvaluationToken += 1;
+        const hadActiveTask = !!backgroundCurrentTask;
+        backgroundEvaluationQueue = [];
+        backgroundCurrentTask = null;
+        backgroundLastScore = null;
+        resetBackgroundEvaluationProgress();
+        if (backgroundEngine && hadActiveTask) {
+          backgroundPendingStart = true;
+          backgroundEngine.postMessage('stop');
+        } else {
+          backgroundPendingStart = false;
+        }
+      }
+
+      function processBackgroundQueue() {
+        if (!backgroundEngineReady || backgroundPendingStart || backgroundCurrentTask) return;
+        const nextTask = backgroundEvaluationQueue.shift();
+        if (!nextTask || nextTask.token !== backgroundEvaluationToken) {
+          if (!backgroundEvaluationQueue.length && backgroundEvaluationCompleted >= backgroundEvaluationTotal && backgroundEvaluationTotal > 0) {
+            updateEvaluationProgressLabel();
+          }
+          return;
+        }
+        backgroundCurrentTask = nextTask;
+        backgroundLastScore = null;
+        const normalizedFen = normalizeFenTurn(nextTask.fen, nextTask.turn);
+        backgroundEngine.postMessage('setoption name MultiPV value 1');
+        backgroundEngine.postMessage(`position fen ${normalizedFen}`);
+        backgroundEngine.postMessage(`go depth ${nextTask.depth || DEFAULT_DEPTH}`);
+      }
+
+      function queueBackgroundEvaluationTasks(tasks) {
+        if (!Array.isArray(tasks) || !tasks.length) {
+          cancelBackgroundEvaluation();
+          return;
+        }
+        backgroundEvaluationToken += 1;
+        const token = backgroundEvaluationToken;
+        backgroundEvaluationQueue = tasks.map(task => ({ ...task, token }));
+        backgroundCurrentTask = null;
+        backgroundLastScore = null;
+        backgroundEvaluationCompleted = 0;
+        backgroundEvaluationTotal = tasks.length;
+        updateEvaluationProgressLabel();
+        if (!backgroundEngine) {
+          initBackgroundEngine();
+        }
+        if (backgroundEngineReady && !backgroundPendingStart) {
+          processBackgroundQueue();
+        }
+      }
+
+      function initBackgroundEngine() {
+        if (backgroundEngine) return;
+        backgroundEngineReady = false;
+        backgroundPendingStart = false;
+        backgroundCurrentTask = null;
+        backgroundLastScore = null;
+        backgroundEngine = new Worker('./engine/stockfish.js');
+        backgroundEngine.onmessage = e => {
+          const line = String(e.data).trim();
+
+          if (line === 'uciok') {
+            backgroundEngine.postMessage('setoption name Threads value 1');
+            backgroundEngine.postMessage('setoption name Hash value 128');
+            backgroundEngine.postMessage('isready');
+            return;
+          }
+
+          if (line === 'readyok') {
+            backgroundEngineReady = true;
+            processBackgroundQueue();
+            return;
+          }
+
+          if (!line.length) return;
+
+          if (backgroundPendingStart) {
+            if (line.startsWith('bestmove')) {
+              backgroundPendingStart = false;
+              backgroundLastScore = null;
+              processBackgroundQueue();
+            }
+            return;
+          }
+
+          if (line.startsWith('info')) {
+            if (!backgroundCurrentTask || backgroundCurrentTask.token !== backgroundEvaluationToken) {
+              return;
+            }
+            if (!line.includes('score')) return;
+
+            const cpMatch = line.match(/score cp (-?\d+)/);
+            const mateMatch = line.match(/score mate (-?\d+)/);
+            if (mateMatch) {
+              backgroundLastScore = { mate: parseInt(mateMatch[1], 10), turn: backgroundCurrentTask.turn };
+            } else if (cpMatch) {
+              backgroundLastScore = { cp: parseInt(cpMatch[1], 10), turn: backgroundCurrentTask.turn };
+            }
+            return;
+          }
+
+          if (!line.startsWith('bestmove')) return;
+
+          if (!backgroundCurrentTask) {
+            processBackgroundQueue();
+            return;
+          }
+
+          if (backgroundCurrentTask.token !== backgroundEvaluationToken) {
+            backgroundCurrentTask = null;
+            backgroundLastScore = null;
+            processBackgroundQueue();
+            return;
+          }
+
+          const currentTask = backgroundCurrentTask;
+          backgroundCurrentTask = null;
+          let entry = null;
+          if (backgroundLastScore) {
+            entry = createEvaluationEntryFromScore({ cp: backgroundLastScore.cp ?? null, mate: backgroundLastScore.mate ?? null, turn: backgroundLastScore.turn || currentTask.turn });
+          }
+          if (!entry) {
+            entry = { value: 0, text: 'N/A' };
+          }
+          setTimelineEntry(currentTask.index, entry);
+          backgroundEvaluationCompleted = Math.min(backgroundEvaluationCompleted + 1, backgroundEvaluationTotal);
+          if (currentTask.index === navigationIndex) {
+            applyStoredEvaluationIfAvailable();
+          }
+          updateEvaluationProgressLabel();
+          backgroundLastScore = null;
+          processBackgroundQueue();
+        };
+        backgroundEngine.postMessage('uci');
+      }
+
+      function buildBackgroundTasksForGame() {
+        const tasks = [];
+        const evaluationGame = new Chess();
+        if (!evaluationGame.load(baseFen)) {
+          evaluationGame.reset();
+        }
+        tasks.push({ index: 0, fen: evaluationGame.fen(), turn: evaluationGame.turn(), depth: DEFAULT_DEPTH });
+        for (let i = 0; i < moveHistory.length; i += 1) {
+          const entry = moveHistory[i];
+          if (!entry) continue;
+          const moveConfig = { from: entry.from, to: entry.to };
+          if (entry.promotion) {
+            moveConfig.promotion = entry.promotion;
+          }
+          const applied = evaluationGame.move(moveConfig);
+          if (!applied) break;
+          tasks.push({ index: i + 1, fen: evaluationGame.fen(), turn: evaluationGame.turn(), depth: DEFAULT_DEPTH });
+        }
+        return tasks;
+      }
+
+      function scheduleFullGameEvaluation() {
+        const tasks = buildBackgroundTasksForGame();
+        queueBackgroundEvaluationTasks(tasks);
       }
 
       function setTimelineEntry(index, entry) {
@@ -588,6 +806,7 @@
         autoMoveCandidate = null;
         autoPlayFen = null;
         autoPlayDepthSatisfied = false;
+        cancelBackgroundEvaluation();
         if (autoPlayDelayTimer) {
           clearTimeout(autoPlayDelayTimer);
           autoPlayDelayTimer = null;
@@ -1320,20 +1539,10 @@
 
       resetHistory(basePositionFen);
       moveHistory = moves;
-      navigationIndex = moveHistory.length;
-      ensureTimelineCapacity(navigationIndex + 1);
+      navigationIndex = 0;
+      clearEvaluationTimeline(moveHistory.length + 1);
       if (!game.load(basePositionFen)) {
         return false;
-      }
-      for (const mv of moveHistory) {
-        const moveConfig = { from: mv.from, to: mv.to };
-        if (mv.promotion) {
-          moveConfig.promotion = mv.promotion;
-        }
-        const applied = game.move(moveConfig);
-        if (!applied) {
-          break;
-        }
       }
       updateNavigationButtons();
       renderEvaluationGraph();
@@ -1365,17 +1574,33 @@
     updateStatus();
     updateNavigationButtons();
     requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
+    scheduleFullGameEvaluation();
   });
 
   renderBoard();
   setGaugeVisual(0);
   initEngine();
+  initBackgroundEngine();
   updateStatus();
   $(window).off('resize.board').on('resize.board', () => {
     if (!board) return;
     board.resize();
     syncEvalBarWidth();
   });
+
+  if (evaluationGraphCanvas) {
+    evaluationGraphCanvas.addEventListener('click', event => {
+      if (editMode || pieceMovesMode) return;
+      if (!evaluationTimeline || evaluationTimeline.length <= 1) return;
+      const rect = evaluationGraphCanvas.getBoundingClientRect();
+      if (!rect.width) return;
+      const relativeX = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
+      const ratio = relativeX / rect.width;
+      const targetIndex = Math.round(ratio * (evaluationTimeline.length - 1));
+      if (targetIndex === navigationIndex) return;
+      rebuildPosition(targetIndex);
+    });
+  }
 });
 
   </script>
