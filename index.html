@@ -373,6 +373,7 @@
       let waitingForAutoBestMove = false;
       let autoMoveCandidate = null;
       const DEFAULT_DEPTH = 20;
+      const BACKGROUND_EVAL_DEPTH = 14;
       const DEFAULT_THREADS = 4;
       const DEFAULT_HASH_MB = 469;
       const AUTO_PLAY_MIN_WAIT_MS = 4000;
@@ -481,7 +482,8 @@
         const normalizedFen = normalizeFenTurn(nextTask.fen, nextTask.turn);
         backgroundEngine.postMessage('setoption name MultiPV value 1');
         backgroundEngine.postMessage(`position fen ${normalizedFen}`);
-        backgroundEngine.postMessage(`go depth ${nextTask.depth || DEFAULT_DEPTH}`);
+        const depth = typeof nextTask.depth === 'number' ? nextTask.depth : BACKGROUND_EVAL_DEPTH;
+        backgroundEngine.postMessage(`go depth ${depth}`);
       }
 
       function queueBackgroundEvaluationTasks(tasks) {
@@ -596,7 +598,7 @@
         if (!evaluationGame.load(baseFen)) {
           evaluationGame.reset();
         }
-        tasks.push({ index: 0, fen: evaluationGame.fen(), turn: evaluationGame.turn(), depth: DEFAULT_DEPTH });
+        tasks.push({ index: 0, fen: evaluationGame.fen(), turn: evaluationGame.turn(), depth: BACKGROUND_EVAL_DEPTH });
         for (let i = 0; i < moveHistory.length; i += 1) {
           const entry = moveHistory[i];
           if (!entry) continue;
@@ -606,7 +608,7 @@
           }
           const applied = evaluationGame.move(moveConfig);
           if (!applied) break;
-          tasks.push({ index: i + 1, fen: evaluationGame.fen(), turn: evaluationGame.turn(), depth: DEFAULT_DEPTH });
+          tasks.push({ index: i + 1, fen: evaluationGame.fen(), turn: evaluationGame.turn(), depth: BACKGROUND_EVAL_DEPTH });
         }
         return tasks;
       }
