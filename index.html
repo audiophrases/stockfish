@@ -377,6 +377,7 @@
       const DEFAULT_THREADS = 4;
       const DEFAULT_HASH_MB = 469;
       const AUTO_PLAY_MIN_WAIT_MS = 4000;
+      const REPLAY_STEP_DELAY_MS = 900;
       let autoPlayRequestedAt = 0;
       let autoPlayDelayTimer = null;
       let autoPlayDepthSatisfied = false;
@@ -392,6 +393,13 @@
       let backgroundEvaluationToken = 0;
       let backgroundEvaluationCompleted = 0;
       let backgroundEvaluationTotal = 0;
+      let replayMode = false;
+      let replayTargetDepth = DEFAULT_DEPTH;
+      let replayPendingIndex = null;
+      let replayAdvanceScheduled = false;
+      let replayTimer = null;
+      let pendingReplayStart = null;
+      let lastImportWasPgn = false;
 
       function ensureTimelineCapacity(size) {
         const target = Math.max(0, Math.floor(size));
@@ -416,6 +424,13 @@
       }
 
       function updateEvaluationProgressLabel() {
+        if (replayMode) {
+          const totalPositions = moveHistory.length + 1;
+          const currentPosition = Math.min(totalPositions, navigationIndex + 1);
+          $('#evaluation-label').text(`Auto-playing game (${currentPosition}/${totalPositions})`);
+          return;
+        }
+
         if (backgroundEvaluationTotal > 0 && backgroundEvaluationCompleted < backgroundEvaluationTotal) {
           $('#evaluation-label').text(`Evaluating game (${backgroundEvaluationCompleted}/${backgroundEvaluationTotal})`);
         } else {
@@ -787,6 +802,70 @@
         $('#next-button').prop('disabled', nextDisabled);
       }
 
+      function cancelReplayTimer() {
+        if (replayTimer) {
+          clearTimeout(replayTimer);
+          replayTimer = null;
+        }
+      }
+
+      function stopReplay() {
+        replayMode = false;
+        replayPendingIndex = null;
+        replayAdvanceScheduled = false;
+        cancelReplayTimer();
+        pendingReplayStart = null;
+        updateEvaluationProgressLabel();
+      }
+
+      function scheduleReplayAdvance() {
+        if (!replayMode) return;
+        if (replayAdvanceScheduled) return;
+        replayAdvanceScheduled = true;
+        cancelReplayTimer();
+        replayTimer = setTimeout(() => {
+          replayTimer = null;
+          replayAdvanceScheduled = false;
+          if (!replayMode) return;
+          const nextIndex = navigationIndex + 1;
+          if (nextIndex > moveHistory.length) {
+            stopReplay();
+            return;
+          }
+          rebuildPosition(nextIndex, {
+            highlight: shouldHighlightBest && bestMoveVisible,
+            revealBest: bestMoveVisible,
+            depth: replayTargetDepth,
+            replay: true
+          });
+        }, REPLAY_STEP_DELAY_MS);
+      }
+
+      function startReplayFromIndex(index = 0, depth = DEFAULT_DEPTH) {
+        const clampedIndex = Math.max(0, Math.min(index, moveHistory.length));
+        if (!engineReady || !engine) {
+          replayMode = true;
+          replayTargetDepth = typeof depth === 'number' && depth > 0 ? depth : DEFAULT_DEPTH;
+          replayPendingIndex = clampedIndex;
+          replayAdvanceScheduled = false;
+          cancelReplayTimer();
+          updateEvaluationProgressLabel();
+          pendingReplayStart = { index: clampedIndex, depth };
+          return;
+        }
+        pendingReplayStart = null;
+        stopReplay();
+        replayTargetDepth = typeof depth === 'number' && depth > 0 ? depth : DEFAULT_DEPTH;
+        cancelReplayTimer();
+        replayAdvanceScheduled = false;
+        rebuildPosition(clampedIndex, {
+          highlight: shouldHighlightBest && bestMoveVisible,
+          revealBest: bestMoveVisible,
+          depth: replayTargetDepth,
+          replay: true
+        });
+      }
+
       function recordMove(move) {
         if (!move) return;
         if (navigationIndex < moveHistory.length) {
@@ -808,6 +887,7 @@
         autoMoveCandidate = null;
         autoPlayFen = null;
         autoPlayDepthSatisfied = false;
+        stopReplay();
         cancelBackgroundEvaluation();
         if (autoPlayDelayTimer) {
           clearTimeout(autoPlayDelayTimer);
@@ -823,7 +903,7 @@
         renderEvaluationGraph();
       }
 
-      function rebuildPosition(targetIndex) {
+      function rebuildPosition(targetIndex, analysisOptions = null) {
         const clamped = Math.max(0, Math.min(targetIndex, moveHistory.length));
         const loaded = game.load(baseFen);
         if (!loaded) {
@@ -849,7 +929,12 @@
         updateStatus();
         applyStoredEvaluationIfAvailable();
         renderEvaluationGraph();
-        requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
+        const requestOptions = analysisOptions || {
+          highlight: shouldHighlightBest && bestMoveVisible,
+          revealBest: bestMoveVisible
+        };
+        requestAnalysis(requestOptions);
+        updateEvaluationProgressLabel();
       }
 
       function applyAutoMove(uciMove) {
@@ -1096,12 +1181,14 @@
   }
 
   function onDragStart(src, piece) {
+    if (replayMode) stopReplay();
     if (editMode) return false;
     if (freezeMode) return false;
     return !game.game_over() && ((game.turn() === 'w' && piece[0] === 'w') || (game.turn() === 'b' && piece[0] === 'b'));
   }
 
   function onDrop(src, tgt, piece, newPos) {
+    if (replayMode) stopReplay();
     clearHighlights(); clearRatings();
     if (editMode) {
       game.clear();
@@ -1140,7 +1227,13 @@
         engineReady = true;
         $('#best-move-button').prop('disabled', false);
         updateNavigationButtons();
-        requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
+        if (pendingReplayStart) {
+          const pending = pendingReplayStart;
+          pendingReplayStart = null;
+          startReplayFromIndex(pending.index, pending.depth);
+        } else {
+          requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
+        }
         return;
       }
 
@@ -1289,10 +1382,14 @@
       const pvIndex = line.indexOf(' pv ');
       if (pvIndex !== -1) {
         const pvMoves = line.slice(pvIndex + 4).trim().split(' ');
-        if (pvMoves.length) {
-          currentBestMove = pvMoves[0];
-          updateBestMoveDisplay();
-        }
+      if (pvMoves.length) {
+        currentBestMove = pvMoves[0];
+        updateBestMoveDisplay();
+      }
+      }
+
+      if (replayMode && replayPendingIndex === navigationIndex && currentDepth >= replayTargetDepth) {
+        scheduleReplayAdvance();
       }
 
       if (autoPlayPending && autoPlayFen === latestAnalysisFen && currentDepth >= autoPlayTargetDepth && currentBestMove && !game.game_over()) {
@@ -1326,7 +1423,8 @@
       autoPlay = false,
       searchMoves = null,
       multiPv = 1,
-      pieceAnalysis = false
+      pieceAnalysis = false,
+      replay = false
     } = options;
 
     latestAnalysisFen = game.fen();
@@ -1342,6 +1440,19 @@
     }
     if (!pieceAnalysis) {
       clearRatings();
+    }
+
+    if (replay) {
+      replayMode = true;
+      replayTargetDepth = depth;
+      replayPendingIndex = navigationIndex;
+      replayAdvanceScheduled = false;
+      cancelReplayTimer();
+      updateEvaluationProgressLabel();
+    } else if (!pieceAnalysis) {
+      if (replayMode) {
+        stopReplay();
+      }
     }
 
     if (autoPlay) {
@@ -1379,6 +1490,9 @@
       }
     }
     updateBestMoveDisplay();
+    if (replay) {
+      updateEvaluationProgressLabel();
+    }
 
     const normalizedFen = normalizeFenTurn(latestAnalysisFen, game.turn());
 
@@ -1411,6 +1525,7 @@
 
   // UI hooks
   $('#best-move-button').on('click', () => {
+    if (replayMode) stopReplay();
     bestMoveVisible = !bestMoveVisible;
     shouldHighlightBest = bestMoveVisible;
     $('#best-move-button').text(bestMoveVisible ? 'Hide Best' : 'Best');
@@ -1420,10 +1535,12 @@
     }
   });
   $('#prev-button').on('click', () => {
+    if (replayMode) stopReplay();
     if (navigationIndex === 0) return;
     rebuildPosition(navigationIndex - 1);
   });
   $('#next-button').on('click', () => {
+    if (replayMode) stopReplay();
     if (autoPlayPending) return;
     if (game.game_over()) return;
     if (navigationIndex < moveHistory.length) {
@@ -1439,6 +1556,7 @@
     });
   });
   $('#piece-moves-button').on('click', () => {
+    if (replayMode) stopReplay();
     pieceMovesMode = !pieceMovesMode;
     freezeMode = pieceMovesMode;
     if (!pieceMovesMode) {
@@ -1453,11 +1571,13 @@
     updateStatus();
   });
   $('#flip-button').on('click', () => {
+    if (replayMode) stopReplay();
     orientation = orientation === 'white' ? 'black' : 'white';
     renderBoard();
     updateStatus();
   });
   $('#edit-button').on('click', () => {
+    if (replayMode) stopReplay();
     editMode = !editMode;
     moveSourceSquare = null;
     selectedSquare = null;
@@ -1476,6 +1596,7 @@
     updateStatus();
   });
   $('#fen-button').on('click', () => {
+    if (replayMode) stopReplay();
     const raw = prompt('Enter FEN or PGN');
     if (!raw) return;
     const trimmed = raw.trim();
@@ -1483,21 +1604,22 @@
 
     const looksLikePgn = /\d+\./.test(trimmed) || /\[\w+\s+".*"\]/.test(trimmed) || trimmed.includes('\n');
 
-    const loadFen = () => {
-      const fenTest = new Chess();
-      if (!fenTest.load(trimmed)) {
-        return false;
-      }
-      const canonicalFen = fenTest.fen();
-      if (!game.load(canonicalFen)) {
-        return false;
-      }
-      resetHistory(game.fen());
-      return true;
-    };
+      const loadFen = () => {
+        const fenTest = new Chess();
+        if (!fenTest.load(trimmed)) {
+          return false;
+        }
+        const canonicalFen = fenTest.fen();
+        if (!game.load(canonicalFen)) {
+          return false;
+        }
+        resetHistory(game.fen());
+        lastImportWasPgn = false;
+        return true;
+      };
 
-    const loadPgn = () => {
-      let importGame = new Chess();
+      const loadPgn = () => {
+        let importGame = new Chess();
       let loaded = false;
       if (typeof importGame.load_pgn === 'function') {
         loaded = importGame.load_pgn(trimmed, { sloppy: true });
@@ -1548,9 +1670,11 @@
       }
       updateNavigationButtons();
       renderEvaluationGraph();
+      lastImportWasPgn = true;
       return true;
     };
 
+    lastImportWasPgn = false;
     const loaders = looksLikePgn ? [loadPgn, loadFen] : [loadFen, loadPgn];
     let loaded = false;
     for (const loader of loaders) {
@@ -1575,8 +1699,11 @@
     renderBoard();
     updateStatus();
     updateNavigationButtons();
-    requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
-    scheduleFullGameEvaluation();
+    if (lastImportWasPgn) {
+      startReplayFromIndex(0, DEFAULT_DEPTH);
+    } else {
+      requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
+    }
   });
 
   renderBoard();
@@ -1592,6 +1719,7 @@
 
   if (evaluationGraphCanvas) {
     evaluationGraphCanvas.addEventListener('click', event => {
+      if (replayMode) stopReplay();
       if (editMode || pieceMovesMode) return;
       if (!evaluationTimeline || evaluationTimeline.length <= 1) return;
       const rect = evaluationGraphCanvas.getBoundingClientRect();
