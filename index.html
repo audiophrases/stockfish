@@ -14,7 +14,7 @@
       justify-content: center;
       align-items: center;
       min-height: 100vh;
-      background: radial-gradient(circle at top, #2b2f46 0%, #10121c 55%, #06070c 100%);
+      background-color: #808080;
       margin: 0;
       padding: 24px;
       color: #eef0f6;
@@ -167,6 +167,11 @@
       background: rgba(255, 255, 0, 0.38) !important;
     }
 
+    .selected-spare-piece {
+      box-shadow: 0 0 0 3px #f2ff5f inset;
+      border-radius: 8px;
+    }
+
     .move-rating {
       position: absolute;
       bottom: 6px;
@@ -274,7 +279,7 @@
       </div>
       <div id="info-line">
         <span id="status">Ready</span>
-        <span class="info-line-item"><span>Best:</span><span id="best-move">N/A</span></span>
+        <span class="info-line-item"><span>Best:</span><span id="best-move">Hidden</span></span>
         <span class="info-line-item"><span>Eval:</span><span id="evaluation">N/A</span></span>
       </div>
     </div>
@@ -299,8 +304,13 @@
       let pieceMovesMode = false;
       let orientation = 'white';
       let latestAnalysisFen = null;
-      let shouldHighlightBest = true;
+      let shouldHighlightBest = false;
       let engineReady = false;
+      let editSelectedPiece = null;
+      let editSelectedSquare = null;
+      let editSelectionSource = null;
+      let bestMoveRevealPending = false;
+      let bestMoveVisible = false;
 
       function updateGauge(cp) {
         const clamped = Math.max(-2000, Math.min(2000, cp));
@@ -319,6 +329,12 @@
 
   function applySelectionHighlights() {
     clearSelectionHighlight();
+    if (editMode) {
+      if (editSelectionSource === 'board' && editSelectedSquare) {
+        highlightSelection(editSelectedSquare);
+      }
+      return;
+    }
     if (pieceMovesMode && selectedSquare) {
       highlightSelection(selectedSquare);
     } else if (!pieceMovesMode && moveSourceSquare) {
@@ -326,9 +342,102 @@
     }
   }
 
+  function clearSpareSelectionHighlight() {
+    $('.board-container .selected-spare-piece').removeClass('selected-spare-piece');
+  }
+
+  function applySpareSelection() {
+    clearSpareSelectionHighlight();
+    if (!editMode || editSelectionSource !== 'spare' || !editSelectedPiece) return;
+    const pieceCode = `${editSelectedPiece.color}${editSelectedPiece.type.toUpperCase()}`;
+    $('.board-container .spare-pieces-7492f .piece-417db').filter(`[data-piece='${pieceCode}']`).first().addClass('selected-spare-piece');
+  }
+
+  function clearEditSelection() {
+    editSelectedPiece = null;
+    editSelectedSquare = null;
+    editSelectionSource = null;
+    applySelectionHighlights();
+    applySpareSelection();
+  }
+
+  function handleSparePieceClick(pieceCode) {
+    if (!editMode || !pieceCode || pieceCode.length < 2) return;
+    editSelectedPiece = { color: pieceCode[0], type: pieceCode[1].toLowerCase() };
+    editSelectedSquare = null;
+    editSelectionSource = 'spare';
+    applySelectionHighlights();
+    applySpareSelection();
+  }
+
+  function handleEditSquareClick(square) {
+    if (!editMode) return;
+    if (!square) return;
+
+    const piece = game.get(square);
+
+    if (!editSelectedPiece) {
+      if (piece) {
+        editSelectedPiece = { type: piece.type, color: piece.color };
+        editSelectedSquare = square;
+        editSelectionSource = 'board';
+        applySelectionHighlights();
+      }
+      return;
+    }
+
+    if (editSelectionSource === 'spare') {
+      game.remove(square);
+      game.put({ type: editSelectedPiece.type, color: editSelectedPiece.color }, square);
+      renderBoard();
+      updateStatus();
+      requestAnalysis();
+      return;
+    }
+
+    if (editSelectionSource === 'board') {
+      const sourceSquare = editSelectedSquare;
+      if (!sourceSquare) {
+        clearEditSelection();
+        return;
+      }
+      if (sourceSquare === square) {
+        clearEditSelection();
+        return;
+      }
+
+      const movingPiece = { type: editSelectedPiece.type, color: editSelectedPiece.color };
+      game.remove(sourceSquare);
+      game.remove(square);
+      game.put(movingPiece, square);
+      clearEditSelection();
+      renderBoard();
+      updateStatus();
+      requestAnalysis();
+    }
+  }
+
+  function handleOutsideBoardClick(event) {
+    if (!editMode) return;
+    const $target = $(event.target);
+    if ($target.closest('.board-container').length) return;
+    if (editSelectionSource === 'board' && editSelectedSquare) {
+      game.remove(editSelectedSquare);
+      clearEditSelection();
+      renderBoard();
+      updateStatus();
+      requestAnalysis();
+    } else if (editSelectionSource) {
+      clearEditSelection();
+    }
+  }
+
   function handleSquareClick(square) {
     if (!square) return;
-    if (editMode) return;
+    if (editMode) {
+      handleEditSquareClick(square);
+      return;
+    }
 
     if (pieceMovesMode) {
       selectedSquare = square;
@@ -400,7 +509,12 @@
       if (!sq) return;
       handleSquareClick(sq.replace('square-',''));
     });
+    $('.board-container .spare-pieces-7492f').off('click.spare').on('click.spare', '.piece-417db', function() {
+      const pieceCode = $(this).attr('data-piece');
+      handleSparePieceClick(pieceCode);
+    });
     applySelectionHighlights();
+    applySpareSelection();
     if (!editMode && !pieceMovesMode && shouldHighlightBest) {
       const currentBest = $('#best-move').text().trim();
       if (/^[a-h][1-8][a-h][1-8]$/.test(currentBest)) {
@@ -419,7 +533,7 @@
   }
 
   function onDragStart(src, piece) {
-    if (editMode) return true;
+    if (editMode) return false;
     if (freezeMode) return false;
     return !game.game_over() && ((game.turn() === 'w' && piece[0] === 'w') || (game.turn() === 'b' && piece[0] === 'b'));
   }
@@ -476,17 +590,25 @@
           isPieceAnalysis = false;
           engine.postMessage('setoption name MultiPV value 1');
           if (!pieceMovesMode) {
-            requestAnalysis({ highlight: shouldHighlightBest });
+            requestAnalysis({ highlight: shouldHighlightBest, revealBest: bestMoveVisible });
           }
         } else if (latestAnalysisFen && latestAnalysisFen === game.fen()) {
           const parts = line.split(' ');
           const move = parts[1];
           const best = !move || move === '(none)' ? 'N/A' : move;
-          $('#best-move').text(best);
-          if (!move || move === '(none)') {
+          if (bestMoveRevealPending) {
+            $('#best-move').text(best);
+            bestMoveRevealPending = false;
+            bestMoveVisible = best !== 'N/A';
+            if (!bestMoveVisible) {
+              shouldHighlightBest = false;
+              clearHighlights();
+            } else if (shouldHighlightBest) {
+              visualize(move);
+            }
+          } else if (!bestMoveVisible) {
+            $('#best-move').text('Hidden');
             clearHighlights();
-          } else if (shouldHighlightBest) {
-            visualize(move);
           }
         }
         return;
@@ -524,13 +646,15 @@
 
   function requestAnalysis(options = {}) {
     if (!engineReady || !engine) return;
-    const { highlight = true } = options;
+    const { highlight = false, revealBest = false } = options;
     latestAnalysisFen = game.fen();
-    shouldHighlightBest = highlight;
+    shouldHighlightBest = highlight && revealBest;
+    bestMoveRevealPending = revealBest;
+    bestMoveVisible = false;
     isPieceAnalysis = false;
     clearHighlights();
     clearRatings();
-    $('#best-move').text('...');
+    $('#best-move').text(revealBest ? '...' : 'Hidden');
     $('#evaluation').text('...');
     engine.postMessage('stop');
     engine.postMessage('setoption name MultiPV value 1');
@@ -552,12 +676,12 @@
   }
 
   // UI hooks
-  $('#best-move-button').on('click', () => { requestAnalysis(); });
+  $('#best-move-button').on('click', () => { requestAnalysis({ highlight: true, revealBest: true }); });
   $('#piece-moves-button').on('click', () => {
     pieceMovesMode = !pieceMovesMode;
     freezeMode = pieceMovesMode;
     if (!pieceMovesMode) {
-      requestAnalysis();
+      requestAnalysis({ highlight: shouldHighlightBest, revealBest: bestMoveVisible });
     }
     selectedSquare = null;
     moveSourceSquare = null;
@@ -574,8 +698,16 @@
   });
   $('#edit-button').on('click', () => {
     editMode = !editMode;
-    if (!editMode) {
-      moveSourceSquare = null;
+    moveSourceSquare = null;
+    selectedSquare = null;
+    if (editMode) {
+      $(document).on('click.editOutside', handleOutsideBoardClick);
+      clearEditSelection();
+      clearHighlights();
+      clearRatings();
+    } else {
+      $(document).off('click.editOutside');
+      clearEditSelection();
       requestAnalysis();
     }
     $('#edit-button').text(editMode ? 'Play' : 'Edit');
@@ -593,6 +725,11 @@
     }
     moveSourceSquare = null;
     selectedSquare = null;
+    editSelectedPiece = null;
+    editSelectedSquare = null;
+    editSelectionSource = null;
+    applySelectionHighlights();
+    applySpareSelection();
     renderBoard();
     updateStatus();
     requestAnalysis();
