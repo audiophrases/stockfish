@@ -58,6 +58,22 @@
       gap: 8px;
     }
 
+    #evaluation-graph-container {
+      width: var(--eval-bar-width);
+      height: 64px;
+      border-radius: 12px;
+      background: linear-gradient(180deg, #1a1c28 0%, #10121b 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+      margin: 0 auto;
+    }
+
+    #evaluation-graph {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
     #gauge {
       position: relative;
       flex: none;
@@ -302,6 +318,7 @@
       <div class="board-area">
         <div class="eval-bar">
           <span id="evaluation-label"></span>
+          <div id="evaluation-graph-container"><canvas id="evaluation-graph"></canvas></div>
           <div id="gauge"><div id="gauge-white"></div></div>
         </div>
         <div class="board-container">
@@ -321,7 +338,7 @@
       <button id="piece-moves-button">Piece</button>
       <button id="flip-button">Flip</button>
       <button id="edit-button">Edit</button>
-      <button id="fen-button">FEN</button>
+      <button id="fen-button">FEN / PGN</button>
     </div>
   </div>
   <script>
@@ -361,11 +378,145 @@
       let autoPlayRequestedAt = 0;
       let autoPlayDelayTimer = null;
       let autoPlayDepthSatisfied = false;
+      const evaluationGraphCanvas = document.getElementById('evaluation-graph');
+      const evaluationGraphCtx = evaluationGraphCanvas ? evaluationGraphCanvas.getContext('2d') : null;
+      let evaluationTimeline = [];
 
-      function updateGauge(cp) {
+      function ensureTimelineCapacity(size) {
+        const target = Math.max(0, Math.floor(size));
+        let extended = false;
+        while (evaluationTimeline.length < target) {
+          evaluationTimeline.push(null);
+          extended = true;
+        }
+        return extended;
+      }
+
+      function clearEvaluationTimeline(initialSize = 1) {
+        const size = Math.max(1, Math.floor(initialSize));
+        evaluationTimeline = new Array(size).fill(null);
+        renderEvaluationGraph();
+      }
+
+      function setTimelineEntry(index, entry) {
+        if (typeof index !== 'number' || index < 0) return;
+        const extended = ensureTimelineCapacity(index + 1);
+        evaluationTimeline[index] = entry;
+        if (extended || entry !== undefined) {
+          renderEvaluationGraph();
+        }
+      }
+
+      function getTimelineEntry(index) {
+        if (typeof index !== 'number' || index < 0 || index >= evaluationTimeline.length) {
+          return null;
+        }
+        return evaluationTimeline[index];
+      }
+
+      function renderEvaluationGraph() {
+        if (!evaluationGraphCanvas || !evaluationGraphCtx) return;
+        const displayWidth = evaluationGraphCanvas.clientWidth;
+        const displayHeight = evaluationGraphCanvas.clientHeight;
+        if (!displayWidth || !displayHeight) return;
+        const dpr = window.devicePixelRatio || 1;
+        if (evaluationGraphCanvas.width !== displayWidth * dpr || evaluationGraphCanvas.height !== displayHeight * dpr) {
+          evaluationGraphCanvas.width = displayWidth * dpr;
+          evaluationGraphCanvas.height = displayHeight * dpr;
+        }
+        const ctx = evaluationGraphCtx;
+        ctx.save();
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, displayWidth, displayHeight);
+        ctx.fillStyle = '#10121b';
+        ctx.fillRect(0, 0, displayWidth, displayHeight);
+
+        const midY = displayHeight / 2;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, midY);
+        ctx.lineTo(displayWidth, midY);
+        ctx.stroke();
+
+        let values = [];
+        let lastValue = 0;
+        if (evaluationTimeline.length) {
+          for (let i = 0; i < evaluationTimeline.length; i += 1) {
+            const entry = evaluationTimeline[i];
+            if (entry && typeof entry.value === 'number') {
+              lastValue = entry.value;
+            }
+            values.push(lastValue);
+          }
+          if (values.length === 1) {
+            values.push(lastValue);
+          }
+        } else {
+          values = [0, 0];
+        }
+
+        const verticalScale = displayHeight / 2;
+        const step = values.length > 1 ? displayWidth / (values.length - 1) : 0;
+
+        ctx.beginPath();
+        ctx.moveTo(0, midY);
+        for (let i = 0; i < values.length; i += 1) {
+          const x = step * i;
+          const ratio = Math.max(-2000, Math.min(2000, values[i])) / 2000;
+          const y = midY - ratio * verticalScale;
+          ctx.lineTo(x, y);
+        }
+        ctx.lineTo(displayWidth, midY);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(243, 245, 255, 0.82)';
+        ctx.fill();
+
+        ctx.beginPath();
+        for (let i = 0; i < values.length; i += 1) {
+          const x = step * i;
+          const ratio = Math.max(-2000, Math.min(2000, values[i])) / 2000;
+          const y = midY - ratio * verticalScale;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.stroke();
+
+        const currentIdx = Math.max(0, Math.min(navigationIndex, values.length - 1));
+        const cursorX = values.length > 1 ? (currentIdx / (values.length - 1)) * displayWidth : 0;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cursorX, 0);
+        ctx.lineTo(cursorX, displayHeight);
+        ctx.stroke();
+
+        ctx.restore();
+      }
+
+      function setGaugeVisual(cp) {
         const clamped = Math.max(-2000, Math.min(2000, cp));
         const pct = ((clamped + 2000) / 4000) * 100;
         $('#gauge-white').css('width', pct + '%');
+        return clamped;
+      }
+
+      function applyEvaluationResult(cpValue, displayText) {
+        const normalized = setGaugeVisual(cpValue);
+        $('#evaluation').text(displayText);
+        setTimelineEntry(navigationIndex, { value: normalized, text: displayText });
+      }
+
+      function applyStoredEvaluationIfAvailable() {
+        const entry = getTimelineEntry(navigationIndex);
+        if (entry && typeof entry.value === 'number') {
+          setGaugeVisual(entry.value);
+          if (entry.text) {
+            $('#evaluation').text(entry.text);
+          }
+        }
       }
 
       function syncEvalBarWidth() {
@@ -376,6 +527,7 @@
         if (boardWidth) {
           boardArea.style.setProperty('--eval-bar-width', `${Math.round(boardWidth)}px`);
         }
+        renderEvaluationGraph();
       }
 
       function normalizeFenTurn(fen, turn) {
@@ -419,10 +571,13 @@
         if (!move) return;
         if (navigationIndex < moveHistory.length) {
           moveHistory = moveHistory.slice(0, navigationIndex);
+          evaluationTimeline = evaluationTimeline.slice(0, navigationIndex + 1);
         }
         moveHistory.push({ from: move.from, to: move.to, promotion: move.promotion });
         navigationIndex = moveHistory.length;
+        ensureTimelineCapacity(navigationIndex + 1);
         updateNavigationButtons();
+        renderEvaluationGraph();
       }
 
       function resetHistory(newBaseFen = null) {
@@ -440,7 +595,11 @@
         if (typeof newBaseFen === 'string' && newBaseFen.length) {
           baseFen = newBaseFen;
         }
+        clearEvaluationTimeline(1);
+        $('#evaluation').text('N/A');
+        setGaugeVisual(0);
         updateNavigationButtons();
+        renderEvaluationGraph();
       }
 
       function rebuildPosition(targetIndex) {
@@ -467,6 +626,8 @@
         updateNavigationButtons();
         renderBoard();
         updateStatus();
+        applyStoredEvaluationIfAvailable();
+        renderEvaluationGraph();
         requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
       }
 
@@ -882,8 +1043,8 @@
           value = -value;
         }
         const prefix = value > 0 ? '+' : '';
-        $('#evaluation').text(`${prefix}${(value / 100).toFixed(2)}`);
-        updateGauge(value);
+        const displayScore = `${prefix}${(value / 100).toFixed(2)}`;
+        applyEvaluationResult(value, displayScore);
       } else if (mateMatch) {
         const mateValueRaw = parseInt(mateMatch[1], 10);
         const isNegativeZero = Object.is(mateValueRaw, -0);
@@ -895,13 +1056,12 @@
         }
 
         if (mateValue === 0) {
-          $('#evaluation').text('Checkmate');
           const gaugeSign = turn === 'b' ? -rawSign : rawSign;
-          updateGauge(gaugeSign >= 0 ? 2000 : -2000);
+          applyEvaluationResult(gaugeSign >= 0 ? 2000 : -2000, 'Checkmate');
         } else {
           const matePrefix = mateValue > 0 ? '' : '-';
-          $('#evaluation').text(`Mate in ${matePrefix}${Math.abs(mateValue)}`);
-          updateGauge(mateValue > 0 ? 2000 : -2000);
+          const mateText = `Mate in ${matePrefix}${Math.abs(mateValue)}`;
+          applyEvaluationResult(mateValue > 0 ? 2000 : -2000, mateText);
         }
       }
 
@@ -989,7 +1149,14 @@
       shouldHighlightBest = false;
     }
 
-    $('#evaluation').text('...');
+    if (pieceAnalysis) {
+      $('#evaluation').text('...');
+    } else {
+      const stored = getTimelineEntry(navigationIndex);
+      if (!stored || typeof stored.value !== 'number') {
+        $('#evaluation').text('...');
+      }
+    }
     updateBestMoveDisplay();
 
     const normalizedFen = normalizeFenTurn(latestAnalysisFen, game.turn());
@@ -1088,14 +1255,105 @@
     updateStatus();
   });
   $('#fen-button').on('click', () => {
-    const fen = prompt('Enter FEN');
-    if (!fen) return;
-    const trimmed = fen.trim();
-    const ok = game.load(trimmed);
-    if (!ok) {
-      alert('Invalid FEN');
+    const raw = prompt('Enter FEN or PGN');
+    if (!raw) return;
+    const trimmed = raw.trim();
+    if (!trimmed.length) return;
+
+    const looksLikePgn = /\d+\./.test(trimmed) || /\[\w+\s+".*"\]/.test(trimmed) || trimmed.includes('\n');
+
+    const loadFen = () => {
+      const fenTest = new Chess();
+      if (!fenTest.load(trimmed)) {
+        return false;
+      }
+      const canonicalFen = fenTest.fen();
+      if (!game.load(canonicalFen)) {
+        return false;
+      }
+      resetHistory(game.fen());
+      return true;
+    };
+
+    const loadPgn = () => {
+      let importGame = new Chess();
+      let loaded = false;
+      if (typeof importGame.load_pgn === 'function') {
+        loaded = importGame.load_pgn(trimmed, { sloppy: true });
+        if (!loaded) {
+          importGame = new Chess();
+          loaded = importGame.load_pgn(trimmed);
+        }
+      }
+      if (!loaded) return false;
+
+      const header = typeof importGame.header === 'function' ? importGame.header() : {};
+      const history = importGame.history({ verbose: true }) || [];
+      let initialFen = null;
+      if (header && header.SetUp === '1' && header.FEN) {
+        initialFen = header.FEN;
+      }
+
+      const baseCandidate = new Chess();
+      if (initialFen) {
+        if (!baseCandidate.load(initialFen)) {
+          return false;
+        }
+      }
+      const basePositionFen = baseCandidate.fen();
+      const moves = history.map(m => ({ from: m.from, to: m.to, promotion: m.promotion }));
+
+      const verificationGame = new Chess();
+      if (!verificationGame.load(basePositionFen)) {
+        return false;
+      }
+      for (const mv of moves) {
+        const moveConfig = { from: mv.from, to: mv.to };
+        if (mv.promotion) {
+          moveConfig.promotion = mv.promotion;
+        }
+        const applied = verificationGame.move(moveConfig);
+        if (!applied) {
+          return false;
+        }
+      }
+
+      resetHistory(basePositionFen);
+      moveHistory = moves;
+      navigationIndex = moveHistory.length;
+      ensureTimelineCapacity(navigationIndex + 1);
+      if (!game.load(basePositionFen)) {
+        return false;
+      }
+      for (const mv of moveHistory) {
+        const moveConfig = { from: mv.from, to: mv.to };
+        if (mv.promotion) {
+          moveConfig.promotion = mv.promotion;
+        }
+        const applied = game.move(moveConfig);
+        if (!applied) {
+          break;
+        }
+      }
+      updateNavigationButtons();
+      renderEvaluationGraph();
+      return true;
+    };
+
+    const loaders = looksLikePgn ? [loadPgn, loadFen] : [loadFen, loadPgn];
+    let loaded = false;
+    for (const loader of loaders) {
+      if (loader()) {
+        loaded = true;
+        break;
+      }
+    }
+
+    if (!loaded) {
+      alert('Invalid FEN or PGN');
       return;
     }
+
     moveSourceSquare = null;
     selectedSquare = null;
     editSelectedPiece = null;
@@ -1103,14 +1361,14 @@
     editSelectionSource = null;
     applySelectionHighlights();
     applySpareSelection();
-    resetHistory(game.fen());
     renderBoard();
     updateStatus();
+    updateNavigationButtons();
     requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
   });
 
   renderBoard();
-  updateGauge(0);
+  setGaugeVisual(0);
   initEngine();
   updateStatus();
   $(window).off('resize.board').on('resize.board', () => {
