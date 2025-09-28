@@ -284,6 +284,8 @@
       </div>
     </div>
     <div id="controls">
+      <button id="prev-button" disabled>Prev</button>
+      <button id="next-button" disabled>Next</button>
       <button id="best-move-button" disabled>Best</button>
       <button id="piece-moves-button">Piece</button>
       <button id="flip-button">Flip</button>
@@ -309,13 +311,111 @@
       let editSelectedPiece = null;
       let editSelectedSquare = null;
       let editSelectionSource = null;
-      let bestMoveRevealPending = false;
       let bestMoveVisible = false;
+      let moveHistory = [];
+      let navigationIndex = 0;
+      let autoPlayPending = false;
+      let autoPlayTargetDepth = 20;
+      let autoPlayFen = null;
+      let currentBestMove = null;
+      let currentDepth = 0;
+      let pieceMoveRatings = new Map();
+      let waitingForAutoBestMove = false;
+      let autoMoveCandidate = null;
+      const DEFAULT_DEPTH = 20;
 
       function updateGauge(cp) {
         const clamped = Math.max(-2000, Math.min(2000, cp));
         const pct = ((clamped + 2000) / 4000) * 100;
         $('#gauge-white').css('width', pct + '%');
+      }
+
+      function updateBestMoveDisplay() {
+        if (!bestMoveVisible) {
+          $('#best-move').text('Hidden');
+          if (!pieceMovesMode) {
+            clearHighlights();
+          }
+          return;
+        }
+
+        if (currentBestMove) {
+          $('#best-move').text(currentBestMove);
+          if (shouldHighlightBest && !pieceMovesMode) {
+            visualize(currentBestMove);
+          }
+        } else {
+          $('#best-move').text('...');
+        }
+      }
+
+      function updateNavigationButtons() {
+        const hasFutureMove = navigationIndex < moveHistory.length;
+        const prevDisabled = navigationIndex === 0 || pieceMovesMode || editMode || waitingForAutoBestMove;
+        const nextDisabled = autoPlayPending || waitingForAutoBestMove || pieceMovesMode || editMode || (!hasFutureMove && !engineReady);
+        $('#prev-button').prop('disabled', prevDisabled);
+        $('#next-button').prop('disabled', nextDisabled);
+      }
+
+      function recordMove(move) {
+        if (!move) return;
+        if (navigationIndex < moveHistory.length) {
+          moveHistory = moveHistory.slice(0, navigationIndex);
+        }
+        moveHistory.push({ from: move.from, to: move.to, promotion: move.promotion });
+        navigationIndex = moveHistory.length;
+        updateNavigationButtons();
+      }
+
+      function resetHistory() {
+        moveHistory = [];
+        navigationIndex = 0;
+        autoPlayPending = false;
+        waitingForAutoBestMove = false;
+        autoMoveCandidate = null;
+        autoPlayFen = null;
+        updateNavigationButtons();
+      }
+
+      function rebuildPosition(targetIndex) {
+        const clamped = Math.max(0, Math.min(targetIndex, moveHistory.length));
+        game.reset();
+        for (let i = 0; i < clamped; i += 1) {
+          const entry = moveHistory[i];
+          if (!entry) continue;
+          const move = game.move({ from: entry.from, to: entry.to, promotion: entry.promotion || 'q' });
+          if (!move) break;
+        }
+        navigationIndex = clamped;
+        if (pieceMovesMode) {
+          pieceMovesMode = false;
+          freezeMode = false;
+          $('#piece-moves-button').text('Piece');
+        }
+        moveSourceSquare = null;
+        selectedSquare = null;
+        updateNavigationButtons();
+        renderBoard();
+        updateStatus();
+        requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
+      }
+
+      function applyAutoMove(uciMove) {
+        if (!uciMove || uciMove === '(none)') {
+          return;
+        }
+        const from = uciMove.slice(0, 2);
+        const to = uciMove.slice(2, 4);
+        const promotion = uciMove.length > 4 ? uciMove.slice(4, 5) : undefined;
+        const move = game.move({ from, to, promotion });
+        if (move) {
+          moveSourceSquare = null;
+          selectedSquare = null;
+          recordMove(move);
+          renderBoard();
+          updateStatus();
+          requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
+        }
       }
 
   function clearSelectionHighlight() {
@@ -389,9 +489,10 @@
     if (editSelectionSource === 'spare') {
       game.remove(square);
       game.put({ type: editSelectedPiece.type, color: editSelectedPiece.color }, square);
+      resetHistory();
       renderBoard();
       updateStatus();
-      requestAnalysis();
+      requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
       return;
     }
 
@@ -411,9 +512,10 @@
       game.remove(square);
       game.put(movingPiece, square);
       clearEditSelection();
+      resetHistory();
       renderBoard();
       updateStatus();
-      requestAnalysis();
+      requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
     }
   }
 
@@ -424,9 +526,10 @@
     if (editSelectionSource === 'board' && editSelectedSquare) {
       game.remove(editSelectedSquare);
       clearEditSelection();
+      resetHistory();
       renderBoard();
       updateStatus();
-      requestAnalysis();
+      requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
     } else if (editSelectionSource) {
       clearEditSelection();
     }
@@ -470,10 +573,11 @@
     const move = game.move({ from: moveSourceSquare, to: square, promotion: 'q' });
 
     if (move) {
+      recordMove(move);
       moveSourceSquare = null;
       renderBoard();
       updateStatus();
-      requestAnalysis();
+      requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
     } else {
       if (piece && piece.color === turn) {
         moveSourceSquare = square;
@@ -521,6 +625,8 @@
         visualize(currentBest);
       }
     }
+    updateNavigationButtons();
+    updateBestMoveDisplay();
   }
 
   function updateStatus() {
@@ -543,18 +649,23 @@
     if (editMode) {
       game.clear();
       Object.entries(newPos).forEach(([sq,p]) => { if (p) game.put({type:p[1].toLowerCase(), color:p[0]}, sq); });
-      renderBoard(); updateStatus(); requestAnalysis();
+      resetHistory();
+      renderBoard(); updateStatus(); requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
       return;
     }
     if (freezeMode && !editMode) return 'snapback';
     const m = game.move({from:src,to:tgt,promotion:'q'});
     if (!m) return 'snapback';
-    renderBoard(); updateStatus(); requestAnalysis();
+    recordMove(m);
+    renderBoard(); updateStatus(); requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
   }
 
   function onSnapEnd() { if (!editMode) board.position(game.fen()); }
   function clearHighlights() { boardEl.find('.highlight-move-from, .highlight-move-to').removeClass('highlight-move-from highlight-move-to'); }
-  function clearRatings() { boardEl.find('.move-rating').remove(); }
+  function clearRatings() {
+    boardEl.find('.move-rating').remove();
+    pieceMoveRatings.clear();
+  }
 
   function initEngine() {
     engine = new Worker('./engine/stockfish.js');
@@ -569,18 +680,41 @@
       if (line === 'readyok') {
         engineReady = true;
         $('#best-move-button').prop('disabled', false);
-        requestAnalysis();
+        updateNavigationButtons();
+        requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
         return;
       }
 
+      if (!line.length) return;
+
       if (isPieceAnalysis && line.startsWith('info') && line.includes('multipv')) {
+        const pvIndex = line.indexOf(' pv ');
+        if (pvIndex === -1) return;
+        const pvMoves = line.slice(pvIndex + 4).trim().split(' ');
+        const moveKey = pvMoves[0];
+        if (!moveKey) return;
+
         const cp = line.match(/score cp (-?\d+)/);
         const mate = line.match(/score mate (-?\d+)/);
-        const pv = line.match(/pv ([a-h][1-8][a-h][1-8])/);
-        if (pv) {
-          const destination = pv[1].slice(2);
-          const score = cp ? (parseInt(cp[1], 10) / 100).toFixed(2) : mate ? `M${mate[1]}` : '';
-          boardEl.find(`.square-${destination}`).append(`<div class="move-rating">${score}</div>`);
+        let displayScore = '';
+        if (cp) {
+          const cpValue = parseInt(cp[1], 10);
+          const prefix = cpValue > 0 ? '+' : '';
+          displayScore = `${prefix}${(cpValue / 100).toFixed(2)}`;
+        } else if (mate) {
+          displayScore = `M${mate[1]}`;
+        }
+
+        const destination = moveKey.slice(2, 4);
+        let ratingEl = pieceMoveRatings.get(moveKey);
+        if (!ratingEl) {
+          const squareEl = boardEl.find(`.square-${destination}`);
+          if (!squareEl.length) return;
+          ratingEl = $('<div class="move-rating"></div>').appendTo(squareEl);
+          pieceMoveRatings.set(moveKey, ratingEl);
+        }
+        if (displayScore) {
+          ratingEl.text(displayScore);
         }
         return;
       }
@@ -590,46 +724,79 @@
           isPieceAnalysis = false;
           engine.postMessage('setoption name MultiPV value 1');
           if (!pieceMovesMode) {
-            requestAnalysis({ highlight: shouldHighlightBest, revealBest: bestMoveVisible });
+            requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
           }
-        } else if (latestAnalysisFen && latestAnalysisFen === game.fen()) {
-          const parts = line.split(' ');
-          const move = parts[1];
-          const best = !move || move === '(none)' ? 'N/A' : move;
-          if (bestMoveRevealPending) {
-            $('#best-move').text(best);
-            bestMoveRevealPending = false;
-            bestMoveVisible = best !== 'N/A';
-            if (!bestMoveVisible) {
-              shouldHighlightBest = false;
-              clearHighlights();
-            } else if (shouldHighlightBest) {
-              visualize(move);
-            }
-          } else if (!bestMoveVisible) {
-            $('#best-move').text('Hidden');
-            clearHighlights();
+          return;
+        }
+
+        if (!latestAnalysisFen || latestAnalysisFen !== game.fen()) {
+          return;
+        }
+
+        const parts = line.split(' ');
+        const move = parts[1];
+
+        if (waitingForAutoBestMove) {
+          waitingForAutoBestMove = false;
+          const fallback = autoMoveCandidate && autoMoveCandidate !== '(none)' ? autoMoveCandidate : null;
+          autoMoveCandidate = null;
+          const moveToPlay = move && move !== '(none)' ? move : fallback;
+          if (moveToPlay) {
+            applyAutoMove(moveToPlay);
           }
+          updateNavigationButtons();
+          return;
+        }
+
+        if (move && move !== '(none)') {
+          currentBestMove = move;
+          updateBestMoveDisplay();
         }
         return;
       }
 
-      if (!isPieceAnalysis && line.includes('info depth') && line.includes('score')) {
-        if (!latestAnalysisFen || latestAnalysisFen !== game.fen()) return;
+      if (!line.startsWith('info') || !line.includes('score')) {
+        return;
+      }
 
-        const cp2 = line.match(/score cp (-?\d+)/);
-        const mate2 = line.match(/score mate (-?\d+)/);
+      if (!latestAnalysisFen || latestAnalysisFen !== game.fen()) return;
+      if (isPieceAnalysis) return;
 
-        if (cp2) {
-          const v = parseInt(cp2[1], 10);
-          const prefix = v > 0 ? '+' : '';
-          $('#evaluation').text(`${prefix}${(v / 100).toFixed(2)}`);
-          updateGauge(v);
-        } else if (mate2) {
-          const mateScore = parseInt(mate2[1], 10);
-          $('#evaluation').text(`Mate in ${mate2[1]}`);
-          updateGauge(mateScore > 0 ? 2000 : -2000);
+      const depthMatch = line.match(/depth (\d+)/);
+      if (depthMatch) {
+        currentDepth = parseInt(depthMatch[1], 10);
+      }
+
+      const cpMatch = line.match(/score cp (-?\d+)/);
+      const mateMatch = line.match(/score mate (-?\d+)/);
+
+      if (cpMatch) {
+        const value = parseInt(cpMatch[1], 10);
+        const prefix = value > 0 ? '+' : '';
+        $('#evaluation').text(`${prefix}${(value / 100).toFixed(2)}`);
+        updateGauge(value);
+      } else if (mateMatch) {
+        const mateValue = parseInt(mateMatch[1], 10);
+        $('#evaluation').text(`Mate in ${mateMatch[1]}`);
+        updateGauge(mateValue > 0 ? 2000 : -2000);
+      }
+
+      const pvIndex = line.indexOf(' pv ');
+      if (pvIndex !== -1) {
+        const pvMoves = line.slice(pvIndex + 4).trim().split(' ');
+        if (pvMoves.length) {
+          currentBestMove = pvMoves[0];
+          updateBestMoveDisplay();
         }
+      }
+
+      if (autoPlayPending && autoPlayFen === latestAnalysisFen && currentDepth >= autoPlayTargetDepth && currentBestMove && !game.game_over()) {
+        autoPlayPending = false;
+        autoPlayFen = null;
+        waitingForAutoBestMove = true;
+        autoMoveCandidate = currentBestMove;
+        engine.postMessage('stop');
+        updateNavigationButtons();
       }
     };
     engine.postMessage('uci');
@@ -646,42 +813,110 @@
 
   function requestAnalysis(options = {}) {
     if (!engineReady || !engine) return;
-    const { highlight = false, revealBest = false } = options;
+    const {
+      highlight = false,
+      revealBest = false,
+      depth = DEFAULT_DEPTH,
+      autoPlay = false,
+      searchMoves = null,
+      multiPv = 1,
+      pieceAnalysis = false
+    } = options;
+
     latestAnalysisFen = game.fen();
     shouldHighlightBest = highlight && revealBest;
-    bestMoveRevealPending = revealBest;
-    bestMoveVisible = false;
-    isPieceAnalysis = false;
-    clearHighlights();
-    clearRatings();
-    $('#best-move').text(revealBest ? '...' : 'Hidden');
+    isPieceAnalysis = pieceAnalysis;
+    currentBestMove = null;
+    currentDepth = 0;
+    waitingForAutoBestMove = false;
+    autoMoveCandidate = null;
+
+    if (!pieceAnalysis && !pieceMovesMode) {
+      clearHighlights();
+    }
+    if (!pieceAnalysis) {
+      clearRatings();
+    }
+
+    if (autoPlay) {
+      autoPlayPending = true;
+      autoPlayTargetDepth = depth;
+      autoPlayFen = latestAnalysisFen;
+    } else if (!pieceAnalysis) {
+      autoPlayPending = false;
+      autoPlayFen = null;
+    }
+
+    if (revealBest) {
+      bestMoveVisible = true;
+    } else if (!bestMoveVisible) {
+      shouldHighlightBest = false;
+    }
+
     $('#evaluation').text('...');
+    updateBestMoveDisplay();
+
     engine.postMessage('stop');
-    engine.postMessage('setoption name MultiPV value 1');
+    engine.postMessage(`setoption name MultiPV value ${multiPv}`);
     engine.postMessage(`position fen ${latestAnalysisFen}`);
-    engine.postMessage('go depth 15');
+    if (searchMoves && searchMoves.length) {
+      engine.postMessage(`go depth ${depth} searchmoves ${searchMoves.join(' ')}`);
+    } else {
+      engine.postMessage(`go depth ${depth}`);
+    }
+    updateNavigationButtons();
   }
 
   function analyzeMoves() {
-    clearHighlights();
     clearRatings();
     if (!selectedSquare) return;
     const moves = game.moves({ verbose: true }).filter(m => m.from === selectedSquare);
     if (!moves.length) return;
-    isPieceAnalysis = true;
-    engine.postMessage('stop');
-    engine.postMessage(`setoption name MultiPV value ${moves.length}`);
-    engine.postMessage(`position fen ${game.fen()}`);
-    engine.postMessage(`go depth 15 searchmoves ${moves.map(m => m.from + m.to).join(' ')}`);
+    clearHighlights();
+    applySelectionHighlights();
+    const searchMoves = moves.map(m => m.from + m.to + (m.promotion ? m.promotion : ''));
+    requestAnalysis({
+      depth: DEFAULT_DEPTH,
+      searchMoves,
+      multiPv: moves.length,
+      pieceAnalysis: true
+    });
   }
 
   // UI hooks
-  $('#best-move-button').on('click', () => { requestAnalysis({ highlight: true, revealBest: true }); });
+  $('#best-move-button').on('click', () => {
+    bestMoveVisible = !bestMoveVisible;
+    shouldHighlightBest = bestMoveVisible;
+    $('#best-move-button').text(bestMoveVisible ? 'Hide Best' : 'Best');
+    updateBestMoveDisplay();
+    if (bestMoveVisible) {
+      requestAnalysis({ highlight: shouldHighlightBest, revealBest: true });
+    }
+  });
+  $('#prev-button').on('click', () => {
+    if (navigationIndex === 0) return;
+    rebuildPosition(navigationIndex - 1);
+  });
+  $('#next-button').on('click', () => {
+    if (autoPlayPending) return;
+    if (game.game_over()) return;
+    if (navigationIndex < moveHistory.length) {
+      rebuildPosition(navigationIndex + 1);
+      return;
+    }
+    if (!engineReady) return;
+    requestAnalysis({
+      highlight: shouldHighlightBest && bestMoveVisible,
+      revealBest: bestMoveVisible,
+      depth: DEFAULT_DEPTH,
+      autoPlay: true
+    });
+  });
   $('#piece-moves-button').on('click', () => {
     pieceMovesMode = !pieceMovesMode;
     freezeMode = pieceMovesMode;
     if (!pieceMovesMode) {
-      requestAnalysis({ highlight: shouldHighlightBest, revealBest: bestMoveVisible });
+      requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
     }
     selectedSquare = null;
     moveSourceSquare = null;
@@ -708,7 +943,7 @@
     } else {
       $(document).off('click.editOutside');
       clearEditSelection();
-      requestAnalysis();
+      requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
     }
     $('#edit-button').text(editMode ? 'Play' : 'Edit');
     renderBoard();
@@ -730,9 +965,10 @@
     editSelectionSource = null;
     applySelectionHighlights();
     applySpareSelection();
+    resetHistory();
     renderBoard();
     updateStatus();
-    requestAnalysis();
+    requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
   });
 
   renderBoard();
