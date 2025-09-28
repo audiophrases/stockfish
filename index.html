@@ -29,21 +29,56 @@
       align-items: stretch;
     }
 
-    .board-wrapper {
-      display: flex;
-      align-items: stretch;
+    .board-shell {
       background: rgba(20, 20, 31, 0.94);
       border-radius: 28px;
-      overflow: hidden;
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
       box-shadow: 0 28px 60px rgba(3, 6, 16, 0.55);
     }
 
-    .board-container {
+    .eval-bar {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    #gauge {
+      position: relative;
       flex: 1 1 auto;
-      padding: 28px;
+      height: 18px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #11131d 0%, #2f344b 100%);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      overflow: hidden;
+    }
+
+    #gauge-white {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      background: linear-gradient(90deg, #d2d8f7 0%, #f3f5ff 100%);
+      width: 50%;
+      transition: width 0.35s ease;
+    }
+
+    #evaluation-label {
+      font-size: 0.9rem;
+      color: #d4d9eb;
+      min-width: 70px;
+      text-align: right;
+      font-weight: 600;
+    }
+
+    .board-container {
+      width: 100%;
       display: flex;
       justify-content: center;
-      align-items: center;
     }
 
     #board {
@@ -51,92 +86,31 @@
       max-width: 440px;
     }
 
-    .eval-sidebar {
-      width: 210px;
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      padding: 28px 22px;
-      gap: 18px;
-      background: rgba(18, 18, 28, 0.96);
-      border-left: 1px solid rgba(255, 255, 255, 0.06);
-    }
-
-    .gauge-shell {
-      flex: 1 1 auto;
-      display: flex;
-      align-items: stretch;
-      justify-content: center;
-    }
-
-    #gauge {
-      position: relative;
-      width: 84px;
-      height: 100%;
-      min-height: 220px;
-      border-radius: 22px;
-      background: linear-gradient(180deg, #2f344b 0%, #11131d 100%);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      overflow: hidden;
-    }
-
-    #gauge::after {
-      content: "";
-      position: absolute;
-      left: 50%;
-      top: 0;
-      bottom: 0;
-      width: 2px;
-      background: rgba(255, 255, 255, 0.06);
-      transform: translateX(-50%);
-    }
-
-    #gauge-white {
+    #info-line {
       width: 100%;
-      background: linear-gradient(180deg, #f3f5ff 0%, #d2d8f7 100%);
-      position: absolute;
-      bottom: 0;
-      height: 50%;
-      transition: height 0.35s ease;
-    }
-
-    .info-panel {
       display: flex;
-      flex-direction: column;
-      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+      font-size: 0.98rem;
+      color: #f3f6ff;
+      font-weight: 600;
     }
 
     #status {
       margin: 0;
-      font-size: 1.02rem;
-      font-weight: 600;
-      color: #f3f6ff;
       white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
 
-    .info-row {
+    .info-line-item {
       display: flex;
-      justify-content: space-between;
+      gap: 6px;
       align-items: center;
-      gap: 12px;
-      color: #d4d9eb;
       white-space: nowrap;
-      overflow: hidden;
     }
 
-    .info-row .label {
-      font-size: 0.72rem;
-      text-transform: uppercase;
-      letter-spacing: 0.18em;
-      color: #8b90a8;
-    }
-
-    .info-row .value {
-      font-weight: 600;
-      font-size: 0.98rem;
-      color: #f6f7ff;
+    .info-line-item span:last-child {
+      color: #dce1ff;
     }
 
     #controls {
@@ -157,7 +131,7 @@
       font-weight: 600;
       letter-spacing: 0.02em;
       transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
-      min-width: 150px;
+      min-width: 120px;
     }
 
     button:hover:not(:disabled) {
@@ -173,10 +147,6 @@
 
     #piece-moves-button {
       background: linear-gradient(135deg, #1dbfcc 0%, #136677 100%);
-    }
-
-    #gauge-button {
-      background: linear-gradient(135deg, #a144ff 0%, #5323a0 100%);
     }
 
     #flip-button {
@@ -221,54 +191,42 @@
       order: 1;
     }
 
-    .board-container .spare-pieces-top {
+    .board-container .spare-pieces-top,
+    .board-container .spare-pieces-bottom {
       order: 2;
-      margin-top: 10px;
+      margin-top: 6px;
+      display: none;
     }
 
-    .board-container .spare-pieces-bottom {
-      order: 3;
+    .board-container.editing .spare-pieces-top,
+    .board-container.editing .spare-pieces-bottom {
+      display: flex;
     }
 
     .board-container .spare-pieces-7492f {
-      display: flex;
       justify-content: center;
       gap: 6px;
     }
 
+    .board-container.editing .spare-pieces-7492f {
+      display: flex;
+    }
+
     @media (max-width: 1024px) {
-      .board-wrapper {
+      .board-shell {
+        padding: 24px;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .eval-bar {
         flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
       }
 
-      .board-container {
-        padding-bottom: 20px;
-      }
-
-      .eval-sidebar {
-        width: 100%;
-        flex-direction: row;
-        align-items: center;
-        border-left: none;
-        border-top: 1px solid rgba(255, 255, 255, 0.06);
-        padding: 22px 24px;
-        gap: 24px;
-      }
-
-      .gauge-shell {
-        flex: 0 0 auto;
-        width: 72px;
-        height: 170px;
-      }
-
-      #gauge {
-        width: 100%;
-        height: 100%;
-        min-height: 160px;
-      }
-
-      .info-panel {
-        flex: 1 1 auto;
+      #evaluation-label {
+        text-align: left;
       }
     }
 
@@ -281,46 +239,21 @@
         gap: 20px;
       }
 
-      .board-container {
-        padding: 20px;
-      }
-
       #board {
         width: min(86vw, 420px);
       }
 
       button {
-        min-width: 140px;
+        min-width: 110px;
         padding: 10px 16px;
-        font-size: 0.92rem;
-      }
-
-      .info-row .value {
         font-size: 0.92rem;
       }
     }
 
     @media (max-width: 420px) {
-      .eval-sidebar {
-        flex-direction: column;
-        align-items: stretch;
-      }
-
-      .gauge-shell {
-        width: 100%;
-        height: 160px;
-      }
-
-      #gauge {
-        min-height: 140px;
-      }
-
-      .info-row {
-        font-size: 0.88rem;
-      }
-
-      #status {
-        font-size: 0.94rem;
+      #info-line {
+        font-size: 0.9rem;
+        gap: 8px;
       }
     }
   </style>
@@ -331,33 +264,26 @@
 </head>
 <body>
   <div class="container">
-    <div class="board-wrapper">
+    <div class="board-shell">
+      <div class="eval-bar">
+        <span id="evaluation-label">Advantage</span>
+        <div id="gauge"><div id="gauge-white"></div></div>
+      </div>
       <div class="board-container">
         <div id="board"></div>
       </div>
-      <div class="eval-sidebar">
-        <div class="gauge-shell">
-          <div id="gauge"><div id="gauge-white"></div></div>
-        </div>
-        <div class="info-panel">
-          <p id="status"></p>
-          <div class="info-row">
-            <span class="label">Best Move</span>
-            <span class="value" id="best-move">N/A</span>
-          </div>
-          <div class="info-row">
-            <span class="label">Evaluation</span>
-            <span class="value" id="evaluation">N/A</span>
-          </div>
-        </div>
+      <div id="info-line">
+        <span id="status">Ready</span>
+        <span class="info-line-item"><span>Best:</span><span id="best-move">N/A</span></span>
+        <span class="info-line-item"><span>Eval:</span><span id="evaluation">N/A</span></span>
       </div>
     </div>
     <div id="controls">
-      <button id="best-move-button" disabled>Best Move</button>
-      <button id="piece-moves-button">Piece Moves</button>
-      <button id="gauge-button">Gauge Advantage</button>
-      <button id="flip-button">Flip Board</button>
-      <button id="edit-button">Edit Mode</button>
+      <button id="best-move-button" disabled>Best</button>
+      <button id="piece-moves-button">Piece</button>
+      <button id="flip-button">Flip</button>
+      <button id="edit-button">Edit</button>
+      <button id="fen-button">FEN</button>
     </div>
   </div>
   <script>
@@ -370,13 +296,17 @@
       let isPieceAnalysis = false;
       let freezeMode = false;
       let editMode = false;
-      let gaugeMode = false;
       let pieceMovesMode = false;
-      let orientation = 'white';function updateGauge(cp) {
-    const clamped = Math.max(-2000, Math.min(2000, cp));
-    const pct = ((clamped + 2000) / 4000) * 100;
-    $('#gauge-white').css('height', pct + '%');
-  }
+      let orientation = 'white';
+      let latestAnalysisFen = null;
+      let shouldHighlightBest = true;
+      let engineReady = false;
+
+      function updateGauge(cp) {
+        const clamped = Math.max(-2000, Math.min(2000, cp));
+        const pct = ((clamped + 2000) / 4000) * 100;
+        $('#gauge-white').css('width', pct + '%');
+      }
 
   function clearSelectionHighlight() {
     boardEl.find('.highlight-selection').removeClass('highlight-selection');
@@ -434,6 +364,7 @@
       moveSourceSquare = null;
       renderBoard();
       updateStatus();
+      requestAnalysis();
     } else {
       if (piece && piece.color === turn) {
         moveSourceSquare = square;
@@ -460,6 +391,7 @@
     };
     if (board) board.destroy();
     board = Chessboard('board', cfg);
+    $('.board-container').toggleClass('editing', editMode);
     board.resize();
     requestAnimationFrame(() => board && board.resize());
     boardEl.off('click.square').on('click.square', 'div.square-55d63', function() {
@@ -469,6 +401,12 @@
       handleSquareClick(sq.replace('square-',''));
     });
     applySelectionHighlights();
+    if (!editMode && !pieceMovesMode && shouldHighlightBest) {
+      const currentBest = $('#best-move').text().trim();
+      if (/^[a-h][1-8][a-h][1-8]$/.test(currentBest)) {
+        visualize(currentBest);
+      }
+    }
   }
 
   function updateStatus() {
@@ -491,13 +429,13 @@
     if (editMode) {
       game.clear();
       Object.entries(newPos).forEach(([sq,p]) => { if (p) game.put({type:p[1].toLowerCase(), color:p[0]}, sq); });
-      renderBoard(); updateStatus();
+      renderBoard(); updateStatus(); requestAnalysis();
       return;
     }
     if (freezeMode && !editMode) return 'snapback';
     const m = game.move({from:src,to:tgt,promotion:'q'});
     if (!m) return 'snapback';
-    renderBoard(); updateStatus();
+    renderBoard(); updateStatus(); requestAnalysis();
   }
 
   function onSnapEnd() { if (!editMode) board.position(game.fen()); }
@@ -508,46 +446,162 @@
     engine = new Worker('./engine/stockfish.js');
     engine.onmessage = e => {
       const line = String(e.data).trim();
-      if (line==='uciok') engine.postMessage('isready');
-      else if(line==='readyok') $('#best-move-button').prop('disabled', false);
-      else if(isPieceAnalysis&&line.startsWith('info')&&line.includes('multipv')){
-        const cp=line.match(/score cp (-?\d+)/);
-        const mate=line.match(/score mate (-?\d+)/);
-        const pv=line.match(/pv ([a-h][1-8][a-h][1-8])/);
-        if(pv){const d=pv[1].slice(2);const s=cp?(parseInt(cp[1],10)/100).toFixed(2):mate?`M${mate[1]}`:'';
-          boardEl.find(`.square-${d}`).append(`<div class="move-rating">${s}</div>`);
+
+      if (line === 'uciok') {
+        engine.postMessage('isready');
+        return;
+      }
+
+      if (line === 'readyok') {
+        engineReady = true;
+        $('#best-move-button').prop('disabled', false);
+        requestAnalysis();
+        return;
+      }
+
+      if (isPieceAnalysis && line.startsWith('info') && line.includes('multipv')) {
+        const cp = line.match(/score cp (-?\d+)/);
+        const mate = line.match(/score mate (-?\d+)/);
+        const pv = line.match(/pv ([a-h][1-8][a-h][1-8])/);
+        if (pv) {
+          const destination = pv[1].slice(2);
+          const score = cp ? (parseInt(cp[1], 10) / 100).toFixed(2) : mate ? `M${mate[1]}` : '';
+          boardEl.find(`.square-${destination}`).append(`<div class="move-rating">${score}</div>`);
         }
+        return;
       }
-      else if(line.startsWith('bestmove')){
-        if(!gaugeMode){const b=line.split(' ')[1];$('#best-move').text(b);visualize(b);}            
-        isPieceAnalysis=false;engine.postMessage('setoption name MultiPV value 1');
+
+      if (line.startsWith('bestmove')) {
+        if (isPieceAnalysis) {
+          isPieceAnalysis = false;
+          engine.postMessage('setoption name MultiPV value 1');
+          if (!pieceMovesMode) {
+            requestAnalysis({ highlight: shouldHighlightBest });
+          }
+        } else if (latestAnalysisFen && latestAnalysisFen === game.fen()) {
+          const parts = line.split(' ');
+          const move = parts[1];
+          const best = !move || move === '(none)' ? 'N/A' : move;
+          $('#best-move').text(best);
+          if (!move || move === '(none)') {
+            clearHighlights();
+          } else if (shouldHighlightBest) {
+            visualize(move);
+          }
+        }
+        return;
       }
-      else if(line.includes('info depth')&&line.includes('score')){
-        const cp2=line.match(/score cp (-?\d+)/);
-        const mate2=line.match(/score mate (-?\d+)/);
-        if(cp2){const v=parseInt(cp2[1],10);$('#evaluation').text((v/100).toFixed(2));updateGauge(v);}            
-        else if(mate2){$('#evaluation').text(`Mate in ${mate2[1]}`);updateGauge(mate2[1]>0?2000:-2000);}
+
+      if (!isPieceAnalysis && line.includes('info depth') && line.includes('score')) {
+        if (!latestAnalysisFen || latestAnalysisFen !== game.fen()) return;
+
+        const cp2 = line.match(/score cp (-?\d+)/);
+        const mate2 = line.match(/score mate (-?\d+)/);
+
+        if (cp2) {
+          const v = parseInt(cp2[1], 10);
+          const prefix = v > 0 ? '+' : '';
+          $('#evaluation').text(`${prefix}${(v / 100).toFixed(2)}`);
+          updateGauge(v);
+        } else if (mate2) {
+          const mateScore = parseInt(mate2[1], 10);
+          $('#evaluation').text(`Mate in ${mate2[1]}`);
+          updateGauge(mateScore > 0 ? 2000 : -2000);
+        }
       }
     };
     engine.postMessage('uci');
   }
 
-  function visualize(u){clearHighlights();if(!u||u.length<4)return;const f=u.slice(0,2),t=u.slice(2,4);boardEl.find(`.square-${f}`).addClass('highlight-move-from');boardEl.find(`.square-${t}`).addClass('highlight-move-to');}
+  function visualize(u) {
+    clearHighlights();
+    if (!u || u.length < 4) return;
+    const from = u.slice(0, 2);
+    const to = u.slice(2, 4);
+    boardEl.find(`.square-${from}`).addClass('highlight-move-from');
+    boardEl.find(`.square-${to}`).addClass('highlight-move-to');
+  }
 
-  function analyzePosition(){clearHighlights();clearRatings();if(!gaugeMode)$('#best-move').text('Thinking...');$('#evaluation').text('Thinking...');isPieceAnalysis=false;gaugeMode=false;engine.postMessage('setoption name MultiPV value 1');engine.postMessage(`position fen ${game.fen()}`);engine.postMessage('go depth 15');}
+  function requestAnalysis(options = {}) {
+    if (!engineReady || !engine) return;
+    const { highlight = true } = options;
+    latestAnalysisFen = game.fen();
+    shouldHighlightBest = highlight;
+    isPieceAnalysis = false;
+    clearHighlights();
+    clearRatings();
+    $('#best-move').text('...');
+    $('#evaluation').text('...');
+    engine.postMessage('stop');
+    engine.postMessage('setoption name MultiPV value 1');
+    engine.postMessage(`position fen ${latestAnalysisFen}`);
+    engine.postMessage('go depth 15');
+  }
 
-  function analyzeMoves(){clearHighlights();clearRatings();if(!selectedSquare)return;const mv=game.moves({verbose:true}).filter(m=>m.from===selectedSquare);if(!mv.length)return;isPieceAnalysis=true;gaugeMode=false;engine.postMessage(`setoption name MultiPV value ${mv.length}`);engine.postMessage(`position fen ${game.fen()}`);engine.postMessage(`go depth 15 searchmoves ${mv.map(m=>m.from+m.to).join(' ')}`);}
-
-  function analyzeGauge(){clearHighlights();clearRatings();$('#best-move').text('');$('#evaluation').text('Thinking...');isPieceAnalysis=false;gaugeMode=true;engine.postMessage('setoption name MultiPV value 1');engine.postMessage(`position fen ${game.fen()}`);engine.postMessage('go depth 15');}
+  function analyzeMoves() {
+    clearHighlights();
+    clearRatings();
+    if (!selectedSquare) return;
+    const moves = game.moves({ verbose: true }).filter(m => m.from === selectedSquare);
+    if (!moves.length) return;
+    isPieceAnalysis = true;
+    engine.postMessage('stop');
+    engine.postMessage(`setoption name MultiPV value ${moves.length}`);
+    engine.postMessage(`position fen ${game.fen()}`);
+    engine.postMessage(`go depth 15 searchmoves ${moves.map(m => m.from + m.to).join(' ')}`);
+  }
 
   // UI hooks
-  $('#best-move-button').on('click', analyzePosition);
-  $('#piece-moves-button').on('click', () => { pieceMovesMode = !pieceMovesMode; freezeMode = pieceMovesMode; if (!pieceMovesMode) { selectedSquare = null; } moveSourceSquare = null; $('#piece-moves-button').text(pieceMovesMode ? 'Continue Playing' : 'Piece Moves'); clearHighlights(); clearRatings(); renderBoard(); });
-  $('#gauge-button').on('click', analyzeGauge);
-  $('#flip-button').on('click', () => { orientation = orientation === 'white' ? 'black' : 'white'; renderBoard(); });
-  $('#edit-button').on('click', () => { editMode = !editMode; if (!editMode) { moveSourceSquare = null; } $('#edit-button').text(editMode ? 'Exit Edit' : 'Edit Mode'); renderBoard(); });
+  $('#best-move-button').on('click', () => { requestAnalysis(); });
+  $('#piece-moves-button').on('click', () => {
+    pieceMovesMode = !pieceMovesMode;
+    freezeMode = pieceMovesMode;
+    if (!pieceMovesMode) {
+      requestAnalysis();
+    }
+    selectedSquare = null;
+    moveSourceSquare = null;
+    $('#piece-moves-button').text(pieceMovesMode ? 'Play' : 'Piece');
+    clearHighlights();
+    clearRatings();
+    renderBoard();
+    updateStatus();
+  });
+  $('#flip-button').on('click', () => {
+    orientation = orientation === 'white' ? 'black' : 'white';
+    renderBoard();
+    updateStatus();
+  });
+  $('#edit-button').on('click', () => {
+    editMode = !editMode;
+    if (!editMode) {
+      moveSourceSquare = null;
+      requestAnalysis();
+    }
+    $('#edit-button').text(editMode ? 'Play' : 'Edit');
+    renderBoard();
+    updateStatus();
+  });
+  $('#fen-button').on('click', () => {
+    const fen = prompt('Enter FEN');
+    if (!fen) return;
+    const trimmed = fen.trim();
+    const ok = game.load(trimmed);
+    if (!ok) {
+      alert('Invalid FEN');
+      return;
+    }
+    moveSourceSquare = null;
+    selectedSquare = null;
+    renderBoard();
+    updateStatus();
+    requestAnalysis();
+  });
 
-  renderBoard(); initEngine(); updateStatus();
+  renderBoard();
+  updateGauge(0);
+  initEngine();
+  updateStatus();
   $(window).off('resize.board').on('resize.board', () => { if (board) board.resize(); });
 });
 
