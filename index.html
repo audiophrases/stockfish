@@ -351,6 +351,12 @@
       let waitingForAutoBestMove = false;
       let autoMoveCandidate = null;
       const DEFAULT_DEPTH = 20;
+      const DEFAULT_THREADS = 4;
+      const DEFAULT_HASH_MB = 469;
+      const AUTO_PLAY_MIN_WAIT_MS = 4000;
+      let autoPlayRequestedAt = 0;
+      let autoPlayDelayTimer = null;
+      let autoPlayDepthSatisfied = false;
 
       function updateGauge(cp) {
         const clamped = Math.max(-2000, Math.min(2000, cp));
@@ -412,6 +418,11 @@
         waitingForAutoBestMove = false;
         autoMoveCandidate = null;
         autoPlayFen = null;
+        autoPlayDepthSatisfied = false;
+        if (autoPlayDelayTimer) {
+          clearTimeout(autoPlayDelayTimer);
+          autoPlayDelayTimer = null;
+        }
         if (typeof newBaseFen === 'string' && newBaseFen.length) {
           baseFen = newBaseFen;
         }
@@ -718,6 +729,8 @@
       const line = String(e.data).trim();
 
       if (line === 'uciok') {
+        engine.postMessage(`setoption name Threads value ${DEFAULT_THREADS}`);
+        engine.postMessage(`setoption name Hash value ${DEFAULT_HASH_MB}`);
         engine.postMessage('isready');
         return;
       }
@@ -782,14 +795,42 @@
         const move = parts[1];
 
         if (waitingForAutoBestMove) {
-          waitingForAutoBestMove = false;
           const fallback = autoMoveCandidate && autoMoveCandidate !== '(none)' ? autoMoveCandidate : null;
-          autoMoveCandidate = null;
           const moveToPlay = move && move !== '(none)' ? move : fallback;
-          if (moveToPlay) {
-            applyAutoMove(moveToPlay);
+
+          const finalizeAutoMove = () => {
+            if (autoPlayDelayTimer) {
+              clearTimeout(autoPlayDelayTimer);
+              autoPlayDelayTimer = null;
+            }
+            waitingForAutoBestMove = false;
+            autoMoveCandidate = null;
+            autoPlayDepthSatisfied = false;
+            if (moveToPlay) {
+              applyAutoMove(moveToPlay);
+            }
+            updateNavigationButtons();
+          };
+
+          if (!moveToPlay) {
+            finalizeAutoMove();
+            return;
           }
-          updateNavigationButtons();
+
+          const elapsed = Date.now() - autoPlayRequestedAt;
+          const remaining = Math.max(0, AUTO_PLAY_MIN_WAIT_MS - elapsed);
+
+          if (!autoPlayDepthSatisfied || remaining <= 0) {
+            finalizeAutoMove();
+          } else {
+            if (autoPlayDelayTimer) {
+              clearTimeout(autoPlayDelayTimer);
+            }
+            autoPlayDelayTimer = setTimeout(() => {
+              autoPlayDelayTimer = null;
+              finalizeAutoMove();
+            }, remaining);
+          }
           return;
         }
 
@@ -838,6 +879,7 @@
       if (autoPlayPending && autoPlayFen === latestAnalysisFen && currentDepth >= autoPlayTargetDepth && currentBestMove && !game.game_over()) {
         autoPlayPending = false;
         autoPlayFen = null;
+        autoPlayDepthSatisfied = true;
         waitingForAutoBestMove = true;
         autoMoveCandidate = currentBestMove;
         engine.postMessage('stop');
@@ -887,9 +929,20 @@
       autoPlayPending = true;
       autoPlayTargetDepth = depth;
       autoPlayFen = latestAnalysisFen;
+      autoPlayRequestedAt = Date.now();
+      autoPlayDepthSatisfied = false;
+      if (autoPlayDelayTimer) {
+        clearTimeout(autoPlayDelayTimer);
+        autoPlayDelayTimer = null;
+      }
     } else if (!pieceAnalysis) {
       autoPlayPending = false;
       autoPlayFen = null;
+      autoPlayDepthSatisfied = false;
+      if (autoPlayDelayTimer) {
+        clearTimeout(autoPlayDelayTimer);
+        autoPlayDelayTimer = null;
+      }
     }
 
     if (revealBest) {
