@@ -874,15 +874,23 @@
 
       const cpMatch = line.match(/score cp (-?\d+)/);
       const mateMatch = line.match(/score mate (-?\d+)/);
+      const turn = game.turn();
 
       if (cpMatch) {
-        const value = parseInt(cpMatch[1], 10);
+        let value = parseInt(cpMatch[1], 10);
+        if (turn === 'b') {
+          value = -value;
+        }
         const prefix = value > 0 ? '+' : '';
         $('#evaluation').text(`${prefix}${(value / 100).toFixed(2)}`);
         updateGauge(value);
       } else if (mateMatch) {
-        const mateValue = parseInt(mateMatch[1], 10);
-        $('#evaluation').text(`Mate in ${mateMatch[1]}`);
+        let mateValue = parseInt(mateMatch[1], 10);
+        if (turn === 'b') {
+          mateValue = -mateValue;
+        }
+        const matePrefix = mateValue > 0 ? '' : '-';
+        $('#evaluation').text(`Mate in ${matePrefix}${Math.abs(mateValue)}`);
         updateGauge(mateValue > 0 ? 2000 : -2000);
       }
 
