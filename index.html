@@ -885,13 +885,24 @@
         $('#evaluation').text(`${prefix}${(value / 100).toFixed(2)}`);
         updateGauge(value);
       } else if (mateMatch) {
-        let mateValue = parseInt(mateMatch[1], 10);
+        const mateValueRaw = parseInt(mateMatch[1], 10);
+        const isNegativeZero = Object.is(mateValueRaw, -0);
+        const rawSign = mateValueRaw > 0 ? 1 : mateValueRaw < 0 ? -1 : (isNegativeZero ? -1 : 1);
+
+        let mateValue = mateValueRaw;
         if (turn === 'b') {
           mateValue = -mateValue;
         }
-        const matePrefix = mateValue > 0 ? '' : '-';
-        $('#evaluation').text(`Mate in ${matePrefix}${Math.abs(mateValue)}`);
-        updateGauge(mateValue > 0 ? 2000 : -2000);
+
+        if (mateValue === 0) {
+          $('#evaluation').text('Checkmate');
+          const gaugeSign = turn === 'b' ? -rawSign : rawSign;
+          updateGauge(gaugeSign >= 0 ? 2000 : -2000);
+        } else {
+          const matePrefix = mateValue > 0 ? '' : '-';
+          $('#evaluation').text(`Mate in ${matePrefix}${Math.abs(mateValue)}`);
+          updateGauge(mateValue > 0 ? 2000 : -2000);
+        }
       }
 
       const pvIndex = line.indexOf(' pv ');
