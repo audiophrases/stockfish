@@ -6,6 +6,7 @@
   <style>
     :root {
       color-scheme: dark;
+      --eval-bar-width: 100%;
     }
 
     body {
@@ -53,7 +54,7 @@
       width: 100%;
       display: flex;
       flex-direction: column;
-      align-items: center;
+      align-items: stretch;
       gap: 8px;
     }
 
@@ -61,12 +62,14 @@
       position: relative;
       flex: none;
       height: 18px;
-      width: 100%;
-      border-radius: 999px;
+      width: var(--eval-bar-width);
+      margin: 0 auto;
+      border-radius: 0;
       background: linear-gradient(90deg, #11131d 0%, #2f344b 100%);
       border: 1px solid rgba(255, 255, 255, 0.12);
       overflow: hidden;
-      align-self: stretch;
+      align-self: center;
+      box-sizing: border-box;
     }
 
     #gauge-white {
@@ -78,6 +81,7 @@
       width: 50%;
       transition: width 0.35s ease;
       z-index: 1;
+      border-radius: 0;
     }
 
     #gauge::after {
@@ -362,6 +366,16 @@
         const clamped = Math.max(-2000, Math.min(2000, cp));
         const pct = ((clamped + 2000) / 4000) * 100;
         $('#gauge-white').css('width', pct + '%');
+      }
+
+      function syncEvalBarWidth() {
+        const boardSurface = document.querySelector('.board-container .board-b72b1');
+        const boardArea = document.querySelector('.board-area');
+        if (!boardSurface || !boardArea) return;
+        const boardWidth = boardSurface.getBoundingClientRect().width;
+        if (boardWidth) {
+          boardArea.style.setProperty('--eval-bar-width', `${Math.round(boardWidth)}px`);
+        }
       }
 
       function normalizeFenTurn(fen, turn) {
@@ -662,7 +676,12 @@
     board = Chessboard('board', cfg);
     $('.board-container').toggleClass('editing', editMode);
     board.resize();
-    requestAnimationFrame(() => board && board.resize());
+    syncEvalBarWidth();
+    requestAnimationFrame(() => {
+      if (!board) return;
+      board.resize();
+      syncEvalBarWidth();
+    });
     boardEl.off('click.square').on('click.square', 'div.square-55d63', function() {
       const cls = $(this).attr('class').split(/\s+/);
       const sq = cls.find(c => /^square-[a-h][1-8]$/.test(c));
@@ -1075,7 +1094,11 @@
   updateGauge(0);
   initEngine();
   updateStatus();
-  $(window).off('resize.board').on('resize.board', () => { if (board) board.resize(); });
+  $(window).off('resize.board').on('resize.board', () => {
+    if (!board) return;
+    board.resize();
+    syncEvalBarWidth();
+  });
 });
 
   </script>
