@@ -365,6 +365,7 @@
       let moveHistory = [];
       let navigationIndex = 0;
       const DEFAULT_DEPTH = 24;
+      const PGN_REPLAY_DEPTH = 12;
       const BACKGROUND_EVAL_DEPTH = 20;
       const DEFAULT_THREADS = 4;
       const DEFAULT_HASH_MB = 469;
@@ -1736,7 +1737,7 @@
     updateStatus();
     updateNavigationButtons();
     if (lastImportWasPgn) {
-      startReplayFromIndex(0, DEFAULT_DEPTH);
+      startReplayFromIndex(0, PGN_REPLAY_DEPTH);
     } else {
       requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
     }
