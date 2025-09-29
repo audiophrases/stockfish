@@ -74,22 +74,23 @@
       border-radius: 12px;
       border: 1px solid rgba(255, 255, 255, 0.08);
       background: linear-gradient(180deg, #161823 0%, #090b12 100%);
-      display: flex;
-      align-items: stretch;
       overflow: hidden;
       margin: 0 auto;
-      gap: 1px;
     }
 
-    #evaluation-nav::after {
-      content: '';
+    .evaluation-nav__graph {
       position: absolute;
-      left: 0;
-      right: 0;
-      top: 50%;
-      height: 1px;
-      background: rgba(255, 255, 255, 0.22);
+      inset: 0;
+      width: 100%;
+      height: 100%;
       pointer-events: none;
+    }
+
+    .evaluation-nav__overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: stretch;
     }
 
     .evaluation-nav__segment {
@@ -102,23 +103,31 @@
       min-width: 2px;
     }
 
-    .evaluation-nav__segment:hover::before {
-      opacity: 0.4;
-    }
-
     .evaluation-nav__segment::before {
       content: '';
       position: absolute;
       inset: 0;
-      background: rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.06);
       opacity: 0;
       transition: opacity 0.15s ease;
       pointer-events: none;
     }
 
-    .evaluation-nav__segment.is-current::before {
-      opacity: 0.55;
-      background: rgba(102, 153, 255, 0.32);
+    .evaluation-nav__segment:hover::before {
+      opacity: 0.35;
+    }
+
+    .evaluation-nav__segment.is-current::after {
+      content: '';
+      position: absolute;
+      top: 10%;
+      bottom: 10%;
+      left: calc(50% - 1px);
+      width: 2px;
+      border-radius: 2px;
+      background: rgba(102, 153, 255, 0.75);
+      box-shadow: 0 0 8px rgba(102, 153, 255, 0.6);
+      pointer-events: none;
     }
 
     .evaluation-nav__segment:focus-visible {
@@ -126,30 +135,33 @@
       outline-offset: -2px;
     }
 
-    .evaluation-nav__bar {
-      position: absolute;
-      left: 0;
-      right: 0;
-      background: rgba(255, 255, 255, 0.75);
-      pointer-events: none;
+    .evaluation-nav__area--black {
+      fill: rgba(16, 20, 32, 0.85);
     }
 
-    .evaluation-nav__bar--white {
-      top: 50%;
-      background: linear-gradient(180deg, rgba(210, 216, 247, 0.4) 0%, rgba(243, 245, 255, 0.95) 100%);
-      border-top: 1px solid rgba(255, 255, 255, 0.25);
+    .evaluation-nav__area--white {
+      fill: rgba(235, 240, 255, 0.5);
     }
 
-    .evaluation-nav__bar--black {
-      bottom: 50%;
-      background: linear-gradient(180deg, rgba(20, 24, 35, 0.95) 0%, rgba(36, 40, 58, 0.75) 100%);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    .evaluation-nav__baseline {
+      stroke: rgba(255, 255, 255, 0.22);
+      stroke-width: 1;
+      vector-effect: non-scaling-stroke;
     }
 
-    .evaluation-nav__bar--neutral {
-      top: calc(50% - 1px);
-      height: 2px !important;
-      background: rgba(255, 255, 255, 0.55);
+    .evaluation-nav__line {
+      fill: none;
+      stroke: rgba(255, 255, 255, 0.85);
+      stroke-width: 2;
+      vector-effect: non-scaling-stroke;
+      filter: drop-shadow(0 0 6px rgba(135, 178, 255, 0.45));
+    }
+
+    .evaluation-nav__marker {
+      fill: #f2ff5f;
+      stroke: rgba(10, 12, 22, 0.9);
+      stroke-width: 1.5;
+      vector-effect: non-scaling-stroke;
     }
 
     .board-container {
@@ -691,20 +703,102 @@
         const totalSegments = Math.max(1, evaluationTimeline.length);
         evaluationNavElement.innerHTML = '';
 
+        const bounds = evaluationNavElement.getBoundingClientRect();
+        let width = Math.round(bounds.width);
+        let height = Math.round(bounds.height);
+        if (!width || !height) {
+          width = Math.max(240, totalSegments * 16);
+          height = 72;
+        }
+
         const maxAbs = evaluationTimeline.reduce((max, entry) => {
           if (!entry || typeof entry.value !== 'number') return max;
           return Math.max(max, Math.abs(entry.value));
         }, 0);
         const denominator = Math.max(200, Math.min(2000, maxAbs || 0)) || 200;
 
+        const amplitude = Math.max(6, (height / 2) - 6);
+        const midY = height / 2;
+        const step = totalSegments > 1 ? width / (totalSegments - 1) : 0;
+        const rawPoints = [];
+
         for (let i = 0; i < totalSegments; i += 1) {
           const entry = i < evaluationTimeline.length ? evaluationTimeline[i] : null;
           const value = entry && typeof entry.value === 'number' ? entry.value : 0;
           const clamped = clampEvaluationValue(value);
-          const magnitude = Math.abs(clamped);
-          const ratio = denominator ? Math.min(1, magnitude / denominator) : 0;
-          const barHeight = Math.max(1.5, Math.min(50, ratio * 50));
+          const ratio = denominator ? Math.max(-1, Math.min(1, clamped / denominator)) : 0;
+          const x = totalSegments > 1 ? i * step : width / 2;
+          const y = midY - ratio * amplitude;
+          rawPoints.push({ x, y, entry });
+        }
 
+        const pathPoints = rawPoints.length === 1
+          ? [{ x: 0, y: rawPoints[0].y }, { x: width, y: rawPoints[0].y }]
+          : rawPoints;
+
+        const toCommandString = pts => pts.map((pt, idx) => {
+          const command = idx === 0 ? 'M' : 'L';
+          return `${command}${pt.x.toFixed(2)},${pt.y.toFixed(2)}`;
+        }).join(' ');
+
+        const lineCommands = pathPoints.length ? toCommandString(pathPoints) : '';
+        const areaBelowPath = lineCommands
+          ? `${lineCommands} L${width.toFixed(2)},${height.toFixed(2)} L0,${height.toFixed(2)} Z`
+          : '';
+        const areaAbovePath = lineCommands
+          ? `${lineCommands} L${width.toFixed(2)},0 L0,0 Z`
+          : '';
+
+        const svgNS = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(svgNS, 'svg');
+        svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+        svg.setAttribute('preserveAspectRatio', 'none');
+        svg.classList.add('evaluation-nav__graph');
+
+        if (areaAbovePath) {
+          const blackArea = document.createElementNS(svgNS, 'path');
+          blackArea.setAttribute('d', areaAbovePath);
+          blackArea.setAttribute('class', 'evaluation-nav__area evaluation-nav__area--black');
+          svg.appendChild(blackArea);
+        }
+
+        if (areaBelowPath) {
+          const whiteArea = document.createElementNS(svgNS, 'path');
+          whiteArea.setAttribute('d', areaBelowPath);
+          whiteArea.setAttribute('class', 'evaluation-nav__area evaluation-nav__area--white');
+          svg.appendChild(whiteArea);
+        }
+
+        const baseline = document.createElementNS(svgNS, 'line');
+        baseline.setAttribute('x1', '0');
+        baseline.setAttribute('y1', midY.toFixed(2));
+        baseline.setAttribute('x2', width.toFixed(2));
+        baseline.setAttribute('y2', midY.toFixed(2));
+        baseline.setAttribute('class', 'evaluation-nav__baseline');
+        svg.appendChild(baseline);
+
+        if (lineCommands) {
+          const linePath = document.createElementNS(svgNS, 'path');
+          linePath.setAttribute('d', lineCommands);
+          linePath.setAttribute('class', 'evaluation-nav__line');
+          svg.appendChild(linePath);
+
+          const currentPoint = rawPoints[Math.min(navigationIndex, rawPoints.length - 1)];
+          if (currentPoint) {
+            const marker = document.createElementNS(svgNS, 'circle');
+            marker.setAttribute('cx', currentPoint.x.toFixed(2));
+            marker.setAttribute('cy', currentPoint.y.toFixed(2));
+            marker.setAttribute('r', '4');
+            marker.setAttribute('class', 'evaluation-nav__marker');
+            svg.appendChild(marker);
+          }
+        }
+
+        const overlay = document.createElement('div');
+        overlay.className = 'evaluation-nav__overlay';
+
+        for (let i = 0; i < totalSegments; i += 1) {
+          const entry = i < evaluationTimeline.length ? evaluationTimeline[i] : null;
           const segment = document.createElement('button');
           segment.type = 'button';
           segment.className = 'evaluation-nav__segment';
@@ -714,23 +808,11 @@
           const labelText = entry && entry.text ? entry.text : '0.00';
           segment.title = `Ply ${i}: ${labelText}`;
           segment.setAttribute('aria-label', `Ply ${i} evaluation ${labelText}`);
-
-          const bar = document.createElement('div');
-          bar.classList.add('evaluation-nav__bar');
-
-          if (magnitude < 10) {
-            bar.classList.add('evaluation-nav__bar--neutral');
-          } else if (clamped >= 0) {
-            bar.classList.add('evaluation-nav__bar--white');
-            bar.style.height = `${barHeight}%`;
-          } else {
-            bar.classList.add('evaluation-nav__bar--black');
-            bar.style.height = `${barHeight}%`;
-          }
-
-          segment.appendChild(bar);
-          evaluationNavElement.appendChild(segment);
+          overlay.appendChild(segment);
         }
+
+        evaluationNavElement.appendChild(svg);
+        evaluationNavElement.appendChild(overlay);
       }
 
       function applyEvaluationResult(cpValue, displayText) {
@@ -862,6 +944,7 @@
 
       function recordMove(move) {
         if (!move) return;
+        lastImportWasPgn = false;
         if (navigationIndex < moveHistory.length) {
           moveHistory = moveHistory.slice(0, navigationIndex);
           evaluationTimeline = evaluationTimeline.slice(0, navigationIndex + 1);
@@ -1019,6 +1102,7 @@
     if (editSelectionSource === 'spare') {
       game.remove(square);
       game.put({ type: editSelectedPiece.type, color: editSelectedPiece.color }, square);
+      lastImportWasPgn = false;
       resetHistory(game.fen());
       renderBoard();
       updateStatus();
@@ -1042,6 +1126,7 @@
       game.remove(square);
       game.put(movingPiece, square);
       clearEditSelection();
+      lastImportWasPgn = false;
       resetHistory(game.fen());
       renderBoard();
       updateStatus();
@@ -1053,14 +1138,7 @@
     if (!editMode) return;
     const $target = $(event.target);
     if ($target.closest('.board-container').length) return;
-    if (editSelectionSource === 'board' && editSelectedSquare) {
-      game.remove(editSelectedSquare);
-      clearEditSelection();
-      resetHistory(game.fen());
-      renderBoard();
-      updateStatus();
-      requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
-    } else if (editSelectionSource) {
+    if (editSelectionSource) {
       clearEditSelection();
     }
   }
@@ -1186,6 +1264,7 @@
     if (editMode) {
       game.clear();
       Object.entries(newPos).forEach(([sq,p]) => { if (p) game.put({type:p[1].toLowerCase(), color:p[0]}, sq); });
+      lastImportWasPgn = false;
       resetHistory(game.fen());
       renderBoard(); updateStatus(); requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
       return;
@@ -1556,6 +1635,20 @@
   $(document).on('keydown', event => {
     const activeElement = document.activeElement;
     if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.isContentEditable)) {
+      return;
+    }
+
+    if (editMode && (event.key === 'Delete' || event.key === 'Backspace')) {
+      if (editSelectionSource === 'board' && editSelectedSquare) {
+        event.preventDefault();
+        game.remove(editSelectedSquare);
+        clearEditSelection();
+        lastImportWasPgn = false;
+        resetHistory(game.fen());
+        renderBoard();
+        updateStatus();
+        requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
+      }
       return;
     }
 
