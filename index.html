@@ -1524,22 +1524,13 @@
   }
 
   // UI hooks
-  $('#best-move-button').on('click', () => {
-    if (replayMode) stopReplay();
-    bestMoveVisible = !bestMoveVisible;
-    shouldHighlightBest = bestMoveVisible;
-    $('#best-move-button').text(bestMoveVisible ? 'Hide Best' : 'Best');
-    updateBestMoveDisplay();
-    if (bestMoveVisible) {
-      requestAnalysis({ highlight: shouldHighlightBest, revealBest: true });
-    }
-  });
-  $('#prev-button').on('click', () => {
+  function goToPreviousMove() {
     if (replayMode) stopReplay();
     if (navigationIndex === 0) return;
     rebuildPosition(navigationIndex - 1);
-  });
-  $('#next-button').on('click', () => {
+  }
+
+  function goToNextMove() {
     if (replayMode) stopReplay();
     if (autoPlayPending) return;
     if (game.game_over()) return;
@@ -1554,6 +1545,34 @@
       depth: DEFAULT_DEPTH,
       autoPlay: true
     });
+  }
+
+  $('#best-move-button').on('click', () => {
+    if (replayMode) stopReplay();
+    bestMoveVisible = !bestMoveVisible;
+    shouldHighlightBest = bestMoveVisible;
+    $('#best-move-button').text(bestMoveVisible ? 'Hide Best' : 'Best');
+    updateBestMoveDisplay();
+    if (bestMoveVisible) {
+      requestAnalysis({ highlight: shouldHighlightBest, revealBest: true });
+    }
+  });
+  $('#prev-button').on('click', goToPreviousMove);
+  $('#next-button').on('click', goToNextMove);
+
+  $(document).on('keydown', event => {
+    const activeElement = document.activeElement;
+    if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.isContentEditable)) {
+      return;
+    }
+
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      goToPreviousMove();
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      goToNextMove();
+    }
   });
   $('#piece-moves-button').on('click', () => {
     if (replayMode) stopReplay();
