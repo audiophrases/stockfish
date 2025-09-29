@@ -365,7 +365,7 @@
       let moveHistory = [];
       let navigationIndex = 0;
       const DEFAULT_DEPTH = 24;
-      const PGN_REPLAY_DEPTH = 12;
+      const PGN_REPLAY_DEPTH = 14;
       const BACKGROUND_EVAL_DEPTH = 20;
       const DEFAULT_THREADS = 4;
       const DEFAULT_HASH_MB = 469;
@@ -534,8 +534,8 @@
           const line = String(e.data).trim();
 
           if (line === 'uciok') {
-            backgroundEngine.postMessage('setoption name Threads value 1');
-            backgroundEngine.postMessage('setoption name Hash value 128');
+            backgroundEngine.postMessage(`setoption name Threads value ${DEFAULT_THREADS}`);
+            backgroundEngine.postMessage(`setoption name Hash value ${DEFAULT_HASH_MB}`);
             backgroundEngine.postMessage('isready');
             return;
           }
