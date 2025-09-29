@@ -694,24 +694,42 @@
         const verticalScale = displayHeight / 2;
         const step = values.length > 1 ? displayWidth / (values.length - 1) : 0;
 
-        ctx.beginPath();
-        ctx.moveTo(0, midY);
+        const points = [];
         for (let i = 0; i < values.length; i += 1) {
           const x = step * i;
-          const ratio = Math.max(-2000, Math.min(2000, values[i])) / 2000;
+          const amplified = values[i] * 1.33;
+          const clamped = Math.max(-2000, Math.min(2000, amplified));
+          const ratio = clamped / 2000;
           const y = midY - ratio * verticalScale;
+          points.push({ x, y });
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        for (let i = 0; i < points.length; i += 1) {
+          const { x, y } = points[i];
+          if (i === 0) ctx.lineTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.lineTo(displayWidth, 0);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.moveTo(0, displayHeight);
+        for (let i = 0; i < points.length; i += 1) {
+          const { x, y } = points[i];
           ctx.lineTo(x, y);
         }
-        ctx.lineTo(displayWidth, midY);
+        ctx.lineTo(displayWidth, displayHeight);
         ctx.closePath();
         ctx.fillStyle = 'rgba(243, 245, 255, 0.82)';
         ctx.fill();
 
         ctx.beginPath();
-        for (let i = 0; i < values.length; i += 1) {
-          const x = step * i;
-          const ratio = Math.max(-2000, Math.min(2000, values[i])) / 2000;
-          const y = midY - ratio * verticalScale;
+        for (let i = 0; i < points.length; i += 1) {
+          const { x, y } = points[i];
           if (i === 0) ctx.moveTo(x, y);
           else ctx.lineTo(x, y);
         }
