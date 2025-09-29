@@ -364,20 +364,20 @@
       let bestMoveVisible = false;
       let moveHistory = [];
       let navigationIndex = 0;
+      const DEFAULT_DEPTH = 24;
+      const BACKGROUND_EVAL_DEPTH = 20;
+      const DEFAULT_THREADS = 4;
+      const DEFAULT_HASH_MB = 469;
+      const AUTO_PLAY_MIN_WAIT_MS = 4000;
+      const REPLAY_STEP_DELAY_MS = 900;
       let autoPlayPending = false;
-      let autoPlayTargetDepth = 12;
+      let autoPlayTargetDepth = DEFAULT_DEPTH;
       let autoPlayFen = null;
       let currentBestMove = null;
       let currentDepth = 0;
       let pieceMoveRatings = new Map();
       let waitingForAutoBestMove = false;
       let autoMoveCandidate = null;
-      const DEFAULT_DEPTH = 12;
-      const BACKGROUND_EVAL_DEPTH = 14;
-      const DEFAULT_THREADS = 4;
-      const DEFAULT_HASH_MB = 469;
-      const AUTO_PLAY_MIN_WAIT_MS = 4000;
-      const REPLAY_STEP_DELAY_MS = 900;
       let autoPlayRequestedAt = 0;
       let autoPlayDelayTimer = null;
       let autoPlayDepthSatisfied = false;
@@ -1518,9 +1518,9 @@
     engine.postMessage(`setoption name MultiPV value ${multiPv}`);
     engine.postMessage(`position fen ${normalizedFen}`);
     if (searchMoves && searchMoves.length) {
-      engine.postMessage(`go depth ${depth} searchmoves ${searchMoves.join(' ')}`);
+      engine.postMessage(`go searchmoves ${searchMoves.join(' ')} infinite`);
     } else {
-      engine.postMessage(`go depth ${depth}`);
+      engine.postMessage('go infinite');
     }
     updateNavigationButtons();
   }
