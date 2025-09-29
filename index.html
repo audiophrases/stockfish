@@ -698,8 +698,8 @@
         const points = [];
         for (let i = 0; i < values.length; i += 1) {
           const x = step * i;
-          const amplified = values[i] * 2;
-          const clamped = Math.max(-2000, Math.min(2000, amplified));
+          const cpValue = typeof values[i] === 'number' ? values[i] : 0;
+          const clamped = Math.max(-2000, Math.min(2000, cpValue));
           const ratio = clamped / 2000;
           const y = midY - ratio * verticalScale;
           points.push({ x, y });
