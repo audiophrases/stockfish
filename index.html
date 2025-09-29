@@ -55,64 +55,7 @@
       display: flex;
       flex-direction: column;
       align-items: stretch;
-      gap: 8px;
-    }
-
-    #evaluation-graph-container {
-      width: var(--eval-bar-width);
-      height: 64px;
-      border-radius: 12px;
-      background: linear-gradient(180deg, #1a1c28 0%, #10121b 100%);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      overflow: hidden;
-      margin: 0 auto;
-    }
-
-    #evaluation-graph {
-      width: 100%;
-      height: 100%;
-      display: block;
-      cursor: pointer;
-    }
-
-    #gauge {
-      position: relative;
-      flex: none;
-      height: 18px;
-      width: var(--eval-bar-width);
-      margin: 0 auto;
-      border-radius: 0;
-      background: linear-gradient(90deg, #11131d 0%, #2f344b 100%);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      overflow: hidden;
-      align-self: center;
-      box-sizing: border-box;
-    }
-
-    #gauge-white {
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      left: 0;
-      background: linear-gradient(90deg, #d2d8f7 0%, #f3f5ff 100%);
-      width: 50%;
-      transition: width 0.35s ease;
-      z-index: 1;
-      border-radius: 0;
-    }
-
-    #gauge::after {
-      content: '';
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      left: 50%;
-      width: 2px;
-      transform: translateX(-50%);
-      background: rgba(255, 255, 255, 0.65);
-      box-shadow: 0 0 6px rgba(12, 14, 25, 0.45);
-      z-index: 2;
-      pointer-events: none;
+      gap: 10px;
     }
 
     #evaluation-label {
@@ -122,6 +65,91 @@
       text-align: center;
       font-weight: 600;
       width: 100%;
+    }
+
+    #evaluation-nav {
+      position: relative;
+      width: var(--eval-bar-width);
+      height: 72px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: linear-gradient(180deg, #161823 0%, #090b12 100%);
+      display: flex;
+      align-items: stretch;
+      overflow: hidden;
+      margin: 0 auto;
+      gap: 1px;
+    }
+
+    #evaluation-nav::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 50%;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.22);
+      pointer-events: none;
+    }
+
+    .evaluation-nav__segment {
+      position: relative;
+      flex: 1;
+      border: none;
+      background: transparent;
+      padding: 0;
+      cursor: pointer;
+      min-width: 2px;
+    }
+
+    .evaluation-nav__segment:hover::before {
+      opacity: 0.4;
+    }
+
+    .evaluation-nav__segment::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(255, 255, 255, 0.08);
+      opacity: 0;
+      transition: opacity 0.15s ease;
+      pointer-events: none;
+    }
+
+    .evaluation-nav__segment.is-current::before {
+      opacity: 0.55;
+      background: rgba(102, 153, 255, 0.32);
+    }
+
+    .evaluation-nav__segment:focus-visible {
+      outline: 2px solid #f2ff5f;
+      outline-offset: -2px;
+    }
+
+    .evaluation-nav__bar {
+      position: absolute;
+      left: 0;
+      right: 0;
+      background: rgba(255, 255, 255, 0.75);
+      pointer-events: none;
+    }
+
+    .evaluation-nav__bar--white {
+      top: 50%;
+      background: linear-gradient(180deg, rgba(210, 216, 247, 0.4) 0%, rgba(243, 245, 255, 0.95) 100%);
+      border-top: 1px solid rgba(255, 255, 255, 0.25);
+    }
+
+    .evaluation-nav__bar--black {
+      bottom: 50%;
+      background: linear-gradient(180deg, rgba(20, 24, 35, 0.95) 0%, rgba(36, 40, 58, 0.75) 100%);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .evaluation-nav__bar--neutral {
+      top: calc(50% - 1px);
+      height: 2px !important;
+      background: rgba(255, 255, 255, 0.55);
     }
 
     .board-container {
@@ -319,8 +347,7 @@
       <div class="board-area">
         <div class="eval-bar">
           <span id="evaluation-label"></span>
-          <div id="evaluation-graph-container"><canvas id="evaluation-graph"></canvas></div>
-          <div id="gauge"><div id="gauge-white"></div></div>
+          <div id="evaluation-nav" role="group" aria-label="Evaluation navigation"></div>
         </div>
         <div class="board-container">
           <div id="board"></div>
@@ -365,8 +392,8 @@
       let moveHistory = [];
       let navigationIndex = 0;
       const DEFAULT_DEPTH = 24;
-      const PGN_REPLAY_DEPTH = 14;
-      const BACKGROUND_EVAL_DEPTH = 20;
+      const PGN_REPLAY_DEPTH = 12;
+      const BACKGROUND_EVAL_DEPTH = 24;
       const DEFAULT_THREADS = 4;
       const DEFAULT_HASH_MB = 469;
       const AUTO_PLAY_MIN_WAIT_MS = 4000;
@@ -382,8 +409,7 @@
       let autoPlayRequestedAt = 0;
       let autoPlayDelayTimer = null;
       let autoPlayDepthSatisfied = false;
-      const evaluationGraphCanvas = document.getElementById('evaluation-graph');
-      const evaluationGraphCtx = evaluationGraphCanvas ? evaluationGraphCanvas.getContext('2d') : null;
+      const evaluationNavElement = document.getElementById('evaluation-nav');
       let evaluationTimeline = [];
       let backgroundEngine = null;
       let backgroundEngineReady = false;
@@ -415,7 +441,7 @@
       function clearEvaluationTimeline(initialSize = 1) {
         const size = Math.max(1, Math.floor(initialSize));
         evaluationTimeline = new Array(size).fill(null);
-        renderEvaluationGraph();
+        renderEvaluationNavigation();
       }
 
       function resetBackgroundEvaluationProgress() {
@@ -637,9 +663,14 @@
       function setTimelineEntry(index, entry) {
         if (typeof index !== 'number' || index < 0) return;
         const extended = ensureTimelineCapacity(index + 1);
-        evaluationTimeline[index] = entry;
+        if (entry && typeof entry === 'object') {
+          const normalizedValue = typeof entry.value === 'number' ? clampEvaluationValue(entry.value) : null;
+          evaluationTimeline[index] = { ...entry, value: normalizedValue };
+        } else {
+          evaluationTimeline[index] = entry;
+        }
         if (extended || entry !== undefined) {
-          renderEvaluationGraph();
+          renderEvaluationNavigation();
         }
       }
 
@@ -650,126 +681,70 @@
         return evaluationTimeline[index];
       }
 
-      function renderEvaluationGraph() {
-        if (!evaluationGraphCanvas || !evaluationGraphCtx) return;
-        const displayWidth = evaluationGraphCanvas.clientWidth;
-        const displayHeight = evaluationGraphCanvas.clientHeight;
-        if (!displayWidth || !displayHeight) return;
-        const dpr = window.devicePixelRatio || 1;
-        if (evaluationGraphCanvas.width !== displayWidth * dpr || evaluationGraphCanvas.height !== displayHeight * dpr) {
-          evaluationGraphCanvas.width = displayWidth * dpr;
-          evaluationGraphCanvas.height = displayHeight * dpr;
-        }
-        const ctx = evaluationGraphCtx;
-        ctx.save();
-        ctx.scale(dpr, dpr);
-        ctx.clearRect(0, 0, displayWidth, displayHeight);
-        ctx.fillStyle = '#10121b';
-        ctx.fillRect(0, 0, displayWidth, displayHeight);
-
-        const midY = displayHeight / 2;
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(0, midY);
-        ctx.lineTo(displayWidth, midY);
-        ctx.stroke();
-
-        let values = [];
-        let lastValue = 0;
-        if (evaluationTimeline.length) {
-          for (let i = 0; i < evaluationTimeline.length; i += 1) {
-            const entry = evaluationTimeline[i];
-            if (entry && typeof entry.value === 'number') {
-              lastValue = entry.value;
-            }
-            values.push(lastValue);
-          }
-          if (values.length === 1) {
-            values.push(lastValue);
-          }
-        } else {
-          values = [0, 0];
-        }
-
-        const verticalScale = displayHeight / 2;
-        const step = values.length > 1 ? displayWidth / (values.length - 1) : 0;
-
-        const points = [];
-        for (let i = 0; i < values.length; i += 1) {
-          const x = step * i;
-          const cpValue = typeof values[i] === 'number' ? values[i] : 0;
-          const clamped = Math.max(-2000, Math.min(2000, cpValue));
-          const ratio = clamped / 2000;
-          const y = midY - ratio * verticalScale;
-          points.push({ x, y });
-        }
-
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        for (let i = 0; i < points.length; i += 1) {
-          const { x, y } = points[i];
-          if (i === 0) ctx.lineTo(x, y);
-          else ctx.lineTo(x, y);
-        }
-        ctx.lineTo(displayWidth, 0);
-        ctx.closePath();
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-        ctx.fill();
-
-        ctx.beginPath();
-        ctx.moveTo(0, displayHeight);
-        for (let i = 0; i < points.length; i += 1) {
-          const { x, y } = points[i];
-          ctx.lineTo(x, y);
-        }
-        ctx.lineTo(displayWidth, displayHeight);
-        ctx.closePath();
-        ctx.fillStyle = 'rgba(243, 245, 255, 0.82)';
-        ctx.fill();
-
-        ctx.beginPath();
-        for (let i = 0; i < points.length; i += 1) {
-          const { x, y } = points[i];
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        }
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-        ctx.stroke();
-
-        const currentIdx = Math.max(0, Math.min(navigationIndex, values.length - 1));
-        const cursorX = values.length > 1 ? (currentIdx / (values.length - 1)) * displayWidth : 0;
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(cursorX, 0);
-        ctx.lineTo(cursorX, displayHeight);
-        ctx.stroke();
-
-        ctx.restore();
+      function clampEvaluationValue(cp) {
+        if (typeof cp !== 'number' || Number.isNaN(cp)) return 0;
+        return Math.max(-2000, Math.min(2000, cp));
       }
 
-      function setGaugeVisual(cp) {
-        const clamped = Math.max(-2000, Math.min(2000, cp));
-        const pct = ((clamped + 2000) / 4000) * 100;
-        $('#gauge-white').css('width', pct + '%');
-        return clamped;
+      function renderEvaluationNavigation() {
+        if (!evaluationNavElement) return;
+        const totalSegments = Math.max(1, evaluationTimeline.length);
+        evaluationNavElement.innerHTML = '';
+
+        const maxAbs = evaluationTimeline.reduce((max, entry) => {
+          if (!entry || typeof entry.value !== 'number') return max;
+          return Math.max(max, Math.abs(entry.value));
+        }, 0);
+        const denominator = Math.max(200, Math.min(2000, maxAbs || 0)) || 200;
+
+        for (let i = 0; i < totalSegments; i += 1) {
+          const entry = i < evaluationTimeline.length ? evaluationTimeline[i] : null;
+          const value = entry && typeof entry.value === 'number' ? entry.value : 0;
+          const clamped = clampEvaluationValue(value);
+          const magnitude = Math.abs(clamped);
+          const ratio = denominator ? Math.min(1, magnitude / denominator) : 0;
+          const barHeight = Math.max(1.5, Math.min(50, ratio * 50));
+
+          const segment = document.createElement('button');
+          segment.type = 'button';
+          segment.className = 'evaluation-nav__segment';
+          segment.tabIndex = -1;
+          segment.dataset.index = String(i);
+          segment.classList.toggle('is-current', i === navigationIndex);
+          const labelText = entry && entry.text ? entry.text : '0.00';
+          segment.title = `Ply ${i}: ${labelText}`;
+          segment.setAttribute('aria-label', `Ply ${i} evaluation ${labelText}`);
+
+          const bar = document.createElement('div');
+          bar.classList.add('evaluation-nav__bar');
+
+          if (magnitude < 10) {
+            bar.classList.add('evaluation-nav__bar--neutral');
+          } else if (clamped >= 0) {
+            bar.classList.add('evaluation-nav__bar--white');
+            bar.style.height = `${barHeight}%`;
+          } else {
+            bar.classList.add('evaluation-nav__bar--black');
+            bar.style.height = `${barHeight}%`;
+          }
+
+          segment.appendChild(bar);
+          evaluationNavElement.appendChild(segment);
+        }
       }
 
       function applyEvaluationResult(cpValue, displayText) {
-        const normalized = setGaugeVisual(cpValue);
+        const normalized = clampEvaluationValue(cpValue);
         $('#evaluation').text(displayText);
         setTimelineEntry(navigationIndex, { value: normalized, text: displayText });
       }
 
       function applyStoredEvaluationIfAvailable() {
         const entry = getTimelineEntry(navigationIndex);
-        if (entry && typeof entry.value === 'number') {
-          setGaugeVisual(entry.value);
-          if (entry.text) {
-            $('#evaluation').text(entry.text);
-          }
+        if (entry && entry.text) {
+          $('#evaluation').text(entry.text);
+        } else {
+          $('#evaluation').text('N/A');
         }
       }
 
@@ -781,7 +756,7 @@
         if (boardWidth) {
           boardArea.style.setProperty('--eval-bar-width', `${Math.round(boardWidth)}px`);
         }
-        renderEvaluationGraph();
+        renderEvaluationNavigation();
       }
 
       function normalizeFenTurn(fen, turn) {
@@ -895,7 +870,7 @@
         navigationIndex = moveHistory.length;
         ensureTimelineCapacity(navigationIndex + 1);
         updateNavigationButtons();
-        renderEvaluationGraph();
+        renderEvaluationNavigation();
       }
 
       function resetHistory(newBaseFen = null) {
@@ -917,9 +892,8 @@
         }
         clearEvaluationTimeline(1);
         $('#evaluation').text('N/A');
-        setGaugeVisual(0);
         updateNavigationButtons();
-        renderEvaluationGraph();
+        renderEvaluationNavigation();
       }
 
       function rebuildPosition(targetIndex, analysisOptions = null) {
@@ -947,7 +921,7 @@
         renderBoard();
         updateStatus();
         applyStoredEvaluationIfAvailable();
-        renderEvaluationGraph();
+        renderEvaluationNavigation();
         const requestOptions = analysisOptions || {
           highlight: shouldHighlightBest && bestMoveVisible,
           revealBest: bestMoveVisible
@@ -1706,7 +1680,7 @@
         return false;
       }
       updateNavigationButtons();
-      renderEvaluationGraph();
+      renderEvaluationNavigation();
       lastImportWasPgn = true;
       return true;
     };
@@ -1743,8 +1717,8 @@
     }
   });
 
+  clearEvaluationTimeline(1);
   renderBoard();
-  setGaugeVisual(0);
   initEngine();
   initBackgroundEngine();
   updateStatus();
@@ -1754,18 +1728,17 @@
     syncEvalBarWidth();
   });
 
-  if (evaluationGraphCanvas) {
-    evaluationGraphCanvas.addEventListener('click', event => {
+  if (evaluationNavElement) {
+    evaluationNavElement.addEventListener('click', event => {
       if (replayMode) stopReplay();
       if (editMode || pieceMovesMode) return;
-      if (!evaluationTimeline || evaluationTimeline.length <= 1) return;
-      const rect = evaluationGraphCanvas.getBoundingClientRect();
-      if (!rect.width) return;
-      const relativeX = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
-      const ratio = relativeX / rect.width;
-      const targetIndex = Math.round(ratio * (evaluationTimeline.length - 1));
+      const segment = event.target.closest('.evaluation-nav__segment');
+      if (!segment) return;
+      const { index } = segment.dataset;
+      const targetIndex = Number.parseInt(index, 10);
+      if (!Number.isInteger(targetIndex)) return;
       if (targetIndex === navigationIndex) return;
-      rebuildPosition(targetIndex);
+      rebuildPosition(Math.max(0, Math.min(targetIndex, moveHistory.length)));
     });
   }
 });
