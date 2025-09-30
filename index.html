@@ -477,31 +477,97 @@
         }
       }
 
-      function createEvaluationEntryFromScore({ cp = null, mate = null, turn = 'w' }) {
-        if (typeof mate === 'number') {
+      function capitalizeWord(word) {
+        if (typeof word !== 'string' || !word.length) return '';
+        return word.charAt(0).toUpperCase() + word.slice(1);
+      }
+
+      function describeCentipawnAdvantage(cp) {
+        const abs = Math.abs(cp);
+        if (abs < 15) {
+          return { leadingSide: null, summary: 'Level position', category: 'level' };
+        }
+        const side = cp > 0 ? 'white' : 'black';
+        if (abs < 50) {
+          return { leadingSide: side, summary: 'has a microscopic edge', category: 'tiny' };
+        }
+        if (abs < 120) {
+          return { leadingSide: side, summary: 'has a small advantage', category: 'small' };
+        }
+        if (abs < 250) {
+          return { leadingSide: side, summary: 'is better', category: 'better' };
+        }
+        if (abs < 400) {
+          return { leadingSide: side, summary: 'is winning', category: 'winning' };
+        }
+        return { leadingSide: side, summary: 'is completely winning', category: 'crushing' };
+      }
+
+      function buildEvaluationEntryFromScore({ cp = null, mate = null, turn = 'w' }) {
+        const activeTurn = turn === 'b' ? 'b' : 'w';
+
+        if (typeof mate === 'number' && !Number.isNaN(mate)) {
           const mateValueRaw = mate;
           const isNegativeZero = Object.is(mateValueRaw, -0);
           const rawSign = mateValueRaw > 0 ? 1 : mateValueRaw < 0 ? -1 : (isNegativeZero ? -1 : 1);
           let mateValue = mateValueRaw;
-          if (turn === 'b') {
+          if (activeTurn === 'b') {
             mateValue = -mateValue;
           }
+
           if (mateValue === 0) {
-            const gaugeSign = turn === 'b' ? -rawSign : rawSign;
-            return { value: gaugeSign >= 0 ? 2000 : -2000, text: 'Checkmate' };
+            const gaugeSign = activeTurn === 'b' ? -rawSign : rawSign;
+            const winningSide = gaugeSign >= 0 ? 'white' : 'black';
+            const label = `${capitalizeWord(winningSide)} has delivered checkmate`;
+            return {
+              value: gaugeSign >= 0 ? 2000 : -2000,
+              text: label,
+              shortText: 'Mate',
+              type: 'mate',
+              matePly: 0,
+              winningSide,
+              raw: { mate: mateValueRaw, turn: activeTurn }
+            };
           }
-          const matePrefix = mateValue > 0 ? '' : '-';
-          return { value: mateValue > 0 ? 2000 : -2000, text: `Mate in ${matePrefix}${Math.abs(mateValue)}` };
+
+          const winningSide = mateValue > 0 ? 'white' : 'black';
+          const absMoves = Math.abs(mateValue);
+          const label = `${capitalizeWord(winningSide)} mates in ${absMoves}`;
+          const shortText = mateValue > 0 ? `M${absMoves}` : `M-${absMoves}`;
+          return {
+            value: mateValue > 0 ? 2000 : -2000,
+            text: label,
+            shortText,
+            type: 'mate',
+            matePly: absMoves,
+            winningSide,
+            raw: { mate: mateValueRaw, turn: activeTurn }
+          };
         }
 
-        if (typeof cp === 'number') {
+        if (typeof cp === 'number' && !Number.isNaN(cp)) {
           let cpValue = cp;
-          if (turn === 'b') {
+          if (activeTurn === 'b') {
             cpValue = -cpValue;
           }
           const normalized = Math.max(-2000, Math.min(2000, cpValue));
-          const prefix = cpValue > 0 ? '+' : '';
-          return { value: normalized, text: `${prefix}${(cpValue / 100).toFixed(2)}` };
+          const descriptor = describeCentipawnAdvantage(cpValue);
+          const prefix = cpValue > 0 ? '+' : cpValue < 0 ? '' : '';
+          const cpDisplay = `${prefix}${(cpValue / 100).toFixed(2)}`;
+          const cpLabel = `${cpDisplay} cp`;
+          const summary = descriptor.leadingSide
+            ? `${capitalizeWord(descriptor.leadingSide)} ${descriptor.summary}`
+            : descriptor.summary;
+          return {
+            value: normalized,
+            text: `${summary} (${cpLabel})`,
+            shortText: cpDisplay,
+            type: 'cp',
+            cp: cpValue,
+            winningSide: descriptor.leadingSide,
+            advantageCategory: descriptor.category,
+            raw: { cp, turn: activeTurn }
+          };
         }
 
         return null;
@@ -629,7 +695,7 @@
           backgroundCurrentTask = null;
           let entry = null;
           if (backgroundLastScore) {
-            entry = createEvaluationEntryFromScore({ cp: backgroundLastScore.cp ?? null, mate: backgroundLastScore.mate ?? null, turn: backgroundLastScore.turn || currentTask.turn });
+            entry = buildEvaluationEntryFromScore({ cp: backgroundLastScore.cp ?? null, mate: backgroundLastScore.mate ?? null, turn: backgroundLastScore.turn || currentTask.turn });
           }
           if (!entry) {
             entry = { value: 0, text: 'N/A' };
@@ -805,9 +871,10 @@
           segment.tabIndex = -1;
           segment.dataset.index = String(i);
           segment.classList.toggle('is-current', i === navigationIndex);
-          const labelText = entry && entry.text ? entry.text : '0.00';
-          segment.title = `Ply ${i}: ${labelText}`;
-          segment.setAttribute('aria-label', `Ply ${i} evaluation ${labelText}`);
+        const shortLabel = entry && entry.shortText ? entry.shortText : (entry && entry.text ? entry.text : '0.00');
+        const fullLabel = entry && entry.text ? entry.text : shortLabel;
+        segment.title = `Ply ${i}: ${fullLabel}`;
+        segment.setAttribute('aria-label', `Ply ${i} evaluation ${fullLabel}`);
           overlay.appendChild(segment);
         }
 
@@ -815,10 +882,11 @@
         evaluationNavElement.appendChild(overlay);
       }
 
-      function applyEvaluationResult(cpValue, displayText) {
-        const normalized = clampEvaluationValue(cpValue);
-        $('#evaluation').text(displayText);
-        setTimelineEntry(navigationIndex, { value: normalized, text: displayText });
+      function applyEvaluationEntry(entry) {
+        if (!entry) return;
+        const label = entry.text || 'N/A';
+        $('#evaluation').text(label);
+        setTimelineEntry(navigationIndex, entry);
       }
 
       function applyStoredEvaluationIfAvailable() {
@@ -1074,6 +1142,51 @@
     applySpareSelection();
   }
 
+  function commitEditedBoardState() {
+    lastImportWasPgn = false;
+    resetHistory(game.fen());
+    renderBoard();
+    updateStatus();
+    requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
+  }
+
+  function clonePiece(piece) {
+    if (!piece) return null;
+    return { type: piece.type, color: piece.color };
+  }
+
+  function attemptPlacePiece(square, piece) {
+    if (!square || !piece) {
+      return { success: false, changed: false };
+    }
+    const existing = game.get(square);
+    if (existing && existing.type === piece.type && existing.color === piece.color) {
+      return { success: true, changed: false };
+    }
+    const backup = clonePiece(existing);
+    if (existing) {
+      game.remove(square);
+    }
+    const placed = game.put({ type: piece.type, color: piece.color }, square);
+    if (!placed) {
+      if (backup) {
+        game.put(backup, square);
+      }
+      return { success: false, changed: false };
+    }
+    return { success: true, changed: true };
+  }
+
+  function removePieceAtSquare(square) {
+    if (!square) return false;
+    const existing = game.get(square);
+    if (!existing) return false;
+    const removed = game.remove(square);
+    if (!removed) return false;
+    commitEditedBoardState();
+    return true;
+  }
+
   function handleSparePieceClick(pieceCode) {
     if (!editMode || !pieceCode || pieceCode.length < 2) return;
     editSelectedPiece = { color: pieceCode[0], type: pieceCode[1].toLowerCase() };
@@ -1100,13 +1213,15 @@
     }
 
     if (editSelectionSource === 'spare') {
-      game.remove(square);
-      game.put({ type: editSelectedPiece.type, color: editSelectedPiece.color }, square);
-      lastImportWasPgn = false;
-      resetHistory(game.fen());
-      renderBoard();
-      updateStatus();
-      requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
+      const result = attemptPlacePiece(square, editSelectedPiece);
+      if (!result.success) {
+        applySelectionHighlights();
+        applySpareSelection();
+        return;
+      }
+      if (result.changed) {
+        commitEditedBoardState();
+      }
       return;
     }
 
@@ -1121,16 +1236,27 @@
         return;
       }
 
-      const movingPiece = { type: editSelectedPiece.type, color: editSelectedPiece.color };
-      game.remove(sourceSquare);
-      game.remove(square);
-      game.put(movingPiece, square);
+      const destinationBackup = clonePiece(piece);
+      const removedSource = game.remove(sourceSquare);
+      if (!removedSource) {
+        applySelectionHighlights();
+        return;
+      }
+      if (destinationBackup) {
+        game.remove(square);
+      }
+      const movingPiece = { type: removedSource.type, color: removedSource.color };
+      const placed = game.put(movingPiece, square);
+      if (!placed) {
+        game.put({ type: removedSource.type, color: removedSource.color }, sourceSquare);
+        if (destinationBackup) {
+          game.put(destinationBackup, square);
+        }
+        applySelectionHighlights();
+        return;
+      }
       clearEditSelection();
-      lastImportWasPgn = false;
-      resetHistory(game.fen());
-      renderBoard();
-      updateStatus();
-      requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
+      commitEditedBoardState();
     }
   }
 
@@ -1194,6 +1320,15 @@
     }
   }
 
+  function handleSquareDoubleClick(square) {
+    if (!square) return;
+    if (!editMode) return;
+    const removed = removePieceAtSquare(square);
+    if (removed) {
+      clearEditSelection();
+    }
+  }
+
   function renderBoard() {
     const cfg = {
       position: game.fen(),
@@ -1225,6 +1360,12 @@
       const sq = cls.find(c => /^square-[a-h][1-8]$/.test(c));
       if (!sq) return;
       handleSquareClick(sq.replace('square-',''));
+    });
+    boardEl.off('dblclick.square').on('dblclick.square', 'div.square-55d63', function() {
+      const cls = $(this).attr('class').split(/\s+/);
+      const sq = cls.find(c => /^square-[a-h][1-8]$/.test(c));
+      if (!sq) return;
+      handleSquareDoubleClick(sq.replace('square-',''));
     });
     $('.board-container .spare-pieces-7492f').off('click.spare').on('click.spare', '.piece-417db', function() {
       const pieceCode = $(this).attr('data-piece');
@@ -1320,14 +1461,12 @@
 
         const cp = line.match(/score cp (-?\d+)/);
         const mate = line.match(/score mate (-?\d+)/);
-        let displayScore = '';
-        if (cp) {
-          const cpValue = parseInt(cp[1], 10);
-          const prefix = cpValue > 0 ? '+' : '';
-          displayScore = `${prefix}${(cpValue / 100).toFixed(2)}`;
-        } else if (mate) {
-          displayScore = `M${mate[1]}`;
-        }
+        const entry = buildEvaluationEntryFromScore({
+          cp: cp ? parseInt(cp[1], 10) : null,
+          mate: mate ? parseInt(mate[1], 10) : null,
+          turn: game.turn()
+        });
+        const displayScore = entry ? (entry.shortText || entry.text || '') : '';
 
         const destination = moveKey.slice(2, 4);
         let ratingEl = pieceMoveRatings.get(moveKey);
@@ -1423,31 +1562,12 @@
       const mateMatch = line.match(/score mate (-?\d+)/);
       const turn = game.turn();
 
-      if (cpMatch) {
-        let value = parseInt(cpMatch[1], 10);
-        if (turn === 'b') {
-          value = -value;
-        }
-        const prefix = value > 0 ? '+' : '';
-        const displayScore = `${prefix}${(value / 100).toFixed(2)}`;
-        applyEvaluationResult(value, displayScore);
-      } else if (mateMatch) {
-        const mateValueRaw = parseInt(mateMatch[1], 10);
-        const isNegativeZero = Object.is(mateValueRaw, -0);
-        const rawSign = mateValueRaw > 0 ? 1 : mateValueRaw < 0 ? -1 : (isNegativeZero ? -1 : 1);
-
-        let mateValue = mateValueRaw;
-        if (turn === 'b') {
-          mateValue = -mateValue;
-        }
-
-        if (mateValue === 0) {
-          const gaugeSign = turn === 'b' ? -rawSign : rawSign;
-          applyEvaluationResult(gaugeSign >= 0 ? 2000 : -2000, 'Checkmate');
-        } else {
-          const matePrefix = mateValue > 0 ? '' : '-';
-          const mateText = `Mate in ${matePrefix}${Math.abs(mateValue)}`;
-          applyEvaluationResult(mateValue > 0 ? 2000 : -2000, mateText);
+      if (cpMatch || mateMatch) {
+        const cpValue = cpMatch ? parseInt(cpMatch[1], 10) : null;
+        const mateValue = mateMatch ? parseInt(mateMatch[1], 10) : null;
+        const entry = buildEvaluationEntryFromScore({ cp: cpValue, mate: mateValue, turn });
+        if (entry) {
+          applyEvaluationEntry(entry);
         }
       }
 
@@ -1641,13 +1761,10 @@
     if (editMode && (event.key === 'Delete' || event.key === 'Backspace')) {
       if (editSelectionSource === 'board' && editSelectedSquare) {
         event.preventDefault();
-        game.remove(editSelectedSquare);
-        clearEditSelection();
-        lastImportWasPgn = false;
-        resetHistory(game.fen());
-        renderBoard();
-        updateStatus();
-        requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
+        const targetSquare = editSelectedSquare;
+        if (removePieceAtSquare(targetSquare)) {
+          clearEditSelection();
+        }
       }
       return;
     }
