@@ -85,42 +85,59 @@
   }
 
   #status {
-    position: relative;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #8fa5ff, #b1e3ff);
-    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.07);
+    color: #d8ddff;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 600;
+    line-height: 1.1;
+    transition: background 0.3s ease, color 0.3s ease, box-shadow 0.2s ease;
+  }
+
+  #status .status-text__label {
+    line-height: 1.2;
   }
 
   #status[data-turn="white"] {
-    background: linear-gradient(135deg, #8fa5ff, #c6d5ff);
+    color: #f4f6ff;
   }
 
   #status[data-turn="black"] {
-    background: linear-gradient(135deg, #242c47, #8aa0ff);
+    color: #b9c5ff;
   }
 
   #status[data-state="check"] {
-    background: linear-gradient(135deg, #ffb964, #ff6f4e);
-    box-shadow: 0 0 12px rgba(255, 137, 84, 0.55);
+    background: rgba(255, 147, 101, 0.18);
+    color: #ffb08a;
+    box-shadow: 0 0 0 1px rgba(255, 147, 101, 0.18);
   }
 
   #status[data-state="mate"] {
-    background: linear-gradient(135deg, #ff6f91, #ff4757);
-    box-shadow: 0 0 12px rgba(255, 79, 105, 0.6);
+    background: rgba(255, 112, 145, 0.22);
+    color: #ff7da1;
+    box-shadow: 0 0 0 1px rgba(255, 112, 145, 0.18);
   }
 
   #status[data-state="draw"] {
-    background: linear-gradient(135deg, #b2b9d7, #7a81a9);
+    background: rgba(188, 196, 226, 0.18);
+    color: #d9defa;
+    box-shadow: 0 0 0 1px rgba(188, 196, 226, 0.18);
   }
 
-  #status.is-editing::after {
-    content: '';
-    position: absolute;
-    inset: -6px;
-    border-radius: 50%;
-    border: 2px solid rgba(255, 255, 255, 0.35);
+  #status.is-editing {
+    cursor: pointer;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.24);
+  }
+
+  #status.is-editing:focus-visible {
+    outline: 2px solid rgba(143, 165, 255, 0.7);
+    outline-offset: 2px;
   }
 
   .info-line-item {
@@ -475,8 +492,8 @@
       </div>
 
       <div id="info-line">
-        <span id="status" class="status-indicator" role="status" aria-live="polite" data-turn="white" data-state="normal">
-          <span class="visually-hidden">Ready</span>
+        <span id="status" class="status-text" role="status" aria-live="polite" data-turn="white" data-state="normal" aria-label="White to move">
+          <span class="status-text__label">White to move</span>
         </span>
         <span class="info-line-item" id="evaluation-container" aria-hidden="true" hidden>
           <span id="evaluation" class="evaluation-indicator" role="img" aria-label="Eval: --" data-probability="0.5">
@@ -628,8 +645,18 @@
       function syncEditButton() {
         setButtonActive(editButtonElement, editMode, 'Exit edit mode', 'Enter edit mode');
       }
-      const ENGINE_WORKER_PATH = './engine/stockfish-17.1-8e4d048.js';
-      const engineWorkerCandidates = [ENGINE_WORKER_PATH];
+      const STOCKFISH_WORKER_FILENAME = 'stockfish-17.1-8e4d048.js';
+      const ENGINE_WORKER_PATH = `./engine/${STOCKFISH_WORKER_FILENAME}`;
+      const stockfishOverridePath = typeof window !== 'undefined'
+        ? (window.STOCKFISH_WORKER_PATH || (window.STOCKFISH && window.STOCKFISH.workerPath) || null)
+        : null;
+      const engineWorkerCandidates = Array.from(new Set([
+        stockfishOverridePath,
+        ENGINE_WORKER_PATH,
+        `engine/${STOCKFISH_WORKER_FILENAME}`,
+        `./${STOCKFISH_WORKER_FILENAME}`,
+        STOCKFISH_WORKER_FILENAME
+      ].filter(Boolean)));
 
       function resolveWorkerCandidate(path) {
         try {
@@ -1882,8 +1909,12 @@
     statusElement.dataset.state = state;
     statusElement.classList.toggle('is-editing', editMode);
     statusElement.setAttribute('aria-label', label);
-    const hiddenLabel = statusElement.querySelector('.visually-hidden');
-    if (hiddenLabel) hiddenLabel.textContent = label;
+    const labelElement = statusElement.querySelector('.status-text__label');
+    if (labelElement) {
+      labelElement.textContent = label;
+    } else {
+      statusElement.textContent = label;
+    }
     if (editMode) {
       statusElement.setAttribute('role', 'button');
       statusElement.setAttribute('tabindex', '0');
