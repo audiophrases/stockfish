@@ -711,9 +711,7 @@
           <input id="engine-depth" class="engine-field__input" name="depth" type="number" min="1" max="99" step="1" inputmode="numeric" value="24">
         </label>
       </form>
-      <p class="engine-settings__help" id="engine-settings-help">
-        Hash requests are capped at 256&nbsp;MB and may be reduced further on low-memory devices. Background analysis uses a smaller cache to keep the browser responsive.
-      </p>
+      <p class="engine-settings__help" id="engine-settings-help"></p>
       <div id="engine-error" class="engine-settings__error" role="alert" hidden></div>
       <div class="engine-settings__actions">
         <button type="button" id="engine-start-button" class="engine-action-button engine-action-button--primary">
@@ -1009,13 +1007,9 @@
         updateEngineHashHelp(resolvedConstraints);
       }
 
-      function updateEngineHashHelp(constraints = null) {
+      function updateEngineHashHelp() {
         if (!engineHelpElement) return;
-        const resolvedConstraints = constraints || resolveHashConstraints();
-        const { ceiling, deviceMemoryGb } = resolvedConstraints;
-        const formattedMemory = formatDeviceMemoryGb(deviceMemoryGb);
-        const memoryHint = formattedMemory ? ` (browser reports ~${formattedMemory} GB RAM)` : '';
-        engineHelpElement.textContent = `Hash requests are capped at ${MAX_USER_HASH_MB} MB. This device currently allows up to ${ceiling} MB${memoryHint}, and the value may be reduced further on low-memory devices. Background analysis uses a smaller cache to keep the browser responsive.`;
+        engineHelpElement.textContent = '';
       }
 
       function updateEngineControls(options = {}) {
