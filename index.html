@@ -793,7 +793,7 @@
         ? 1
         : 64;
       const DEFAULT_ANALYSIS_DEPTH = 24;
-      const PGN_REPLAY_DEPTH = 14;
+      const PGN_REPLAY_DEPTH = 12;
       const BACKGROUND_EVAL_DEPTH = 24;
       const PROBABILITY_GRAPH_DEPTH = 14;
       const AUTO_NEXT_MOVE_DEPTH = 22;
@@ -2026,18 +2026,18 @@
         const resolvedDepth = typeof depth === 'number' && depth > 0 ? depth : engineConfig.depth;
         if (!engineReady || !engine) {
           replayMode = true;
-          replayTargetDepth = Math.max(14, resolvedDepth);
+          replayTargetDepth = Math.max(PGN_REPLAY_DEPTH, resolvedDepth);
           replayPendingIndex = clampedIndex;
           replayAdvanceScheduled = false;
           cancelReplayTimer();
           updateEvaluationProgressLabel();
-          pendingReplayStart = { index: clampedIndex, depth: Math.max(14, resolvedDepth) };
+          pendingReplayStart = { index: clampedIndex, depth: Math.max(PGN_REPLAY_DEPTH, resolvedDepth) };
           scheduleEngineAutostart();
           return;
         }
         pendingReplayStart = null;
         stopReplay();
-        replayTargetDepth = Math.max(14, resolvedDepth);
+        replayTargetDepth = Math.max(PGN_REPLAY_DEPTH, resolvedDepth);
         cancelReplayTimer();
         replayAdvanceScheduled = false;
         rebuildPosition(clampedIndex, {
@@ -3008,7 +3008,7 @@
 
     if (replay) {
       replayMode = true;
-      replayTargetDepth = Math.max(14, depth);
+      replayTargetDepth = Math.max(PGN_REPLAY_DEPTH, depth);
       replayPendingIndex = navigationIndex;
       replayAdvanceScheduled = false;
       cancelReplayTimer();
@@ -3022,7 +3022,7 @@
     if (autoPlay) {
       autoPlayPending = true;
       const depthFloor = Math.max(1, Math.floor(depth));
-      autoPlayTargetDepth = Math.max(14, depthFloor);
+      autoPlayTargetDepth = Math.max(PGN_REPLAY_DEPTH, depthFloor);
       autoPlayFen = latestAnalysisFen;
       autoPlayRequestedAt = Date.now();
       autoPlayDepthSatisfied = false;
@@ -3077,7 +3077,7 @@
     engine.postMessage(`setoption name MultiPV value ${multiPv}`);
     engine.postMessage(`position fen ${normalizedFen}`);
     if (autoPlay) {
-      const depthLimit = Math.max(14, Math.floor(depth));
+      const depthLimit = Math.max(PGN_REPLAY_DEPTH, Math.floor(depth));
       engine.postMessage(`go depth ${depthLimit}`);
     } else if (searchMoves && searchMoves.length) {
       engine.postMessage(`go searchmoves ${searchMoves.join(' ')} infinite`);
