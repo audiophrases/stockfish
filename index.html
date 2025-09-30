@@ -99,7 +99,6 @@
       background: rgba(14, 18, 32, 0.35);
       border-radius: 16px;
       padding: 14px 18px;
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
       backdrop-filter: blur(6px);
       transition: box-shadow 0.3s ease, background 0.3s ease;
     }
@@ -128,7 +127,6 @@
       border-radius: 999px;
       overflow: hidden;
       background: linear-gradient(90deg, rgba(247, 248, 255, 0.92) 0%, rgba(247, 248, 255, 0.92) var(--white-ratio), rgba(14, 16, 28, 0.88) var(--white-ratio), rgba(14, 16, 28, 0.88) 100%);
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
       transition: background 0.4s ease;
     }
 
@@ -186,17 +184,17 @@
 
     .advantage-bar.is-white-favored {
       background: rgba(37, 48, 94, 0.42);
-      box-shadow: inset 0 0 0 1px rgba(120, 150, 255, 0.4), 0 12px 26px rgba(60, 88, 190, 0.25);
+      box-shadow: 0 12px 26px rgba(60, 88, 190, 0.25);
     }
 
     .advantage-bar.is-black-favored {
       background: rgba(32, 24, 48, 0.42);
-      box-shadow: inset 0 0 0 1px rgba(180, 120, 220, 0.38), 0 12px 26px rgba(120, 60, 160, 0.24);
+      box-shadow: 0 12px 26px rgba(120, 60, 160, 0.24);
     }
 
     .advantage-bar.is-balanced {
       background: rgba(16, 20, 32, 0.42);
-      box-shadow: inset 0 0 0 1px rgba(200, 210, 250, 0.25), 0 10px 22px rgba(32, 38, 70, 0.26);
+      box-shadow: 0 10px 22px rgba(32, 38, 70, 0.26);
     }
 
     .advantage-bar.is-loading .advantage-bar__track::after {
@@ -230,7 +228,6 @@
       background: rgba(14, 18, 32, 0.35);
       border-radius: 16px;
       padding: 16px 18px;
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
       backdrop-filter: blur(6px);
     }
 
@@ -577,10 +574,12 @@
       let evaluationTimeline = [];
       if (advantageBarElement) {
         advantageBarElement.hidden = false;
+        advantageBarElement.style.removeProperty('display');
         advantageBarElement.setAttribute('aria-hidden', 'false');
       }
       if (evaluationContainer) {
         evaluationContainer.hidden = false;
+        evaluationContainer.style.removeProperty('display');
         evaluationContainer.setAttribute('aria-hidden', 'false');
       }
       if (evaluationElement) {
@@ -2119,6 +2118,11 @@
     advantageBarVisible = !advantageBarVisible;
     if (advantageBarElement) {
       advantageBarElement.hidden = !advantageBarVisible;
+      if (advantageBarVisible) {
+        advantageBarElement.style.removeProperty('display');
+      } else {
+        advantageBarElement.style.display = 'none';
+      }
       advantageBarElement.setAttribute('aria-hidden', advantageBarVisible ? 'false' : 'true');
       if (advantageBarVisible) {
         syncEvalBarWidth();
@@ -2126,6 +2130,11 @@
     }
     if (evaluationContainer) {
       evaluationContainer.hidden = !advantageBarVisible;
+      if (advantageBarVisible) {
+        evaluationContainer.style.removeProperty('display');
+      } else {
+        evaluationContainer.style.display = 'none';
+      }
       evaluationContainer.setAttribute('aria-hidden', advantageBarVisible ? 'false' : 'true');
     }
     $('#advantage-toggle-button').text(advantageBarVisible ? 'Hide Bar' : 'Show Bar');
