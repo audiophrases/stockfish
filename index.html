@@ -508,7 +508,7 @@
       <button id="next-button" disabled>Next</button>
       <button id="best-move-button" disabled>Best</button>
       <button id="advantage-toggle-button">Hide Bar</button>
-      <button id="probability-button">Graph</button>
+      <button id="probability-button">Show Graph</button>
       <button id="piece-moves-button">Piece</button>
       <button id="flip-button">Flip</button>
       <button id="edit-button">Edit</button>
@@ -2165,7 +2165,7 @@
       });
       scheduleProbabilityEvaluation(PROBABILITY_GRAPH_DEPTH);
     } else {
-      $('#probability-button').text('Graph');
+      $('#probability-button').text('Show Graph');
     }
   });
   $('#prev-button').on('click', goToPreviousMove);
