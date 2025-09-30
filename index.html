@@ -776,12 +776,20 @@
       const ENGINE_AUTOSTART_MAX_ATTEMPTS = 3;
       const AUTO_PLAY_MIN_WAIT_MS = 4000;
       const REPLAY_STEP_DELAY_MS = 900;
+      const PIECE_ANALYSIS_MODE_SEQUENTIAL = 'sequential';
       let autoPlayPending = false;
       let autoPlayTargetDepth = engineConfig.depth;
       let autoPlayFen = null;
       let currentBestMove = null;
       let currentDepth = 0;
       let pieceMoveRatings = new Map();
+      let pieceAnalysisMode = null;
+      let pieceAnalysisQueue = [];
+      let pieceAnalysisCurrentMove = null;
+      let pieceAnalysisActiveRequestId = 0;
+      let pieceAnalysisFen = null;
+      let pieceAnalysisTargetDepth = 0;
+      let pieceAnalysisWaitingForResult = false;
       let waitingForAutoBestMove = false;
       let autoMoveCandidate = null;
       let autoPlayRequestedAt = 0;
@@ -992,10 +1000,7 @@
         : null;
 
       const STOCKFISH_WORKER_VARIANTS = [
-        { filename: 'stockfish-17.1-single-a496a04.js', requiresThreadSupport: false },
-        { filename: 'stockfish-17.1-lite-51f59da.js', requiresThreadSupport: false },
-        { filename: 'stockfish-17.1-8e4d048.js', requiresThreadSupport: true },
-        { filename: 'stockfish-17.1-asm-341ff22.js', requiresThreadSupport: false }
+        { filename: 'stockfish-17.1-lite-single-03e3232.js', requiresThreadSupport: false }
       ];
 
       function supportsThreadedWorkers() {
@@ -2383,6 +2388,133 @@
     pieceMoveRatings.clear();
   }
 
+  function resetPieceAnalysisState() {
+    pieceAnalysisMode = null;
+    pieceAnalysisQueue = [];
+    pieceAnalysisCurrentMove = null;
+    pieceAnalysisFen = null;
+    pieceAnalysisTargetDepth = 0;
+    pieceAnalysisWaitingForResult = false;
+  }
+
+  function ensurePieceMoveRatingElement(moveKey) {
+    if (!moveKey) return null;
+    let ratingEl = pieceMoveRatings.get(moveKey);
+    if (ratingEl) return ratingEl;
+    const destination = moveKey.slice(2, 4);
+    if (!destination) return null;
+    const squareEl = boardEl.find(`.square-${destination}`);
+    if (!squareEl.length) return null;
+    ratingEl = $('<div class="move-rating"></div>').appendTo(squareEl);
+    pieceMoveRatings.set(moveKey, ratingEl);
+    return ratingEl;
+  }
+
+  function setPieceMoveRating(moveKey, label) {
+    if (!moveKey) return;
+    const ratingEl = ensurePieceMoveRatingElement(moveKey);
+    if (!ratingEl) return;
+    ratingEl.text(label);
+  }
+
+  function applyPieceMoveEvaluation(moveKey, entry) {
+    if (!moveKey || !entry) return;
+    const displayScore = entry.shortText || entry.text || '';
+    if (!displayScore) return;
+    setPieceMoveRating(moveKey, displayScore);
+  }
+
+  function beginPieceAnalysisSearch({ fen, moves = [], depth = engineConfig.depth }) {
+    resetPieceAnalysisState();
+    pieceAnalysisMode = PIECE_ANALYSIS_MODE_SEQUENTIAL;
+    pieceAnalysisFen = typeof fen === 'string' ? fen : normalizeFenTurn(game.fen(), game.turn());
+    pieceAnalysisTargetDepth = Math.max(1, Math.floor(typeof depth === 'number' ? depth : engineConfig.depth));
+    pieceAnalysisQueue = Array.isArray(moves) ? moves.filter(Boolean) : [];
+    pieceAnalysisActiveRequestId += 1;
+    if (!pieceAnalysisQueue.length) {
+      pieceAnalysisWaitingForResult = false;
+      return;
+    }
+    if (engine) {
+      try {
+        engine.postMessage('setoption name MultiPV value 1');
+      } catch (error) {
+        console.warn('Failed to set MultiPV for piece analysis', error);
+      }
+    }
+    processNextPieceAnalysis(pieceAnalysisActiveRequestId);
+  }
+
+  function processNextPieceAnalysis(requestId) {
+    if (!engineReady || !engine) {
+      pieceAnalysisWaitingForResult = false;
+      return;
+    }
+    if (requestId !== pieceAnalysisActiveRequestId) return;
+    if (!pieceAnalysisQueue.length) {
+      finalizePieceAnalysis(requestId);
+      return;
+    }
+    const nextMove = pieceAnalysisQueue.shift();
+    if (!nextMove) {
+      processNextPieceAnalysis(requestId);
+      return;
+    }
+    pieceAnalysisCurrentMove = nextMove;
+    pieceAnalysisWaitingForResult = true;
+    setPieceMoveRating(nextMove, '…');
+    const targetFen = pieceAnalysisFen || normalizeFenTurn(game.fen(), game.turn());
+    engine.postMessage(`position fen ${targetFen}`);
+    const depthLimit = Math.max(1, pieceAnalysisTargetDepth || engineConfig.depth);
+    engine.postMessage(`go searchmoves ${nextMove} depth ${depthLimit}`);
+  }
+
+  function finalizePieceAnalysis(requestId) {
+    if (requestId !== pieceAnalysisActiveRequestId) return;
+    pieceAnalysisCurrentMove = null;
+    pieceAnalysisQueue = [];
+    pieceAnalysisMode = null;
+    pieceAnalysisFen = null;
+    pieceAnalysisTargetDepth = 0;
+    pieceAnalysisWaitingForResult = false;
+    isPieceAnalysis = false;
+    if (engine) {
+      try {
+        engine.postMessage('setoption name MultiPV value 1');
+      } catch (error) {
+        console.warn('Failed to reset MultiPV after piece analysis', error);
+      }
+    }
+    if (!pieceMovesMode) {
+      requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible, depth: engineConfig.depth });
+    }
+  }
+
+  function handleSequentialPieceAnalysisInfo(line) {
+    if (pieceAnalysisMode !== PIECE_ANALYSIS_MODE_SEQUENTIAL) return false;
+    if (!pieceAnalysisWaitingForResult || !pieceAnalysisCurrentMove) return true;
+    if (!line.startsWith('info')) return false;
+    const pvIndex = line.indexOf(' pv ');
+    if (pvIndex !== -1) {
+      const pvMoves = line.slice(pvIndex + 4).trim().split(' ');
+      if (pvMoves[0] && pvMoves[0] !== pieceAnalysisCurrentMove) {
+        return true;
+      }
+    }
+    const cp = line.match(/score cp (-?\d+)/);
+    const mate = line.match(/score mate (-?\d+)/);
+    if (!cp && !mate) {
+      return true;
+    }
+    const entry = buildEvaluationEntryFromScore({
+      cp: cp ? parseInt(cp[1], 10) : null,
+      mate: mate ? parseInt(mate[1], 10) : null,
+      turn: game.turn()
+    });
+    applyPieceMoveEvaluation(pieceAnalysisCurrentMove, entry);
+    return true;
+  }
+
   function stopEngine(options = {}) {
     const { silent = false, preserveAutostartAttempts = false } = options || {};
     cancelEngineAutostart();
@@ -2409,6 +2541,7 @@
     autoMoveCandidate = null;
     autoPlayPending = false;
     autoPlayDepthSatisfied = false;
+    resetPieceAnalysisState();
     $('#best-move-button').prop('disabled', true);
     updateNavigationButtons();
     if (!silent) {
@@ -2526,38 +2659,55 @@
 
       if (!line.length) return;
 
-      if (isPieceAnalysis && line.startsWith('info') && line.includes('multipv')) {
-        const pvIndex = line.indexOf(' pv ');
-        if (pvIndex === -1) return;
-        const pvMoves = line.slice(pvIndex + 4).trim().split(' ');
-        const moveKey = pvMoves[0];
-        if (!moveKey) return;
+      if (isPieceAnalysis) {
+        if (pieceAnalysisMode === PIECE_ANALYSIS_MODE_SEQUENTIAL) {
+          if (handleSequentialPieceAnalysisInfo(line)) {
+            return;
+          }
+        } else if (line.startsWith('info') && line.includes('multipv')) {
+          const pvIndex = line.indexOf(' pv ');
+          if (pvIndex === -1) return;
+          const pvMoves = line.slice(pvIndex + 4).trim().split(' ');
+          const moveKey = pvMoves[0];
+          if (!moveKey) return;
 
-        const cp = line.match(/score cp (-?\d+)/);
-        const mate = line.match(/score mate (-?\d+)/);
-        const entry = buildEvaluationEntryFromScore({
-          cp: cp ? parseInt(cp[1], 10) : null,
-          mate: mate ? parseInt(mate[1], 10) : null,
-          turn: game.turn()
-        });
-        const displayScore = entry ? (entry.shortText || entry.text || '') : '';
-
-        const destination = moveKey.slice(2, 4);
-        let ratingEl = pieceMoveRatings.get(moveKey);
-        if (!ratingEl) {
-          const squareEl = boardEl.find(`.square-${destination}`);
-          if (!squareEl.length) return;
-          ratingEl = $('<div class="move-rating"></div>').appendTo(squareEl);
-          pieceMoveRatings.set(moveKey, ratingEl);
+          const cp = line.match(/score cp (-?\d+)/);
+          const mate = line.match(/score mate (-?\d+)/);
+          const entry = buildEvaluationEntryFromScore({
+            cp: cp ? parseInt(cp[1], 10) : null,
+            mate: mate ? parseInt(mate[1], 10) : null,
+            turn: game.turn()
+          });
+          applyPieceMoveEvaluation(moveKey, entry);
+          return;
         }
-        if (displayScore) {
-          ratingEl.text(displayScore);
-        }
-        return;
       }
 
       if (line.startsWith('bestmove')) {
         if (isPieceAnalysis) {
+          if (pieceAnalysisMode === PIECE_ANALYSIS_MODE_SEQUENTIAL) {
+            if (!pieceAnalysisWaitingForResult) {
+              return;
+            }
+            const parts = line.split(' ');
+            const reportedMove = parts.length > 1 ? parts[1] : '';
+            const activeMove = pieceAnalysisCurrentMove;
+            if (!reportedMove || reportedMove === '(none)') {
+              return;
+            }
+            if (activeMove && reportedMove !== activeMove) {
+              return;
+            }
+            pieceAnalysisWaitingForResult = false;
+            pieceAnalysisCurrentMove = null;
+            if (pieceAnalysisQueue.length) {
+              processNextPieceAnalysis(pieceAnalysisActiveRequestId);
+            } else {
+              finalizePieceAnalysis(pieceAnalysisActiveRequestId);
+            }
+            return;
+          }
+
           isPieceAnalysis = false;
           worker.postMessage('setoption name MultiPV value 1');
           if (!pieceMovesMode) {
@@ -2700,6 +2850,9 @@
     latestAnalysisFen = game.fen();
     shouldHighlightBest = highlight && revealBest;
     isPieceAnalysis = pieceAnalysis;
+    if (!pieceAnalysis) {
+      resetPieceAnalysisState();
+    }
     currentBestMove = null;
     currentDepth = 0;
     waitingForAutoBestMove = false;
@@ -2770,6 +2923,12 @@
     const normalizedFen = normalizeFenTurn(latestAnalysisFen, game.turn());
 
     engine.postMessage('stop');
+    if (pieceAnalysis) {
+      const moveList = Array.isArray(searchMoves) ? searchMoves.slice() : [];
+      beginPieceAnalysisSearch({ fen: normalizedFen, moves: moveList, depth });
+      updateNavigationButtons();
+      return;
+    }
     engine.postMessage(`setoption name MultiPV value ${multiPv}`);
     engine.postMessage(`position fen ${normalizedFen}`);
     if (autoPlay) {
