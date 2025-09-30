@@ -477,7 +477,7 @@
         <div class="board-container">
           <div id="board"></div>
         </div>
-        <div class="advantage-bar is-balanced advantage-bar--minimal" id="advantage-bar" aria-live="polite" aria-busy="false">
+        <div class="advantage-bar is-balanced advantage-bar--minimal" id="advantage-bar" aria-live="polite" aria-busy="false" aria-hidden="true" hidden>
           <div class="advantage-bar__header" aria-hidden="true">
             <span>Advantage</span>
             <span class="advantage-bar__status" id="advantage-status">Awaiting evaluation</span>
@@ -497,7 +497,7 @@
       </div>
       <div id="info-line">
         <span id="status">Ready</span>
-        <span class="info-line-item" id="evaluation-container" aria-hidden="false"><span id="evaluation">Eval: --</span></span>
+        <span class="info-line-item" id="evaluation-container" aria-hidden="true" hidden><span id="evaluation">Eval: --</span></span>
       </div>
       <div class="probability-panel" id="probability-panel" hidden>
         <div class="probability-panel__graph" id="evaluation-nav" role="listbox" aria-label="Evaluation graph timeline"></div>
@@ -507,7 +507,7 @@
       <button id="prev-button" disabled>Prev</button>
       <button id="next-button" disabled>Next</button>
       <button id="best-move-button" disabled>Best</button>
-      <button id="advantage-toggle-button">Hide Bar</button>
+      <button id="advantage-toggle-button">Show Bar</button>
       <button id="probability-button">Show Graph</button>
       <button id="piece-moves-button">Piece</button>
       <button id="flip-button">Flip</button>
@@ -525,6 +525,7 @@
       const advantageStatusElement = document.getElementById('advantage-status');
       const advantageWhiteElement = document.getElementById('advantage-white-percent');
       const advantageBlackElement = document.getElementById('advantage-black-percent');
+      const advantageToggleButton = document.getElementById('advantage-toggle-button');
       const probabilityPanel = document.getElementById('probability-panel');
       const evaluationContainer = document.getElementById('evaluation-container');
       const evaluationElement = document.getElementById('evaluation');
@@ -566,7 +567,7 @@
       let autoPlayDelayTimer = null;
       let autoPlayDepthSatisfied = false;
       const evaluationNavElement = document.getElementById('evaluation-nav');
-      let advantageBarVisible = true;
+      let advantageBarVisible = false;
       let probabilityPanelVisible = false;
       let evaluationTimeline = [];
       const ENGINE_PRIMARY_WORKER = './engine/stockfish-17.1-8e4d048.js';
@@ -597,14 +598,17 @@
         throw lastError || new Error('Unable to initialize Stockfish worker.');
       }
       if (advantageBarElement) {
-        advantageBarElement.hidden = false;
-        advantageBarElement.style.removeProperty('display');
-        advantageBarElement.setAttribute('aria-hidden', 'false');
+        advantageBarElement.hidden = true;
+        advantageBarElement.style.display = 'none';
+        advantageBarElement.setAttribute('aria-hidden', 'true');
       }
       if (evaluationContainer) {
-        evaluationContainer.hidden = false;
-        evaluationContainer.style.removeProperty('display');
-        evaluationContainer.setAttribute('aria-hidden', 'false');
+        evaluationContainer.hidden = true;
+        evaluationContainer.style.display = 'none';
+        evaluationContainer.setAttribute('aria-hidden', 'true');
+      }
+      if (advantageToggleButton) {
+        advantageToggleButton.textContent = 'Show Bar';
       }
       if (evaluationElement) {
         evaluationElement.textContent = 'Eval: --';
