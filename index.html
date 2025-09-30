@@ -774,12 +774,30 @@
       let bestMoveVisible = false;
       let moveHistory = [];
       let navigationIndex = 0;
+      const STOCKFISH_WORKER_VARIANTS = [
+        { filename: 'stockfish-17.1-lite-single-03e3232.js', requiresThreadSupport: false }
+      ];
+      const threadSupportAvailable = supportsThreadedWorkers();
+      const selectedStockfishVariant = (() => {
+        for (const variant of STOCKFISH_WORKER_VARIANTS) {
+          if (!variant) continue;
+          if (variant.requiresThreadSupport && !threadSupportAvailable) {
+            continue;
+          }
+          return variant;
+        }
+        return null;
+      })();
+      const ENGINE_THREADS_MIN = 1;
+      const ENGINE_THREADS_MAX = selectedStockfishVariant && selectedStockfishVariant.requiresThreadSupport === false
+        ? 1
+        : 64;
       const DEFAULT_ANALYSIS_DEPTH = 24;
       const PGN_REPLAY_DEPTH = 14;
       const BACKGROUND_EVAL_DEPTH = 24;
       const PROBABILITY_GRAPH_DEPTH = 14;
       const AUTO_NEXT_MOVE_DEPTH = 22;
-      const DEFAULT_THREADS = 4;
+      const DEFAULT_THREADS = Math.min(4, ENGINE_THREADS_MAX);
       const DEFAULT_HASH_MB = 128;
       const MAX_USER_HASH_MB = 256;
       const MIN_HASH_CEILING_MB = 32;
@@ -975,7 +993,8 @@
         const previousHash = engineConfig.hash;
         const previousDepth = engineConfig.depth;
         const warnings = [];
-        const threads = clampInteger(config.threads, 1, 64, previousThreads);
+        const fallbackThreads = Math.max(ENGINE_THREADS_MIN, Math.min(ENGINE_THREADS_MAX, previousThreads));
+        const threads = clampInteger(config.threads, ENGINE_THREADS_MIN, ENGINE_THREADS_MAX, fallbackThreads);
         const requestedHash = clampInteger(config.hash, 1, MAX_USER_HASH_MB, previousHash);
         const hashConstraints = resolveHashConstraints();
         let hash = requestedHash;
@@ -1001,6 +1020,7 @@
       function syncEngineInputs(constraints = null) {
         const resolvedConstraints = constraints || resolveHashConstraints();
         if (engineThreadsInput) {
+          engineThreadsInput.max = String(ENGINE_THREADS_MAX);
           engineThreadsInput.value = engineConfig.threads;
         }
         if (engineHashInput) {
@@ -1094,10 +1114,6 @@
         ? (window.STOCKFISH_WORKER_PATH || (window.STOCKFISH && window.STOCKFISH.workerPath) || null)
         : null;
 
-      const STOCKFISH_WORKER_VARIANTS = [
-        { filename: 'stockfish-17.1-lite-single-03e3232.js', requiresThreadSupport: false }
-      ];
-
       function supportsThreadedWorkers() {
         if (typeof window === 'undefined') {
           return true;
@@ -1134,13 +1150,11 @@
           addCandidate(stockfishOverridePath);
         }
 
-        const threadedSupported = supportsThreadedWorkers();
-        const latestVariant = STOCKFISH_WORKER_VARIANTS.length
-          ? STOCKFISH_WORKER_VARIANTS[0]
-          : null;
-        const variantsToConsider = latestVariant ? [latestVariant] : [];
+        const variantsToConsider = selectedStockfishVariant
+          ? [selectedStockfishVariant]
+          : [];
         for (const { filename, requiresThreadSupport } of variantsToConsider) {
-          if (requiresThreadSupport && !threadedSupported) {
+          if (requiresThreadSupport && !threadSupportAvailable) {
             continue;
           }
           for (const candidate of buildWorkerCandidatePaths(filename)) {
