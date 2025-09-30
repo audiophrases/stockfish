@@ -500,9 +500,6 @@
         <span class="info-line-item" id="evaluation-container" aria-hidden="false"><span id="evaluation">Eval: --</span></span>
       </div>
       <div class="probability-panel" id="probability-panel" hidden>
-        <div class="probability-panel__header">
-          <span class="probability-panel__status" id="evaluation-label"></span>
-        </div>
         <div class="probability-panel__graph" id="evaluation-nav" role="listbox" aria-label="Evaluation graph timeline"></div>
       </div>
     </div>
@@ -572,6 +569,33 @@
       let advantageBarVisible = true;
       let probabilityPanelVisible = false;
       let evaluationTimeline = [];
+      const ENGINE_PRIMARY_WORKER = './engine/stockfish-17.1-8e4d048.js';
+      const ENGINE_FALLBACK_WORKER = './engine/stockfish.jsbackup';
+      const hasSharedArrayBufferSupport = typeof SharedArrayBuffer === 'function';
+      const isCrossOriginIsolated = typeof crossOriginIsolated !== 'undefined' ? crossOriginIsolated : false;
+      const engineWorkerCandidates = (() => {
+        const preferredOrder = (hasSharedArrayBufferSupport && isCrossOriginIsolated)
+          ? [ENGINE_PRIMARY_WORKER, ENGINE_FALLBACK_WORKER]
+          : [ENGINE_FALLBACK_WORKER, ENGINE_PRIMARY_WORKER];
+        return preferredOrder.filter((path, index, arr) => path && arr.indexOf(path) === index);
+      })();
+
+      function createStockfishWorker() {
+        let lastError = null;
+        for (const candidate of engineWorkerCandidates) {
+          try {
+            const worker = new Worker(candidate);
+            worker.addEventListener('error', event => {
+              console.error(`Stockfish worker error (${candidate})`, event?.message || event);
+            });
+            return worker;
+          } catch (error) {
+            console.error(`Failed to start Stockfish worker from ${candidate}`, error);
+            lastError = error;
+          }
+        }
+        throw lastError || new Error('Unable to initialize Stockfish worker.');
+      }
       if (advantageBarElement) {
         advantageBarElement.hidden = false;
         advantageBarElement.style.removeProperty('display');
@@ -666,18 +690,7 @@
       }
 
       function updateEvaluationProgressLabel() {
-        if (replayMode) {
-          const totalPositions = moveHistory.length + 1;
-          const currentPosition = Math.min(totalPositions, navigationIndex + 1);
-          $('#evaluation-label').text(`Auto-playing game (${currentPosition}/${totalPositions})`);
-          return;
-        }
-
-        if (backgroundEvaluationTotal > 0 && backgroundEvaluationCompleted < backgroundEvaluationTotal) {
-          $('#evaluation-label').text(`Evaluating game (${backgroundEvaluationCompleted}/${backgroundEvaluationTotal})`);
-        } else {
-          $('#evaluation-label').text('');
-        }
+        // Intentionally left blank – the probability graph no longer shows textual status updates.
       }
 
       // Logistic scale matching the Lichess win probability model for centipawn scores.
@@ -951,7 +964,7 @@
         backgroundPendingStart = false;
         backgroundCurrentTask = null;
         backgroundLastScore = null;
-        backgroundEngine = new Worker('./engine/stockfish-17.1-8e4d048.js');
+        backgroundEngine = createStockfishWorker();
         backgroundEngine.onmessage = e => {
           const line = String(e.data).trim();
 
@@ -1786,7 +1799,7 @@
   }
 
   function initEngine() {
-    engine = new Worker('./engine/stockfish-17.1-8e4d048.js');
+    engine = createStockfishWorker();
     engine.onmessage = e => {
       const line = String(e.data).trim();
 
