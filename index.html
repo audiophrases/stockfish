@@ -496,6 +496,11 @@
     background: rgba(255, 255, 0, 0.38) !important;
   }
 
+  .highlight-piece-move-target {
+    background: rgba(118, 142, 255, 0.32) !important;
+    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.22);
+  }
+
   .selected-spare-piece {
     box-shadow: 0 0 0 3px #f2ff5f inset;
     border-radius: 8px;
@@ -2488,7 +2493,11 @@
   }
 
   function onSnapEnd() { if (!editMode) board.position(game.fen()); }
-  function clearHighlights() { boardEl.find('.highlight-move-from, .highlight-move-to').removeClass('highlight-move-from highlight-move-to'); }
+  function clearHighlights() {
+    boardEl
+      .find('.highlight-move-from, .highlight-move-to, .highlight-piece-move-target')
+      .removeClass('highlight-move-from highlight-move-to highlight-piece-move-target');
+  }
   function clearRatings() {
     boardEl.find('.move-rating').remove();
     pieceMoveRatings.clear();
@@ -3082,6 +3091,17 @@
     const moves = analysisGame.moves({ verbose: true, square: selectedSquare });
     if (!moves.length) return;
     clearHighlights();
+    const destinationSquares = new Set();
+    const pendingLabel = engineReady ? '…' : '—';
+    moves.forEach(move => {
+      const destination = move.to;
+      if (destination && !destinationSquares.has(destination)) {
+        destinationSquares.add(destination);
+        boardEl.find(`.square-${destination}`).addClass('highlight-piece-move-target');
+      }
+      const moveKey = move.from + move.to + (move.promotion ? move.promotion : '');
+      setPieceMoveRating(moveKey, pendingLabel);
+    });
     applySelectionHighlights();
     const searchMoves = moves.map(m => m.from + m.to + (m.promotion ? m.promotion : ''));
     requestAnalysis({
