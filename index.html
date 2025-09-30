@@ -794,11 +794,11 @@
       const ENGINE_THREADS_MAX = selectedStockfishVariant && selectedStockfishVariant.requiresThreadSupport === false
         ? 1
         : 64;
-      const DEFAULT_ANALYSIS_DEPTH = 24;
+      const DEFAULT_ANALYSIS_DEPTH = 16;
       const PGN_REPLAY_DEPTH = 12;
-      const BACKGROUND_EVAL_DEPTH = 24;
+      const BACKGROUND_EVAL_DEPTH = 16;
       const PROBABILITY_GRAPH_DEPTH = 14;
-      const AUTO_NEXT_MOVE_DEPTH = 22;
+      const AUTO_NEXT_MOVE_DEPTH = 16;
       const DEFAULT_THREADS = Math.min(4, ENGINE_THREADS_MAX);
       const DEFAULT_HASH_MB = 128;
       const MAX_USER_HASH_MB = 256;
