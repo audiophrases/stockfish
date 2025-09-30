@@ -435,6 +435,13 @@
     color: #ff9aad;
   }
 
+  .engine-settings__help {
+    margin: -6px 0 0;
+    font-size: 0.78rem;
+    color: #9ca6cf;
+    line-height: 1.5;
+  }
+
   .evaluation-nav__graph {
     width: 100%;
     height: 100%;
@@ -697,13 +704,16 @@
         </label>
         <label class="engine-field" for="engine-hash">
           <span class="engine-field__label">Hash (MB)</span>
-          <input id="engine-hash" class="engine-field__input" name="hash" type="number" min="1" max="8192" step="1" inputmode="numeric" value="469">
+          <input id="engine-hash" class="engine-field__input" name="hash" type="number" min="1" max="256" step="1" inputmode="numeric" value="128">
         </label>
         <label class="engine-field" for="engine-depth">
           <span class="engine-field__label">Depth</span>
           <input id="engine-depth" class="engine-field__input" name="depth" type="number" min="1" max="99" step="1" inputmode="numeric" value="24">
         </label>
       </form>
+      <p class="engine-settings__help" id="engine-settings-help">
+        Hash requests are capped at 256&nbsp;MB and may be reduced further on low-memory devices. Background analysis uses a smaller cache to keep the browser responsive.
+      </p>
       <div id="engine-error" class="engine-settings__error" role="alert" hidden></div>
       <div class="engine-settings__actions">
         <button type="button" id="engine-start-button" class="engine-action-button engine-action-button--primary">
@@ -737,6 +747,7 @@
       const engineSettingsElement = document.getElementById('engine-settings');
       const engineStatusElement = document.getElementById('engine-status');
       const engineErrorElement = document.getElementById('engine-error');
+      const engineHelpElement = document.getElementById('engine-settings-help');
       const engineStartButtonElement = document.getElementById('engine-start-button');
       const engineStopButtonElement = document.getElementById('engine-stop-button');
       const engineThreadsInput = document.getElementById('engine-threads');
@@ -766,7 +777,11 @@
       const PROBABILITY_GRAPH_DEPTH = 14;
       const AUTO_NEXT_MOVE_DEPTH = 22;
       const DEFAULT_THREADS = 4;
-      const DEFAULT_HASH_MB = 469;
+      const DEFAULT_HASH_MB = 128;
+      const MAX_USER_HASH_MB = 256;
+      const MIN_HASH_CEILING_MB = 32;
+      const BACKGROUND_HASH_MAX_MB = 64;
+      const BACKGROUND_HASH_MIN_MB = 16;
       const engineConfig = {
         threads: DEFAULT_THREADS,
         hash: DEFAULT_HASH_MB,
@@ -879,6 +894,18 @@
           engineErrorElement.hidden = true;
           engineErrorElement.textContent = '';
         }
+        engineErrorElement.dataset.source = '';
+      }
+
+      function displayEngineConfigWarnings(result) {
+        if (result && Array.isArray(result.warnings) && result.warnings.length) {
+          setEngineErrorMessage(result.warnings.join(' '));
+        } else if (engineErrorElement && engineErrorElement.dataset.source === 'config-warning') {
+          setEngineErrorMessage('');
+        }
+        if (engineErrorElement) {
+          engineErrorElement.dataset.source = result && result.warnings && result.warnings.length ? 'config-warning' : '';
+        }
       }
 
       function clampInteger(value, min, max, fallback) {
@@ -894,33 +921,101 @@
         return clamped;
       }
 
+      function getDeviceMemoryInGb() {
+        if (typeof navigator !== 'undefined' && navigator) {
+          const { deviceMemory } = navigator;
+          const numeric = Number(deviceMemory);
+          if (Number.isFinite(numeric) && numeric > 0) {
+            return numeric;
+          }
+        }
+        return null;
+      }
+
+      function formatDeviceMemoryGb(value) {
+        if (!Number.isFinite(value) || value <= 0) {
+          return null;
+        }
+        if (value >= 4) {
+          return Math.round(value);
+        }
+        return Math.round(value * 10) / 10;
+      }
+
+      function resolveHashConstraints() {
+        const deviceMemoryGb = getDeviceMemoryInGb();
+        let ceiling = MAX_USER_HASH_MB;
+        if (deviceMemoryGb !== null) {
+          const derived = Math.floor(deviceMemoryGb * 64);
+          if (derived > 0) {
+            ceiling = Math.min(ceiling, Math.max(MIN_HASH_CEILING_MB, derived));
+          }
+        }
+        ceiling = Math.max(MIN_HASH_CEILING_MB, ceiling);
+        return { ceiling, deviceMemoryGb };
+      }
+
+      function computeBackgroundHashBudget(mainHash) {
+        const { ceiling } = resolveHashConstraints();
+        const quarter = Math.floor(ceiling / 4);
+        const base = Math.max(BACKGROUND_HASH_MIN_MB, quarter || 0);
+        const budget = Math.min(BACKGROUND_HASH_MAX_MB, base);
+        if (mainHash >= ceiling && budget <= BACKGROUND_HASH_MIN_MB) {
+          return null;
+        }
+        return Math.max(1, Math.min(mainHash, budget));
+      }
+
       function applyEngineConfig(config = {}) {
         const previousThreads = engineConfig.threads;
         const previousHash = engineConfig.hash;
         const previousDepth = engineConfig.depth;
+        const warnings = [];
         const threads = clampInteger(config.threads, 1, 64, previousThreads);
-        const hash = clampInteger(config.hash, 1, 8192, previousHash);
+        const requestedHash = clampInteger(config.hash, 1, MAX_USER_HASH_MB, previousHash);
+        const hashConstraints = resolveHashConstraints();
+        let hash = requestedHash;
+        if (hash > hashConstraints.ceiling) {
+          hash = hashConstraints.ceiling;
+        }
+        if (hash !== requestedHash) {
+          const formattedMemory = formatDeviceMemoryGb(hashConstraints.deviceMemoryGb);
+          const memoryHint = formattedMemory ? ` (device reports ~${formattedMemory} GB RAM)` : '';
+          warnings.push(`Requested hash reduced to ${hash} MB (max ${hashConstraints.ceiling} MB${memoryHint}) to avoid exhausting memory.`);
+        }
         const depth = clampInteger(config.depth, 1, 99, previousDepth);
         engineConfig.threads = threads;
         engineConfig.hash = hash;
         engineConfig.depth = depth;
         autoPlayTargetDepth = depth;
         replayTargetDepth = depth;
-        syncEngineInputs();
+        syncEngineInputs(hashConstraints);
         const changed = threads !== previousThreads || hash !== previousHash || depth !== previousDepth;
-        return { threads, hash, depth, changed };
+        return { threads, hash, depth, changed, warnings };
       }
 
-      function syncEngineInputs() {
+      function syncEngineInputs(constraints = null) {
+        const resolvedConstraints = constraints || resolveHashConstraints();
         if (engineThreadsInput) {
           engineThreadsInput.value = engineConfig.threads;
         }
         if (engineHashInput) {
+          engineHashInput.max = String(resolvedConstraints.ceiling);
           engineHashInput.value = engineConfig.hash;
         }
         if (engineDepthInput) {
           engineDepthInput.value = engineConfig.depth;
         }
+        updateEngineHashHelp(resolvedConstraints);
+      }
+
+      function updateEngineHashHelp(constraints = null) {
+        if (!engineHelpElement) return;
+        const resolvedConstraints = constraints || resolveHashConstraints();
+        const { ceiling, deviceMemoryGb } = resolvedConstraints;
+        const formattedMemory = formatDeviceMemoryGb(deviceMemoryGb);
+        const memoryHint = formattedMemory ? ` (browser reports ~${formattedMemory} GB RAM)` : '';
+        engineHelpElement.textContent = `Hash requests are capped at ${MAX_USER_HASH_MB} MB. This device currently allows up to ${ceiling} MB${memoryHint}, and the value may be reduced further on low-memory devices. Background analysis uses a smaller cache to keep the browser responsive.`;
       }
 
       function updateEngineControls(options = {}) {
@@ -1528,7 +1623,10 @@
 
           if (line === 'uciok') {
             backgroundEngine.postMessage(`setoption name Threads value ${engineConfig.threads}`);
-            backgroundEngine.postMessage(`setoption name Hash value ${engineConfig.hash}`);
+            const backgroundHash = computeBackgroundHashBudget(engineConfig.hash);
+            if (backgroundHash !== null) {
+              backgroundEngine.postMessage(`setoption name Hash value ${backgroundHash}`);
+            }
             backgroundEngine.postMessage('isready');
             return;
           }
@@ -2569,12 +2667,16 @@
       return;
     }
     cancelEngineAutostart();
-    applyEngineConfig(engineConfig);
+    const sanitizedConfig = applyEngineConfig(engineConfig);
+    displayEngineConfigWarnings(sanitizedConfig);
     stopEngine({ silent: true, preserveAutostartAttempts: autostart });
     engineStarting = true;
     engineLastStartWasAutostart = !!autostart;
     setEngineStatusDisplay('loading', 'Starting…');
-    setEngineErrorMessage('');
+    const hasConfigWarnings = sanitizedConfig && Array.isArray(sanitizedConfig.warnings) && sanitizedConfig.warnings.length > 0;
+    if (!hasConfigWarnings) {
+      setEngineErrorMessage('');
+    }
     updateEngineControls({ loading: true });
     let worker;
     try {
@@ -2646,7 +2748,12 @@
         engineLastStartWasAutostart = false;
         engineAutostartAttempts = 0;
         setEngineStatusDisplay('ready', 'Ready');
-        setEngineErrorMessage('');
+        if (!engineErrorElement || engineErrorElement.dataset.source === 'config-warning') {
+          setEngineErrorMessage('');
+          if (engineErrorElement) {
+            engineErrorElement.dataset.source = '';
+          }
+        }
         updateEngineControls({ loading: false });
         $('#best-move-button').prop('disabled', false);
         updateNavigationButtons();
@@ -3053,7 +3160,8 @@
     cancelEngineAutostart();
     engineAutostartAttempts = 0;
     engineAutostartDisabled = false;
-    applyEngineConfig(collectEngineFormValues());
+    const result = applyEngineConfig(collectEngineFormValues());
+    displayEngineConfigWarnings(result);
     startEngine({ autostart: false });
   });
 
@@ -3066,7 +3174,7 @@
   const engineFormInputs = [engineThreadsInput, engineHashInput, engineDepthInput].filter(Boolean);
   const handleEngineInputUpdate = () => {
     const result = applyEngineConfig(collectEngineFormValues());
-    setEngineErrorMessage('');
+    displayEngineConfigWarnings(result);
     if (engineReady && result && result.changed) {
       setEngineStatusDisplay('ready', 'Ready (restart to apply)');
     }
@@ -3280,6 +3388,7 @@
   updateAdvantageBar(null, { neutral: true, message: 'Awaiting evaluation' });
   setAdvantageBarLoading(false);
   renderBoard();
+  applyEngineConfig(engineConfig);
   syncEngineInputs();
   setEngineStatusDisplay('idle', 'Not started');
   setEngineErrorMessage('');
