@@ -652,7 +652,7 @@
         </span>
       </div>
       <div class="probability-panel" id="probability-panel" hidden>
-        <div class="probability-panel__graph" id="evaluation-nav" role="listbox" aria-label="Evaluation graph timeline"></div>
+        <div class="probability-panel__graph" id="evaluation-nav" role="group" aria-label="Evaluation timeline"></div>
       </div>
     </div>
     <div id="controls">
@@ -731,6 +731,7 @@
   <script>
     $(function() {
       let board, engine;
+      let lastBoardConfig = { editMode: null, orientation: null };
       const game = new Chess();
       const boardEl = $('#board');
       const advantageBarElement = document.getElementById('advantage-bar');
@@ -1941,9 +1942,15 @@
           const segment = document.createElement('button');
           segment.type = 'button';
           segment.className = 'evaluation-nav__segment';
-          segment.tabIndex = -1;
+          segment.tabIndex = 0;
+          segment.setAttribute('role', 'button');
           segment.dataset.index = String(i);
           segment.classList.toggle('is-current', i === navigationIndex);
+          if (i === navigationIndex) {
+            segment.setAttribute('aria-current', 'true');
+          } else {
+            segment.removeAttribute('aria-current');
+          }
           const probability = entry && typeof entry.whiteWinProbability === 'number'
             ? Math.max(0, Math.min(1, entry.whiteWinProbability))
             : rawPoints[i] && typeof rawPoints[i].probability === 'number'
@@ -2449,46 +2456,45 @@
   }
 
   function renderBoard() {
-    const cfg = {
-      position: game.fen(),
-      draggable: editMode,
-      sparePieces: editMode,
-      orientation: orientation,
-      onDragStart: onDragStart,
-      onDrop: onDrop,
-      onSnapEnd: onSnapEnd,
-      pieceTheme: p => {
-        if (!p) return '';
-        const color = p[0] === 'w' ? 'white' : 'black';
-        const map = {K:'king',Q:'queen',R:'rook',B:'bishop',N:'knight',P:'pawn'};
-        return `pieces/${color}-${map[p[1]]}.png`;
+    const fen = game.fen();
+    const needsRecreate = !board
+      || lastBoardConfig.editMode !== editMode
+      || lastBoardConfig.orientation !== orientation;
+
+    if (needsRecreate) {
+      lastBoardConfig = { editMode, orientation };
+      if (board) {
+        board.destroy();
       }
-    };
-    if (board) board.destroy();
-    board = Chessboard('board', cfg);
-    $('.board-container').toggleClass('editing', editMode);
+      board = Chessboard('board', {
+        position: fen,
+        draggable: editMode,
+        sparePieces: editMode,
+        orientation,
+        onDragStart,
+        onDrop,
+        onSnapEnd,
+        pieceTheme: p => {
+          if (!p) return '';
+          const color = p[0] === 'w' ? 'white' : 'black';
+          const map = { K: 'king', Q: 'queen', R: 'rook', B: 'bishop', N: 'knight', P: 'pawn' };
+          return `pieces/${color}-${map[p[1]]}.png`;
+        }
+      });
+      $('.board-container').toggleClass('editing', editMode);
+      rebindBoardHandlers();
+    } else if (board) {
+      board.position(fen);
+    }
+
+    if (!board) return;
+
     board.resize();
     syncEvalBarWidth();
     requestAnimationFrame(() => {
       if (!board) return;
       board.resize();
       syncEvalBarWidth();
-    });
-    boardEl.off('click.square').on('click.square', 'div.square-55d63', function() {
-      const cls = $(this).attr('class').split(/\s+/);
-      const sq = cls.find(c => /^square-[a-h][1-8]$/.test(c));
-      if (!sq) return;
-      handleSquareClick(sq.replace('square-',''));
-    });
-    boardEl.off('dblclick.square').on('dblclick.square', 'div.square-55d63', function() {
-      const cls = $(this).attr('class').split(/\s+/);
-      const sq = cls.find(c => /^square-[a-h][1-8]$/.test(c));
-      if (!sq) return;
-      handleSquareDoubleClick(sq.replace('square-',''));
-    });
-    $('.board-container .spare-pieces-7492f').off('click.spare').on('click.spare', '.piece-417db', function() {
-      const pieceCode = $(this).attr('data-piece');
-      handleSparePieceClick(pieceCode);
     });
     applySelectionHighlights();
     applySpareSelection();
@@ -2497,6 +2503,25 @@
     }
     updateNavigationButtons();
     updateBestMoveDisplay();
+  }
+
+  function rebindBoardHandlers() {
+    boardEl.off('click.square').on('click.square', 'div.square-55d63', function() {
+      const cls = $(this).attr('class').split(/\s+/);
+      const sq = cls.find(c => /^square-[a-h][1-8]$/.test(c));
+      if (!sq) return;
+      handleSquareClick(sq.replace('square-', ''));
+    });
+    boardEl.off('dblclick.square').on('dblclick.square', 'div.square-55d63', function() {
+      const cls = $(this).attr('class').split(/\s+/);
+      const sq = cls.find(c => /^square-[a-h][1-8]$/.test(c));
+      if (!sq) return;
+      handleSquareDoubleClick(sq.replace('square-', ''));
+    });
+    $('.board-container .spare-pieces-7492f').off('click.spare').on('click.spare', '.piece-417db', function() {
+      const pieceCode = $(this).attr('data-piece');
+      handleSparePieceClick(pieceCode);
+    });
   }
 
   function updateStatus() {
@@ -3539,6 +3564,23 @@
       if (!Number.isInteger(targetIndex)) return;
       if (targetIndex === navigationIndex) return;
       rebuildPosition(Math.max(0, Math.min(targetIndex, moveHistory.length)));
+    });
+    evaluationNavElement.addEventListener('keydown', event => {
+      if (editMode || pieceMovesMode) return;
+      let targetIndex = null;
+      if (event.key === 'ArrowLeft') {
+        targetIndex = Math.max(0, navigationIndex - 1);
+      } else if (event.key === 'ArrowRight') {
+        targetIndex = Math.min(moveHistory.length, navigationIndex + 1);
+      } else if (event.key === 'Home') {
+        targetIndex = 0;
+      } else if (event.key === 'End') {
+        targetIndex = moveHistory.length;
+      }
+      if (targetIndex === null || targetIndex === navigationIndex) return;
+      event.preventDefault();
+      if (replayMode) stopReplay();
+      rebuildPosition(targetIndex);
     });
   }
 });
