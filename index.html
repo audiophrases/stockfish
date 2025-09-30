@@ -657,19 +657,19 @@
     </div>
     <div id="controls">
       <button id="prev-button" class="control-button" type="button" disabled aria-label="Previous move">
-        <span class="control-button__label" aria-hidden="true">Prior</span>
+        <span class="control-button__label" aria-hidden="true">Prev</span>
         <span class="visually-hidden">Previous move</span>
       </button>
       <button id="next-button" class="control-button" type="button" disabled aria-label="Next move">
-        <span class="control-button__label" aria-hidden="true">Later</span>
+        <span class="control-button__label" aria-hidden="true">Next</span>
         <span class="visually-hidden">Next move</span>
       </button>
       <button id="best-move-button" class="control-button" type="button" disabled aria-pressed="false" aria-label="Show best move">
-        <span class="control-button__label" aria-hidden="true">Prime</span>
+        <span class="control-button__label" aria-hidden="true">Best</span>
         <span class="visually-hidden">Show best move</span>
       </button>
       <button id="advantage-toggle-button" class="control-button" type="button" aria-pressed="false" aria-label="Show advantage bar">
-        <span class="control-button__label" aria-hidden="true">Meter</span>
+        <span class="control-button__label" aria-hidden="true">Gauge</span>
         <span class="visually-hidden">Show advantage bar</span>
       </button>
       <button id="probability-button" class="control-button" type="button" aria-pressed="false" aria-label="Show evaluation graph">
@@ -677,15 +677,15 @@
         <span class="visually-hidden">Show evaluation graph</span>
       </button>
       <button id="piece-moves-button" class="control-button" type="button" aria-pressed="false" aria-label="Show piece moves">
-        <span class="control-button__label" aria-hidden="true">Moves</span>
+        <span class="control-button__label" aria-hidden="true">Piece</span>
         <span class="visually-hidden">Show piece moves</span>
       </button>
       <button id="flip-button" class="control-button" type="button" aria-label="Flip board">
-        <span class="control-button__label" aria-hidden="true">Pivot</span>
+        <span class="control-button__label" aria-hidden="true">Flip</span>
         <span class="visually-hidden">Flip board</span>
       </button>
       <button id="edit-button" class="control-button" type="button" aria-pressed="false" aria-label="Enter edit mode">
-        <span class="control-button__label" aria-hidden="true">Alter</span>
+        <span class="control-button__label" aria-hidden="true">Edit</span>
         <span class="visually-hidden">Enter edit mode</span>
       </button>
       <button id="fen-button" class="control-button" type="button" aria-label="Load FEN or PGN">
@@ -693,7 +693,7 @@
         <span class="visually-hidden">Load FEN or PGN</span>
       </button>
       <button id="engine-button" class="control-button" type="button" aria-pressed="false" aria-label="Show engine settings">
-        <span class="control-button__label" aria-hidden="true">Setup</span>
+        <span class="control-button__label" aria-hidden="true">Engine</span>
         <span class="visually-hidden">Show engine settings</span>
       </button>
     </div>
@@ -865,27 +865,27 @@
       }
 
       function syncBestMoveButton() {
-        setButtonActive(bestMoveButtonElement, bestMoveVisible, 'Hide best move', 'Show best move');
+        setButtonActive(bestMoveButtonElement, bestMoveVisible, 'Hide best move', 'Best');
       }
 
       function syncAdvantageButton() {
-        setButtonActive(advantageToggleButton, advantageBarVisible, 'Hide advantage bar', 'Show advantage bar');
+        setButtonActive(advantageToggleButton, advantageBarVisible, 'Hide advantage bar', 'Gauge');
       }
 
       function syncProbabilityButton() {
-        setButtonActive(probabilityButtonElement, probabilityPanelVisible, 'Hide evaluation graph', 'Show evaluation graph');
+        setButtonActive(probabilityButtonElement, probabilityPanelVisible, 'Hide evaluation graph', 'Graph');
       }
 
       function syncPieceMovesButton() {
-        setButtonActive(pieceMovesButtonElement, pieceMovesMode, 'Return to play mode', 'Show piece moves');
+        setButtonActive(pieceMovesButtonElement, pieceMovesMode, 'Return to play mode', 'Piece');
       }
 
       function syncEditButton() {
-        setButtonActive(editButtonElement, editMode, 'Exit edit mode', 'Enter edit mode');
+        setButtonActive(editButtonElement, editMode, 'Exit edit mode', 'Edit');
       }
 
       function syncEngineButton() {
-        setButtonActive(engineButtonElement, enginePanelVisible, 'Hide engine settings', 'Show engine settings');
+        setButtonActive(engineButtonElement, enginePanelVisible, 'Hide engine settings', 'Engine');
       }
 
       function syncEnginePanelVisibility() {
