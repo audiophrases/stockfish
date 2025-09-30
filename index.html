@@ -259,7 +259,7 @@
 
     .probability-panel__graph {
       width: 100%;
-      height: 180px;
+      height: 60px;
       position: relative;
     }
 
@@ -500,14 +500,13 @@
       </div>
       <div id="info-line">
         <span id="status">Ready</span>
-        <span class="info-line-item"><span>Eval:</span><span id="evaluation">N/A</span></span>
+        <span class="info-line-item" id="evaluation-container" aria-hidden="false"><span id="evaluation">Eval: --</span></span>
       </div>
       <div class="probability-panel" id="probability-panel" hidden>
         <div class="probability-panel__header">
-          <span class="probability-panel__title">White Win Probability</span>
           <span class="probability-panel__status" id="evaluation-label"></span>
         </div>
-        <div class="probability-panel__graph" id="evaluation-nav" role="listbox" aria-label="White win probability timeline"></div>
+        <div class="probability-panel__graph" id="evaluation-nav" role="listbox" aria-label="Evaluation graph timeline"></div>
       </div>
     </div>
     <div id="controls">
@@ -515,7 +514,7 @@
       <button id="next-button" disabled>Next</button>
       <button id="best-move-button" disabled>Best</button>
       <button id="advantage-toggle-button">Hide Bar</button>
-      <button id="probability-button">Win Prob</button>
+      <button id="probability-button">Graph</button>
       <button id="piece-moves-button">Piece</button>
       <button id="flip-button">Flip</button>
       <button id="edit-button">Edit</button>
@@ -533,6 +532,8 @@
       const advantageWhiteElement = document.getElementById('advantage-white-percent');
       const advantageBlackElement = document.getElementById('advantage-black-percent');
       const probabilityPanel = document.getElementById('probability-panel');
+      const evaluationContainer = document.getElementById('evaluation-container');
+      const evaluationElement = document.getElementById('evaluation');
       let baseFen = game.fen();
       let selectedSquare = null;
       let moveSourceSquare = null;
@@ -578,11 +579,54 @@
         advantageBarElement.hidden = false;
         advantageBarElement.setAttribute('aria-hidden', 'false');
       }
+      if (evaluationContainer) {
+        evaluationContainer.hidden = false;
+        evaluationContainer.setAttribute('aria-hidden', 'false');
+      }
+      if (evaluationElement) {
+        evaluationElement.textContent = 'Eval: --';
+      }
       if (probabilityPanel) {
         probabilityPanel.hidden = true;
         probabilityPanel.setAttribute('aria-hidden', 'true');
       }
       let lastAdvantageRatio = 0.5;
+      function setEvaluationText(text) {
+        if (!evaluationElement) return;
+        evaluationElement.textContent = text;
+      }
+
+      function formatEvaluationLabel(probability) {
+        return `Eval: ${formatWinProbability(probability)}`;
+      }
+
+      function deriveWhiteWinProbability(entry) {
+        if (!entry) {
+          return 0.5;
+        }
+        if (typeof entry.whiteWinProbability === 'number' && !Number.isNaN(entry.whiteWinProbability)) {
+          return clampProbability(entry.whiteWinProbability);
+        }
+        if (entry.type === 'mate' && entry.winningSide) {
+          return entry.winningSide === 'white' ? 1 : 0;
+        }
+        if (typeof entry.cp === 'number' && !Number.isNaN(entry.cp)) {
+          return calculateWhiteWinProbabilityFromCp(entry.cp);
+        }
+        if (typeof entry.value === 'number' && !Number.isNaN(entry.value)) {
+          return calculateWhiteWinProbabilityFromCp(entry.value);
+        }
+        return 0.5;
+      }
+
+      function updateEvaluationDisplay(entry) {
+        if (!entry) {
+          setEvaluationText('Eval: --');
+          return;
+        }
+        const probability = deriveWhiteWinProbability(entry);
+        setEvaluationText(formatEvaluationLabel(probability));
+      }
       let backgroundEngine = null;
       let backgroundEngineReady = false;
       let backgroundEvaluationQueue = [];
@@ -1167,8 +1211,7 @@
 
       function applyEvaluationEntry(entry) {
         if (!entry) return;
-        const label = entry.text || 'N/A';
-        $('#evaluation').text(label);
+        updateEvaluationDisplay(entry);
         setTimelineEntry(navigationIndex, entry);
         setAdvantageBarLoading(false);
         updateAdvantageBar(entry);
@@ -1176,12 +1219,12 @@
 
       function applyStoredEvaluationIfAvailable() {
         const entry = getTimelineEntry(navigationIndex);
-        if (entry && entry.text) {
-          $('#evaluation').text(entry.text);
+        if (entry) {
+          updateEvaluationDisplay(entry);
           setAdvantageBarLoading(false);
           updateAdvantageBar(entry);
         } else {
-          $('#evaluation').text('N/A');
+          setEvaluationText('Eval: --');
           setAdvantageBarLoading(false);
           updateAdvantageBar(null, { neutral: true, message: 'Awaiting evaluation' });
         }
@@ -1335,7 +1378,7 @@
           baseFen = newBaseFen;
         }
         clearEvaluationTimeline(1);
-        $('#evaluation').text('N/A');
+        setEvaluationText('Eval: --');
         currentBestMove = null;
         latestAnalysisFen = null;
         setAdvantageBarLoading(false);
@@ -1993,11 +2036,11 @@
     }
 
     if (pieceAnalysis) {
-      $('#evaluation').text('...');
+      setEvaluationText('Eval: --');
     } else {
       const stored = getTimelineEntry(navigationIndex);
       if (!stored || typeof stored.value !== 'number') {
-        $('#evaluation').text('...');
+        setEvaluationText('Eval: --');
       }
     }
     setAdvantageBarLoading(true, { reset: !pieceAnalysis });
@@ -2081,6 +2124,10 @@
         syncEvalBarWidth();
       }
     }
+    if (evaluationContainer) {
+      evaluationContainer.hidden = !advantageBarVisible;
+      evaluationContainer.setAttribute('aria-hidden', advantageBarVisible ? 'false' : 'true');
+    }
     $('#advantage-toggle-button').text(advantageBarVisible ? 'Hide Bar' : 'Show Bar');
   });
   $('#probability-button').on('click', () => {
@@ -2090,13 +2137,13 @@
       probabilityPanel.setAttribute('aria-hidden', probabilityPanelVisible ? 'false' : 'true');
     }
     if (probabilityPanelVisible) {
-      $('#probability-button').text('Hide Prob');
+      $('#probability-button').text('Hide Graph');
       requestAnimationFrame(() => {
         renderEvaluationNavigation();
       });
       scheduleProbabilityEvaluation(PROBABILITY_GRAPH_DEPTH);
     } else {
-      $('#probability-button').text('Win Prob');
+      $('#probability-button').text('Graph');
     }
   });
   $('#prev-button').on('click', goToPreviousMove);
@@ -2173,7 +2220,7 @@
       clearRatings();
       latestAnalysisFen = null;
       currentBestMove = null;
-      $('#evaluation').text('Editing');
+      setEvaluationText('Eval: --');
       updateBestMoveDisplay();
       setAdvantageBarLoading(false);
       updateAdvantageBar(null, { neutral: true, message: 'Editing' });
