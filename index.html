@@ -546,9 +546,9 @@
       let moveHistory = [];
       let navigationIndex = 0;
       const DEFAULT_DEPTH = 24;
-      const PGN_REPLAY_DEPTH = 12;
+      const PGN_REPLAY_DEPTH = 14;
       const BACKGROUND_EVAL_DEPTH = 24;
-      const PROBABILITY_GRAPH_DEPTH = 10;
+      const PROBABILITY_GRAPH_DEPTH = 14;
       const AUTO_NEXT_MOVE_DEPTH = 22;
       const DEFAULT_THREADS = 4;
       const DEFAULT_HASH_MB = 469;
@@ -694,7 +694,7 @@
       }
 
       // Logistic scale matching the Lichess win probability model for centipawn scores.
-      const LICHESS_WIN_PROBABILITY_SCALE = 0.004;
+      const LICHESS_WIN_PROBABILITY_SCALE = 0.00368208;
 
       function capitalizeWord(word) {
         if (typeof word !== 'string' || !word.length) return '';
@@ -1116,7 +1116,8 @@
           height = 180;
         }
 
-        const step = totalSegments > 1 ? width / (totalSegments - 1) : 0;
+        const segmentWidth = totalSegments > 0 ? width / totalSegments : width;
+        const halfSegment = segmentWidth / 2;
         const rawPoints = [];
 
         for (let i = 0; i < totalSegments; i += 1) {
@@ -1127,7 +1128,8 @@
           } else if (entry) {
             probability = Math.max(0, Math.min(1, computeAdvantageRatio(entry)));
           }
-          const x = totalSegments > 1 ? i * step : width / 2;
+          const centerX = totalSegments > 0 ? (i + 0.5) * segmentWidth : width / 2;
+          const x = Math.max(halfSegment, Math.min(width - halfSegment, centerX));
           const y = height - probability * height;
           rawPoints.push({ x, y, probability, entry });
         }
@@ -1135,6 +1137,9 @@
         const pathPoints = rawPoints.length === 1
           ? [{ x: 0, y: rawPoints[0].y }, { x: width, y: rawPoints[0].y }]
           : rawPoints;
+        const areaPoints = rawPoints.length
+          ? [{ x: 0, y: rawPoints[0].y }, ...rawPoints, { x: width, y: rawPoints[rawPoints.length - 1].y }]
+          : [];
 
         const toCommandString = pts => pts.map((pt, idx) => {
           const command = idx === 0 ? 'M' : 'L';
@@ -1153,7 +1158,7 @@
         };
 
         const lineCommands = pathPoints.length ? toCommandString(pathPoints) : '';
-        const areaCommand = pathPoints.length ? toAreaCommand(pathPoints) : '';
+        const areaCommand = areaPoints.length ? toAreaCommand(areaPoints) : '';
         const baselineY = height - 0.5 * height;
 
         const svgNS = 'http://www.w3.org/2000/svg';
@@ -1196,6 +1201,9 @@
 
         const overlay = document.createElement('div');
         overlay.className = 'evaluation-nav__overlay';
+        overlay.style.display = 'grid';
+        overlay.style.gridTemplateColumns = `repeat(${totalSegments}, 1fr)`;
+        overlay.style.alignItems = 'stretch';
 
         for (let i = 0; i < totalSegments; i += 1) {
           const entry = i < evaluationTimeline.length ? evaluationTimeline[i] : null;
@@ -1210,9 +1218,9 @@
             : rawPoints[i] && typeof rawPoints[i].probability === 'number'
               ? Math.max(0, Math.min(1, rawPoints[i].probability))
               : 0.5;
-          const probabilityLabel = `${formatWinProbability(probability)} white`;
-          segment.title = `Ply ${i}: ${probabilityLabel}`;
-          segment.setAttribute('aria-label', `Ply ${i} white win probability ${probabilityLabel}`);
+          const probabilityPercent = formatWinProbability(probability);
+          segment.title = `Ply ${i}: White win probability ${probabilityPercent}`;
+          segment.setAttribute('aria-label', `Ply ${i} white win probability ${probabilityPercent}`);
           segment.dataset.probability = probability.toFixed(4);
           overlay.appendChild(segment);
         }
@@ -1332,19 +1340,20 @@
 
       function startReplayFromIndex(index = 0, depth = DEFAULT_DEPTH) {
         const clampedIndex = Math.max(0, Math.min(index, moveHistory.length));
+        const resolvedDepth = typeof depth === 'number' && depth > 0 ? depth : DEFAULT_DEPTH;
         if (!engineReady || !engine) {
           replayMode = true;
-          replayTargetDepth = typeof depth === 'number' && depth > 0 ? depth : DEFAULT_DEPTH;
+          replayTargetDepth = Math.max(14, resolvedDepth);
           replayPendingIndex = clampedIndex;
           replayAdvanceScheduled = false;
           cancelReplayTimer();
           updateEvaluationProgressLabel();
-          pendingReplayStart = { index: clampedIndex, depth };
+          pendingReplayStart = { index: clampedIndex, depth: Math.max(14, resolvedDepth) };
           return;
         }
         pendingReplayStart = null;
         stopReplay();
-        replayTargetDepth = typeof depth === 'number' && depth > 0 ? depth : DEFAULT_DEPTH;
+        replayTargetDepth = Math.max(14, resolvedDepth);
         cancelReplayTimer();
         replayAdvanceScheduled = false;
         rebuildPosition(clampedIndex, {
@@ -2010,7 +2019,7 @@
 
     if (replay) {
       replayMode = true;
-      replayTargetDepth = depth;
+      replayTargetDepth = Math.max(14, depth);
       replayPendingIndex = navigationIndex;
       replayAdvanceScheduled = false;
       cancelReplayTimer();
@@ -2023,7 +2032,8 @@
 
     if (autoPlay) {
       autoPlayPending = true;
-      autoPlayTargetDepth = depth;
+      const depthFloor = Math.max(1, Math.floor(depth));
+      autoPlayTargetDepth = Math.max(14, depthFloor);
       autoPlayFen = latestAnalysisFen;
       autoPlayRequestedAt = Date.now();
       autoPlayDepthSatisfied = false;
@@ -2067,7 +2077,7 @@
     engine.postMessage(`setoption name MultiPV value ${multiPv}`);
     engine.postMessage(`position fen ${normalizedFen}`);
     if (autoPlay) {
-      const depthLimit = Math.max(1, Math.floor(depth));
+      const depthLimit = Math.max(14, Math.floor(depth));
       engine.postMessage(`go depth ${depthLimit}`);
     } else if (searchMoves && searchMoves.length) {
       engine.postMessage(`go searchmoves ${searchMoves.join(' ')} infinite`);
