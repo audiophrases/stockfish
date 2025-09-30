@@ -831,8 +831,8 @@
           }
 
           if (mateValue === 0) {
-            const gaugeSign = activeTurn === 'b' ? -rawSign : rawSign;
-            const winningSide = gaugeSign >= 0 ? 'white' : 'black';
+            const winningSide = activeTurn === 'w' ? 'black' : 'white';
+            const gaugeSign = winningSide === 'white' ? 1 : -1;
             const label = `${capitalizeWord(winningSide)} has delivered checkmate · 100% win chance`;
             const whiteWinProbability = winningSide === 'white' ? 1 : 0;
             return {
