@@ -3,468 +3,414 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Chess Interface</title>
-  <style>
-    :root {
-      color-scheme: dark;
-    }
+  
+<style>
+  :root {
+    color-scheme: dark;
+  }
 
-    body {
-      font-family: "Inter", "Segoe UI", sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      background-color: #000;
-      margin: 0;
-      padding: 2px;
-      color: #eef0f6;
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at top, #1a2032 0%, #070910 75%);
+    font-family: "Inter", "Segoe UI", sans-serif;
+    color: #eef1ff;
+  }
+
+  .container {
+    width: min(92vw, 540px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 28px;
+  }
+
+  .board-shell {
+    width: 100%;
+    background: rgba(8, 11, 20, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 28px;
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    box-shadow: 0 40px 80px rgba(0, 0, 0, 0.55);
+  }
+
+  .board-area {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    align-items: center;
+  }
+
+  .board-container {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+
+  #board {
+    width: 100%;
+    max-width: 480px;
+  }
+
+  .visually-hidden {
+    border: 0 !important;
+    clip: rect(1px, 1px, 1px, 1px) !important;
+    clip-path: inset(50%) !important;
+    height: 1px !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+    position: absolute !important;
+    width: 1px !important;
+    white-space: nowrap !important;
+  }
+
+  #info-line {
+    display: flex;
+    gap: 18px;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #status {
+    position: relative;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #8fa5ff, #b1e3ff);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.3s ease;
+  }
+
+  #status[data-turn="white"] {
+    background: linear-gradient(135deg, #8fa5ff, #c6d5ff);
+  }
+
+  #status[data-turn="black"] {
+    background: linear-gradient(135deg, #242c47, #8aa0ff);
+  }
+
+  #status[data-state="check"] {
+    background: linear-gradient(135deg, #ffb964, #ff6f4e);
+    box-shadow: 0 0 12px rgba(255, 137, 84, 0.55);
+  }
+
+  #status[data-state="mate"] {
+    background: linear-gradient(135deg, #ff6f91, #ff4757);
+    box-shadow: 0 0 12px rgba(255, 79, 105, 0.6);
+  }
+
+  #status[data-state="draw"] {
+    background: linear-gradient(135deg, #b2b9d7, #7a81a9);
+  }
+
+  #status.is-editing::after {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+  }
+
+  .info-line-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .evaluation-indicator {
+    --eval-scale: 0.5;
+    position: relative;
+    width: 140px;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  }
+
+  .evaluation-indicator::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, #69f0ff, #7b7dff 55%, #ff7ce8);
+    transform: scaleX(var(--eval-scale));
+    transform-origin: left center;
+    transition: transform 0.35s ease;
+  }
+
+  .advantage-bar {
+    position: relative;
+    width: 100%;
+    max-width: 320px;
+    height: 12px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    display: block;
+  }
+
+  .advantage-bar[hidden] {
+    display: none !important;
+  }
+
+  .advantage-bar__header,
+  .advantage-bar__status,
+  .advantage-bar__footer {
+    display: none !important;
+  }
+
+  .advantage-bar__track {
+    position: absolute;
+    inset: 0;
+    --white-ratio: 50%;
+    background: linear-gradient(90deg, rgba(236, 244, 255, 0.85) 0%, rgba(236, 244, 255, 0.85) var(--white-ratio), rgba(18, 26, 44, 0.85) var(--white-ratio), rgba(18, 26, 44, 0.85) 100%);
+  }
+
+  .advantage-bar__track::after {
+    content: '';
+    position: absolute;
+    top: -4px;
+    bottom: -4px;
+    width: 4px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.6);
+    left: calc(var(--white-ratio) - 2px);
+    transition: left 0.35s ease;
+  }
+
+  .advantage-bar.is-white-favored {
+    box-shadow: inset 0 0 0 1px rgba(165, 199, 255, 0.4), 0 12px 24px rgba(80, 140, 255, 0.25);
+  }
+
+  .advantage-bar.is-black-favored {
+    box-shadow: inset 0 0 0 1px rgba(130, 110, 255, 0.4), 0 12px 24px rgba(130, 110, 255, 0.22);
+  }
+
+  .advantage-bar.is-balanced {
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  }
+
+  .advantage-bar.is-loading .advantage-bar__track::after {
+    animation: indicator-slide 1.1s ease-in-out infinite;
+  }
+
+  @keyframes indicator-slide {
+    0% { opacity: 0.4; }
+    50% { opacity: 1; }
+    100% { opacity: 0.4; }
+  }
+
+  #controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(48px, 1fr));
+    gap: 14px;
+    width: 100%;
+  }
+
+  button {
+    appearance: none;
+    border: none;
+    background: none;
+    padding: 0;
+    cursor: pointer;
+  }
+
+  .control-button {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1;
+    min-width: 48px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #eef1ff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  }
+
+  .control-button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    background: rgba(122, 140, 255, 0.28);
+    box-shadow: 0 10px 24px rgba(70, 90, 200, 0.35);
+  }
+
+  .control-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.35;
+    transform: none;
+  }
+
+  .control-button.is-active {
+    background: rgba(122, 140, 255, 0.35);
+    box-shadow: 0 12px 28px rgba(88, 120, 255, 0.38);
+  }
+
+  .control-button svg {
+    width: 24px;
+    height: 24px;
+    stroke: currentColor;
+    fill: none;
+  }
+
+  .probability-panel {
+    width: 100%;
+    max-width: 480px;
+    background: rgba(10, 14, 26, 0.85);
+    border-radius: 20px;
+    padding: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(8px);
+  }
+
+  .probability-panel[hidden] {
+    display: none !important;
+  }
+
+  .probability-panel__graph {
+    width: 100%;
+    height: 140px;
+    position: relative;
+  }
+
+  .evaluation-nav__graph {
+    width: 100%;
+    height: 100%;
+  }
+
+  .evaluation-nav__area {
+    fill: rgba(130, 148, 255, 0.2);
+  }
+
+  .evaluation-nav__line {
+    stroke: rgba(214, 222, 255, 0.85);
+    stroke-width: 2;
+  }
+
+  .evaluation-nav__baseline {
+    stroke: rgba(255, 255, 255, 0.14);
+    stroke-width: 1;
+    stroke-dasharray: 6 6;
+  }
+
+  .evaluation-nav__overlay {
+    position: absolute;
+    inset: 0;
+    display: grid;
+  }
+
+  .evaluation-nav__segment {
+    border: none;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+  }
+
+  .evaluation-nav__segment:hover,
+  .evaluation-nav__segment.is-current {
+    background: rgba(122, 140, 255, 0.18);
+  }
+
+  .evaluation-nav__marker {
+    fill: #f5f7ff;
+    stroke: rgba(122, 140, 255, 0.9);
+    stroke-width: 2;
+  }
+
+  .highlight-selection {
+    box-shadow: inset 0 0 0 3px #f2ff5f !important;
+  }
+
+  .highlight-move-from,
+  .highlight-move-to {
+    background: rgba(255, 255, 0, 0.38) !important;
+  }
+
+  .selected-spare-piece {
+    box-shadow: 0 0 0 3px #f2ff5f inset;
+    border-radius: 8px;
+  }
+
+  .move-rating {
+    position: absolute;
+    bottom: 6px;
+    right: 6px;
+    background: rgba(9, 12, 24, 0.82);
+    color: #f6f9ff;
+    font-size: 12px;
+    padding: 3px 5px;
+    border-radius: 6px;
+    pointer-events: none;
+    z-index: 5;
+  }
+
+  .board-container .chessboard-7492f {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .board-container .board-b72b1 {
+    order: 1;
+  }
+
+  .board-container .spare-pieces-top,
+  .board-container .spare-pieces-bottom {
+    order: 2;
+    margin-top: 6px;
+    display: none;
+  }
+
+  .board-container.editing .spare-pieces-top,
+  .board-container.editing .spare-pieces-bottom {
+    display: flex;
+  }
+
+  .board-container .spare-pieces-7492f {
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .board-container.editing .spare-pieces-7492f {
+    display: flex;
+  }
+
+  @media (max-width: 640px) {
+    .board-shell {
+      padding: 22px;
+      border-radius: 24px;
     }
 
     .container {
-      width: 100%;
-      max-width: 960px;
-      display: flex;
-      flex-direction: column;
       gap: 24px;
-      align-items: stretch;
-    }
-
-    .board-shell {
-      background: #808080;
-      border-radius: 28px;
-      padding: 28px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 20px;
-      box-shadow: 0 28px 60px rgba(3, 6, 16, 0.55);
-    }
-
-    .board-area {
-      width: min(72vw, 440px);
-      max-width: 440px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 16px;
-    }
-
-    .board-container {
-      width: 100%;
-      display: flex;
-      justify-content: center;
     }
 
     #board {
-      width: 100%;
+      max-width: 100%;
     }
 
-    #info-line {
-      width: 100%;
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 12px;
-      font-size: 0.98rem;
-      color: #f3f6ff;
-      font-weight: 600;
+    .evaluation-indicator {
+      width: 110px;
     }
+  }
+</style>
 
-    #status {
-      margin: 0;
-      white-space: nowrap;
-      transition: color 0.2s ease;
-    }
-
-    #status.is-editing {
-      cursor: pointer;
-      color: #f8f29d;
-      text-decoration: underline;
-      text-decoration-style: dashed;
-      text-decoration-color: rgba(248, 242, 157, 0.7);
-    }
-
-    #status.is-editing:focus-visible {
-      outline: 2px solid #f8f29d;
-      outline-offset: 3px;
-    }
-
-    .advantage-bar {
-      width: 100%;
-      max-width: 440px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      color: #eef0f6;
-      background: rgba(14, 18, 32, 0.35);
-      border-radius: 16px;
-      padding: 2px;
-      backdrop-filter: blur(6px);
-      transition: box-shadow 0.3s ease, background 0.3s ease;
-    }
-
-    .advantage-bar__header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 0.76rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: #cfd5fb;
-    }
-
-    .advantage-bar__status {
-      font-weight: 600;
-      font-size: 0.92rem;
-      color: #eef1ff;
-      transition: color 0.3s ease;
-    }
-
-    .advantage-bar__track {
-      position: relative;
-      --white-ratio: 50%;
-      height: 18px;
-      border-radius: 999px;
-      overflow: hidden;
-      background: linear-gradient(90deg, rgba(247, 248, 255, 0.92) 0%, rgba(247, 248, 255, 0.92) var(--white-ratio), rgba(14, 16, 28, 0.88) var(--white-ratio), rgba(14, 16, 28, 0.88) 100%);
-      transition: background 0.4s ease;
-    }
-
-    .advantage-bar__track::after {
-      content: '';
-      position: absolute;
-      top: -3px;
-      bottom: -3px;
-      width: 5px;
-      border-radius: 6px;
-      background: linear-gradient(180deg, rgba(238, 241, 255, 0.95), rgba(142, 154, 232, 0.95));
-      left: calc(var(--white-ratio) - 2.5px);
-      box-shadow: 0 0 12px rgba(86, 105, 255, 0.55);
-      transition: left 0.4s ease;
-    }
-
-    .advantage-bar__footer {
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.82rem;
-      color: #d5daf4;
-    }
-
-    .advantage-bar__side {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-      font-weight: 600;
-    }
-
-    .advantage-bar__side--white .advantage-bar__percent {
-      color: #f9fbff;
-    }
-
-    .advantage-bar__side--black .advantage-bar__percent {
-      color: #cbd4ff;
-    }
-
-    .advantage-bar__side-label {
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      font-size: 0.74rem;
-      color: rgba(229, 233, 255, 0.9);
-    }
-
-    .advantage-bar__percent {
-      font-variant-numeric: tabular-nums;
-    }
-
-    .advantage-bar--minimal .advantage-bar__header,
-    .advantage-bar--minimal .advantage-bar__footer,
-    .advantage-bar--minimal .advantage-bar__status {
-      display: none;
-    }
-
-    .advantage-bar.is-white-favored {
-      background: rgba(37, 48, 94, 0.42);
-      box-shadow: 0 12px 26px rgba(60, 88, 190, 0.25);
-    }
-
-    .advantage-bar.is-black-favored {
-      background: rgba(32, 24, 48, 0.42);
-      box-shadow: 0 12px 26px rgba(120, 60, 160, 0.24);
-    }
-
-    .advantage-bar.is-balanced {
-      background: rgba(16, 20, 32, 0.42);
-      box-shadow: 0 10px 22px rgba(32, 38, 70, 0.26);
-    }
-
-    .advantage-bar.is-loading .advantage-bar__track::after {
-      animation: advantage-bar-loading 1.1s ease-in-out infinite;
-      box-shadow: 0 0 12px rgba(116, 132, 255, 0.7);
-    }
-
-    .advantage-bar.is-loading .advantage-bar__status {
-      color: #d0d5f0;
-    }
-
-    @keyframes advantage-bar-loading {
-      0% {
-        opacity: 0.45;
-      }
-      50% {
-        opacity: 1;
-      }
-      100% {
-        opacity: 0.45;
-      }
-    }
-
-    .probability-panel {
-      width: 100%;
-      max-width: 440px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      margin-top: 12px;
-      background: rgba(14, 18, 32, 0.35);
-      border-radius: 16px;
-      padding: 2px;
-      backdrop-filter: blur(6px);
-    }
-
-    .probability-panel[hidden] {
-      display: none;
-    }
-
-    .probability-panel__header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 0.78rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: #cfd5fb;
-    }
-
-    .probability-panel__title {
-      font-weight: 600;
-    }
-
-    .probability-panel__status {
-      font-size: 0.72rem;
-      color: #9ca6d7;
-    }
-
-    .probability-panel__graph {
-      width: 100%;
-      height: 60px;
-      position: relative;
-    }
-
-    .evaluation-nav__graph {
-      width: 100%;
-      height: 100%;
-      position: absolute;
-      inset: 0;
-    }
-
-    .evaluation-nav__area {
-      fill: rgba(114, 132, 255, 0.28);
-    }
-
-    .evaluation-nav__line {
-      fill: none;
-      stroke: rgba(198, 206, 255, 0.85);
-      stroke-width: 2;
-    }
-
-    .evaluation-nav__baseline {
-      stroke: rgba(255, 255, 255, 0.15);
-      stroke-width: 1;
-      stroke-dasharray: 4 4;
-    }
-
-    .evaluation-nav__overlay {
-      position: absolute;
-      inset: 0;
-      display: flex;
-    }
-
-    .evaluation-nav__segment {
-      appearance: none;
-      border: none;
-      background: transparent;
-      padding: 0;
-      margin: 0;
-      cursor: pointer;
-      flex: 1 1 0;
-    }
-
-    .evaluation-nav__segment:hover,
-    .evaluation-nav__segment.is-current {
-      background: rgba(114, 132, 255, 0.16);
-    }
-
-    .evaluation-nav__marker {
-      fill: #f6f9ff;
-      stroke: rgba(114, 132, 255, 0.85);
-      stroke-width: 2;
-    }
-
-    .info-line-item {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-      white-space: nowrap;
-    }
-
-    .info-line-item span:last-child {
-      color: #dce1ff;
-    }
-
-    #controls {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 12px;
-    }
-
-    button {
-      margin: 0;
-      padding: 10px 18px;
-      border: none;
-      border-radius: 14px;
-      color: #fff;
-      cursor: pointer;
-      background: linear-gradient(135deg, #4856ff 0%, #232d97 100%);
-      font-weight: 600;
-      letter-spacing: 0.02em;
-      transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
-      min-width: 120px;
-    }
-
-    button:hover:not(:disabled) {
-      transform: translateY(-2px);
-      box-shadow: 0 12px 24px rgba(35, 52, 158, 0.45);
-    }
-
-    button:disabled {
-      background: rgba(84, 90, 128, 0.4);
-      cursor: not-allowed;
-      box-shadow: none;
-    }
-
-    #piece-moves-button {
-      background: linear-gradient(135deg, #1dbfcc 0%, #136677 100%);
-    }
-
-    #flip-button {
-      background: linear-gradient(135deg, #34c964 0%, #127035 100%);
-    }
-
-    #edit-button {
-      background: linear-gradient(135deg, #ffd96f 0%, #e6a421 100%);
-      color: #1d1d1d;
-    }
-
-    .highlight-selection {
-      box-shadow: inset 0 0 0 3px #f2ff5f !important;
-    }
-
-    .highlight-move-from,
-    .highlight-move-to {
-      background: rgba(255, 255, 0, 0.38) !important;
-    }
-
-    .selected-spare-piece {
-      box-shadow: 0 0 0 3px #f2ff5f inset;
-      border-radius: 8px;
-    }
-
-    .move-rating {
-      position: absolute;
-      bottom: 6px;
-      right: 6px;
-      background: rgba(9, 12, 24, 0.82);
-      color: #f6f9ff;
-      font-size: 12px;
-      padding: 3px 5px;
-      border-radius: 6px;
-      pointer-events: none;
-      z-index: 5;
-    }
-
-    .board-container .chessboard-7492f {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .board-container .board-b72b1 {
-      order: 1;
-    }
-
-    .board-container .spare-pieces-top,
-    .board-container .spare-pieces-bottom {
-      order: 2;
-      margin-top: 6px;
-      display: none;
-    }
-
-    .board-container.editing .spare-pieces-top,
-    .board-container.editing .spare-pieces-bottom {
-      display: flex;
-    }
-
-    .board-container .spare-pieces-7492f {
-      justify-content: center;
-      gap: 6px;
-    }
-
-    .board-container.editing .spare-pieces-7492f {
-      display: flex;
-    }
-
-    @media (max-width: 1024px) {
-      .board-shell {
-        padding: 24px;
-      }
-    }
-
-    @media (max-width: 768px) {
-      .board-area {
-        gap: 16px;
-      }
-
-    }
-
-    @media (max-width: 640px) {
-      body {
-        padding: 16px;
-      }
-
-      .container {
-        gap: 20px;
-      }
-
-      .board-area {
-        width: min(86vw, 420px);
-      }
-
-      button {
-        min-width: 110px;
-        padding: 10px 16px;
-        font-size: 0.92rem;
-      }
-    }
-
-    @media (max-width: 420px) {
-      #info-line {
-        font-size: 0.9rem;
-        gap: 8px;
-      }
-    }
-  </style>
   <script src="libs/jquery.min.js"></script>
   <link href="libs/chessboard-1.0.0.min.css" rel="stylesheet">
   <script src="libs/chessboard-1.0.0.min.js"></script>
@@ -479,41 +425,100 @@
         </div>
         <div class="advantage-bar is-balanced advantage-bar--minimal" id="advantage-bar" aria-live="polite" aria-busy="false" aria-hidden="true" hidden>
           <div class="advantage-bar__header" aria-hidden="true">
-            <span>Advantage</span>
-            <span class="advantage-bar__status" id="advantage-status">Awaiting evaluation</span>
+            <span class="visually-hidden">Advantage</span>
+            <span class="advantage-bar__status visually-hidden" id="advantage-status">Awaiting evaluation</span>
           </div>
           <div class="advantage-bar__track" id="advantage-track"></div>
           <div class="advantage-bar__footer" aria-hidden="true">
             <span class="advantage-bar__side advantage-bar__side--white">
-              <span class="advantage-bar__side-label">White</span>
-              <span class="advantage-bar__percent" id="advantage-white-percent">50%</span>
+              <span class="advantage-bar__side-label visually-hidden">White</span>
+              <span class="advantage-bar__percent visually-hidden" id="advantage-white-percent">50%</span>
             </span>
             <span class="advantage-bar__side advantage-bar__side--black">
-              <span class="advantage-bar__percent" id="advantage-black-percent">50%</span>
-              <span class="advantage-bar__side-label">Black</span>
+              <span class="advantage-bar__percent visually-hidden" id="advantage-black-percent">50%</span>
+              <span class="advantage-bar__side-label visually-hidden">Black</span>
             </span>
           </div>
         </div>
       </div>
+
       <div id="info-line">
-        <span id="status">Ready</span>
-        <span class="info-line-item" id="evaluation-container" aria-hidden="true" hidden><span id="evaluation">Eval: --</span></span>
+        <span id="status" class="status-indicator" role="status" aria-live="polite" data-turn="white" data-state="normal">
+          <span class="visually-hidden">Ready</span>
+        </span>
+        <span class="info-line-item" id="evaluation-container" aria-hidden="true" hidden>
+          <span id="evaluation" class="evaluation-indicator" role="img" aria-label="Eval: --" data-probability="0.5">
+            <span class="visually-hidden">Eval: --</span>
+          </span>
+        </span>
       </div>
       <div class="probability-panel" id="probability-panel" hidden>
         <div class="probability-panel__graph" id="evaluation-nav" role="listbox" aria-label="Evaluation graph timeline"></div>
       </div>
     </div>
     <div id="controls">
-      <button id="prev-button" disabled>Prev</button>
-      <button id="next-button" disabled>Next</button>
-      <button id="best-move-button" disabled>Best</button>
-      <button id="advantage-toggle-button">Show Bar</button>
-      <button id="probability-button">Show Graph</button>
-      <button id="piece-moves-button">Piece</button>
-      <button id="flip-button">Flip</button>
-      <button id="edit-button">Edit</button>
-      <button id="fen-button">FEN / PGN</button>
-    </div>
+      <button id="prev-button" class="control-button" type="button" disabled aria-label="Previous move">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M15.5 5.5 9 12l6.5 6.5" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
+        </svg>
+        <span class="visually-hidden">Previous move</span>
+      </button>
+      <button id="next-button" class="control-button" type="button" disabled aria-label="Next move">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M8.5 5.5 15 12l-6.5 6.5" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
+        </svg>
+        <span class="visually-hidden">Next move</span>
+      </button>
+      <button id="best-move-button" class="control-button" type="button" disabled aria-pressed="false" aria-label="Show best move">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M12 4.5 13.9 9.3 19 9.9 15 13.5 16.2 18.5 12 15.8 7.8 18.5 9 13.5 5 9.9 10.1 9.3Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
+        </svg>
+        <span class="visually-hidden">Show best move</span>
+      </button>
+      <button id="advantage-toggle-button" class="control-button" type="button" aria-pressed="false" aria-label="Show advantage bar">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M5 18V6m7 12V3m7 12V9" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
+        </svg>
+        <span class="visually-hidden">Show advantage bar</span>
+      </button>
+      <button id="probability-button" class="control-button" type="button" aria-pressed="false" aria-label="Show evaluation graph">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M4 16c2-5 4-7 8-7s6 2 8 7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
+        </svg>
+        <span class="visually-hidden">Show evaluation graph</span>
+      </button>
+      <button id="piece-moves-button" class="control-button" type="button" aria-pressed="false" aria-label="Show piece moves">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <circle cx="6" cy="6" r="2" stroke-width="2" />
+          <circle cx="18" cy="6" r="2" stroke-width="2" />
+          <circle cx="6" cy="18" r="2" stroke-width="2" />
+          <circle cx="18" cy="18" r="2" stroke-width="2" />
+          <path d="M6 8v8m12-8v8M8 6h8m-8 12h8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span class="visually-hidden">Show piece moves</span>
+      </button>
+      <button id="flip-button" class="control-button" type="button" aria-label="Flip board">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M7 9V5h4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
+          <path d="M17 15v4h-4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
+          <path d="M7 5a7 7 0 0 1 10 0M17 19a7 7 0 0 1-10 0" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
+        </svg>
+        <span class="visually-hidden">Flip board</span>
+      </button>
+      <button id="edit-button" class="control-button" type="button" aria-pressed="false" aria-label="Enter edit mode">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="m5 15.5 9.5-9.5 4 4L9 19.5 5 20l.5-4.5Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
+        </svg>
+        <span class="visually-hidden">Enter edit mode</span>
+      </button>
+      <button id="fen-button" class="control-button" type="button" aria-label="Load FEN or PGN">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <rect x="4" y="4" width="16" height="16" rx="3" stroke-width="2" />
+          <path d="M8 8h8M8 12h8M8 16h5" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
+        </svg>
+        <span class="visually-hidden">Load FEN or PGN</span>
+      </button>
+</div>
   </div>
   <script>
     $(function() {
@@ -529,6 +534,11 @@
       const probabilityPanel = document.getElementById('probability-panel');
       const evaluationContainer = document.getElementById('evaluation-container');
       const evaluationElement = document.getElementById('evaluation');
+      const bestMoveButtonElement = document.getElementById('best-move-button');
+      const probabilityButtonElement = document.getElementById('probability-button');
+      const pieceMovesButtonElement = document.getElementById('piece-moves-button');
+      const editButtonElement = document.getElementById('edit-button');
+      const statusElement = document.getElementById('status');
       let baseFen = game.fen();
       let selectedSquare = null;
       let moveSourceSquare = null;
@@ -570,16 +580,47 @@
       let advantageBarVisible = false;
       let probabilityPanelVisible = false;
       let evaluationTimeline = [];
-      const ENGINE_PRIMARY_WORKER = './engine/stockfish-17.1-8e4d048.js';
-      const ENGINE_FALLBACK_WORKER = './engine/stockfish.jsbackup';
-      const hasSharedArrayBufferSupport = typeof SharedArrayBuffer === 'function';
-      const isCrossOriginIsolated = typeof crossOriginIsolated !== 'undefined' ? crossOriginIsolated : false;
-      const engineWorkerCandidates = (() => {
-        const preferredOrder = (hasSharedArrayBufferSupport && isCrossOriginIsolated)
-          ? [ENGINE_PRIMARY_WORKER, ENGINE_FALLBACK_WORKER]
-          : [ENGINE_FALLBACK_WORKER, ENGINE_PRIMARY_WORKER];
-        return preferredOrder.filter((path, index, arr) => path && arr.indexOf(path) === index);
-      })();
+      function setButtonLabel(element, label) {
+        if (!element || typeof label !== 'string') return;
+        element.setAttribute('aria-label', label);
+        const hidden = element.querySelector('.visually-hidden');
+        if (hidden) hidden.textContent = label;
+      }
+
+      function setButtonActive(element, isActive, activeLabel, inactiveLabel) {
+        if (!element) return;
+        element.classList.toggle('is-active', !!isActive);
+        if (element.hasAttribute('aria-pressed')) {
+          element.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        }
+        if (isActive && activeLabel) {
+          setButtonLabel(element, activeLabel);
+        } else if (!isActive && inactiveLabel) {
+          setButtonLabel(element, inactiveLabel);
+        }
+      }
+
+      function syncBestMoveButton() {
+        setButtonActive(bestMoveButtonElement, bestMoveVisible, 'Hide best move', 'Show best move');
+      }
+
+      function syncAdvantageButton() {
+        setButtonActive(advantageToggleButton, advantageBarVisible, 'Hide advantage bar', 'Show advantage bar');
+      }
+
+      function syncProbabilityButton() {
+        setButtonActive(probabilityButtonElement, probabilityPanelVisible, 'Hide evaluation graph', 'Show evaluation graph');
+      }
+
+      function syncPieceMovesButton() {
+        setButtonActive(pieceMovesButtonElement, pieceMovesMode, 'Return to play mode', 'Show piece moves');
+      }
+
+      function syncEditButton() {
+        setButtonActive(editButtonElement, editMode, 'Exit edit mode', 'Enter edit mode');
+      }
+      const ENGINE_WORKER_PATH = './engine/stockfish-17.1-8e4d048.js';
+      const engineWorkerCandidates = [ENGINE_WORKER_PATH];
 
       function createStockfishWorker() {
         let lastError = null;
@@ -607,20 +648,39 @@
         evaluationContainer.style.display = 'none';
         evaluationContainer.setAttribute('aria-hidden', 'true');
       }
-      if (advantageToggleButton) {
-        advantageToggleButton.textContent = 'Show Bar';
-      }
       if (evaluationElement) {
-        evaluationElement.textContent = 'Eval: --';
+        const defaultLabel = 'Eval: --';
+        const hiddenLabel = evaluationElement.querySelector('.visually-hidden');
+        if (hiddenLabel) hiddenLabel.textContent = defaultLabel;
+        evaluationElement.setAttribute('aria-label', defaultLabel);
+        evaluationElement.dataset.probability = '0.5';
+        evaluationElement.style.setProperty('--eval-scale', '0.5');
       }
+      syncBestMoveButton();
+      syncAdvantageButton();
+      syncProbabilityButton();
+      syncPieceMovesButton();
+      syncEditButton();
       if (probabilityPanel) {
         probabilityPanel.hidden = true;
         probabilityPanel.setAttribute('aria-hidden', 'true');
       }
       let lastAdvantageRatio = 0.5;
-      function setEvaluationText(text) {
+      function setEvaluationText(text, probability = null) {
         if (!evaluationElement) return;
-        evaluationElement.textContent = text;
+        const label = typeof text === 'string' ? text : '';
+        const hiddenLabel = evaluationElement.querySelector('.visually-hidden');
+        if (hiddenLabel) {
+          hiddenLabel.textContent = label;
+        } else {
+          evaluationElement.textContent = label;
+        }
+        evaluationElement.setAttribute('aria-label', label);
+        if (probability !== null) {
+          const clamped = Math.max(0, Math.min(1, Number(probability) || 0));
+          evaluationElement.dataset.probability = clamped.toString();
+          evaluationElement.style.setProperty('--eval-scale', clamped.toString());
+        }
       }
 
       function formatEvaluationLabel(probability) {
@@ -648,11 +708,11 @@
 
       function updateEvaluationDisplay(entry) {
         if (!entry) {
-          setEvaluationText('Eval: --');
+          setEvaluationText('Eval: --', 0.5);
           return;
         }
         const probability = deriveWhiteWinProbability(entry);
-        setEvaluationText(formatEvaluationLabel(probability));
+        setEvaluationText(formatEvaluationLabel(probability), probability);
       }
       let backgroundEngine = null;
       let backgroundEngineReady = false;
@@ -1113,11 +1173,13 @@
         evaluationNavElement.innerHTML = '';
 
         const bounds = evaluationNavElement.getBoundingClientRect();
-        let width = Math.round(bounds.width);
-        let height = Math.round(bounds.height);
-        if (!width || !height) {
+        let width = Math.round(evaluationNavElement.clientWidth || bounds.width);
+        let height = Math.round(evaluationNavElement.clientHeight || bounds.height);
+        if (!width) {
           width = Math.max(240, totalSegments * 20);
-          height = 180;
+        }
+        if (!height) {
+          height = 140;
         }
 
         const segmentWidth = totalSegments > 0 ? width / totalSegments : width;
@@ -1169,6 +1231,8 @@
         const svg = document.createElementNS(svgNS, 'svg');
         svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
         svg.setAttribute('preserveAspectRatio', 'none');
+        svg.setAttribute('width', width.toString());
+        svg.setAttribute('height', height.toString());
         svg.classList.add('evaluation-nav__graph');
 
         if (areaCommand) {
@@ -1248,7 +1312,7 @@
           setAdvantageBarLoading(false);
           updateAdvantageBar(entry);
         } else {
-          setEvaluationText('Eval: --');
+          setEvaluationText('Eval: --', 0.5);
           setAdvantageBarLoading(false);
           updateAdvantageBar(null, { neutral: true, message: 'Awaiting evaluation' });
         }
@@ -1403,7 +1467,7 @@
           baseFen = newBaseFen;
         }
         clearEvaluationTimeline(1);
-        setEvaluationText('Eval: --');
+        setEvaluationText('Eval: --', 0.5);
         currentBestMove = null;
         latestAnalysisFen = null;
         setAdvantageBarLoading(false);
@@ -1433,7 +1497,7 @@
         if (pieceMovesMode) {
           pieceMovesMode = false;
           freezeMode = false;
-          $('#piece-moves-button').text('Piece');
+          syncPieceMovesButton();
         }
         moveSourceSquare = null;
         selectedSquare = null;
@@ -1763,19 +1827,37 @@
   }
 
   function updateStatus() {
-    const turn = game.turn() === 'b' ? 'Black' : 'White';
-    let txt = '';
-    if (game.in_checkmate()) txt = `Game over, ${turn} in checkmate.`;
-    else if (game.in_draw()) txt = 'Game over, drawn position';
-    else txt = `${turn} to move${game.in_check() ? `, ${turn} is in check` : ''}`;
-    $('#status').text(txt);
-    $('#status').toggleClass('is-editing', editMode);
-    if (editMode) {
-      $('#status').attr('title', 'Click to toggle the side to move');
-      $('#status').attr('tabindex', '0');
+    if (!statusElement) return;
+    const turnColor = game.turn() === 'b' ? 'black' : 'white';
+    const turnLabel = turnColor === 'white' ? 'White' : 'Black';
+    let state = 'normal';
+    let label = '';
+    if (game.in_checkmate()) {
+      state = 'mate';
+      label = `Game over, ${turnLabel} is checkmated.`;
+    } else if (game.in_draw()) {
+      state = 'draw';
+      label = 'Game over, drawn position';
+    } else if (game.in_check()) {
+      state = 'check';
+      label = `${turnLabel} to move, ${turnLabel} is in check`;
     } else {
-      $('#status').removeAttr('title');
-      $('#status').removeAttr('tabindex');
+      label = `${turnLabel} to move`;
+    }
+    statusElement.dataset.turn = turnColor;
+    statusElement.dataset.state = state;
+    statusElement.classList.toggle('is-editing', editMode);
+    statusElement.setAttribute('aria-label', label);
+    const hiddenLabel = statusElement.querySelector('.visually-hidden');
+    if (hiddenLabel) hiddenLabel.textContent = label;
+    if (editMode) {
+      statusElement.setAttribute('role', 'button');
+      statusElement.setAttribute('tabindex', '0');
+      statusElement.setAttribute('aria-pressed', turnColor === 'black' ? 'true' : 'false');
+    } else {
+      statusElement.removeAttribute('role');
+      statusElement.removeAttribute('tabindex');
+      statusElement.removeAttribute('aria-pressed');
     }
   }
 
@@ -2060,13 +2142,14 @@
     } else if (!bestMoveVisible) {
       shouldHighlightBest = false;
     }
+    syncBestMoveButton();
 
     if (pieceAnalysis) {
-      setEvaluationText('Eval: --');
+      setEvaluationText('Eval: --', 0.5);
     } else {
       const stored = getTimelineEntry(navigationIndex);
       if (!stored || typeof stored.value !== 'number') {
-        setEvaluationText('Eval: --');
+        setEvaluationText('Eval: --', 0.5);
       }
     }
     setAdvantageBarLoading(true, { reset: !pieceAnalysis });
@@ -2135,7 +2218,7 @@
     if (replayMode) stopReplay();
     bestMoveVisible = !bestMoveVisible;
     shouldHighlightBest = bestMoveVisible;
-    $('#best-move-button').text(bestMoveVisible ? 'Hide Best' : 'Best');
+    syncBestMoveButton();
     updateBestMoveDisplay();
     if (bestMoveVisible) {
       requestAnalysis({ highlight: shouldHighlightBest, revealBest: true });
@@ -2164,7 +2247,7 @@
       }
       evaluationContainer.setAttribute('aria-hidden', advantageBarVisible ? 'false' : 'true');
     }
-    $('#advantage-toggle-button').text(advantageBarVisible ? 'Hide Bar' : 'Show Bar');
+    syncAdvantageButton();
   });
   $('#probability-button').on('click', () => {
     probabilityPanelVisible = !probabilityPanelVisible;
@@ -2173,14 +2256,12 @@
       probabilityPanel.setAttribute('aria-hidden', probabilityPanelVisible ? 'false' : 'true');
     }
     if (probabilityPanelVisible) {
-      $('#probability-button').text('Hide Graph');
       requestAnimationFrame(() => {
         renderEvaluationNavigation();
       });
       scheduleProbabilityEvaluation(PROBABILITY_GRAPH_DEPTH);
-    } else {
-      $('#probability-button').text('Show Graph');
     }
+    syncProbabilityButton();
   });
   $('#prev-button').on('click', goToPreviousMove);
   $('#next-button').on('click', goToNextMove);
@@ -2230,7 +2311,7 @@
     }
     selectedSquare = null;
     moveSourceSquare = null;
-    $('#piece-moves-button').text(pieceMovesMode ? 'Play' : 'Piece');
+    syncPieceMovesButton();
     clearHighlights();
     clearRatings();
     renderBoard();
@@ -2256,7 +2337,7 @@
       clearRatings();
       latestAnalysisFen = null;
       currentBestMove = null;
-      setEvaluationText('Eval: --');
+      setEvaluationText('Eval: --', 0.5);
       updateBestMoveDisplay();
       setAdvantageBarLoading(false);
       updateAdvantageBar(null, { neutral: true, message: 'Editing' });
@@ -2267,7 +2348,7 @@
       updateBestMoveDisplay();
       requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
     }
-    $('#edit-button').text(editMode ? 'Play' : 'Edit');
+    syncEditButton();
     renderBoard();
     updateStatus();
   });
