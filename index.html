@@ -768,6 +768,8 @@
       let latestAnalysisFen = null;
       let shouldHighlightBest = false;
       let engineReady = false;
+      let engineCommandQueue = [];
+      let engineAwaitingReadyAfterStop = false;
       let editSelectedPiece = null;
       let editSelectedSquare = null;
       let editSelectionSource = null;
@@ -917,6 +919,62 @@
           engineErrorElement.textContent = '';
         }
         engineErrorElement.dataset.source = '';
+      }
+
+      function resetEngineCommandQueue() {
+        engineCommandQueue = [];
+        engineAwaitingReadyAfterStop = false;
+      }
+
+      function postEngineCommand(command, options = {}) {
+        if (!engine) return;
+        const text = typeof command === 'string' ? command.trim() : '';
+        if (!text) return;
+        const { queueIfPending = true } = options;
+        if (queueIfPending && engineAwaitingReadyAfterStop) {
+          engineCommandQueue.push(text);
+          return;
+        }
+        try {
+          engine.postMessage(text);
+        } catch (error) {
+          console.warn(`Failed to send command to engine: ${text}`, error);
+        }
+      }
+
+      function beginEngineReadyWait() {
+        if (!engine || engineAwaitingReadyAfterStop) {
+          return;
+        }
+        engineAwaitingReadyAfterStop = true;
+        try {
+          engine.postMessage('isready');
+        } catch (error) {
+          engineAwaitingReadyAfterStop = false;
+          engineCommandQueue = [];
+          console.warn('Failed to send isready command to engine', error);
+        }
+      }
+
+      function queueEngineCommands(commands) {
+        if (Array.isArray(commands)) {
+          commands.forEach(cmd => postEngineCommand(cmd));
+          return;
+        }
+        postEngineCommand(commands);
+      }
+
+      function resolveEngineReadyWait() {
+        if (!engineAwaitingReadyAfterStop) {
+          return;
+        }
+        const queued = engineCommandQueue.slice();
+        engineCommandQueue = [];
+        engineAwaitingReadyAfterStop = false;
+        if (!engine || !queued.length) {
+          return;
+        }
+        queued.forEach(cmd => postEngineCommand(cmd, { queueIfPending: false }));
       }
 
       function displayEngineConfigWarnings(result) {
@@ -2566,11 +2624,7 @@
       return;
     }
     if (engine) {
-      try {
-        engine.postMessage('setoption name MultiPV value 1');
-      } catch (error) {
-        console.warn('Failed to set MultiPV for piece analysis', error);
-      }
+      postEngineCommand('setoption name MultiPV value 1');
     }
     processNextPieceAnalysis(pieceAnalysisActiveRequestId);
   }
@@ -2594,9 +2648,9 @@
     pieceAnalysisWaitingForResult = true;
     setPieceMoveRating(nextMove, '…');
     const targetFen = pieceAnalysisFen || normalizeFenTurn(game.fen(), game.turn());
-    engine.postMessage(`position fen ${targetFen}`);
+    postEngineCommand(`position fen ${targetFen}`);
     const depthLimit = Math.max(1, pieceAnalysisTargetDepth || engineConfig.depth);
-    engine.postMessage(`go searchmoves ${nextMove} depth ${depthLimit}`);
+    postEngineCommand(`go searchmoves ${nextMove} depth ${depthLimit}`);
   }
 
   function finalizePieceAnalysis(requestId) {
@@ -2610,11 +2664,7 @@
     pieceAnalysisTurn = null;
     isPieceAnalysis = false;
     if (engine) {
-      try {
-        engine.postMessage('setoption name MultiPV value 1');
-      } catch (error) {
-        console.warn('Failed to reset MultiPV after piece analysis', error);
-      }
+      postEngineCommand('setoption name MultiPV value 1');
     }
     if (!pieceMovesMode) {
       requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible, depth: engineConfig.depth });
@@ -2651,15 +2701,12 @@
     cancelEngineAutostart();
     engineStarting = false;
     engineLastStartWasAutostart = false;
+    resetEngineCommandQueue();
     if (!preserveAutostartAttempts) {
       engineAutostartAttempts = 0;
     }
     if (engine) {
-      try {
-        engine.postMessage('stop');
-      } catch (error) {
-        console.warn('Failed to send stop command to engine', error);
-      }
+      postEngineCommand('stop', { queueIfPending: false });
       try {
         engine.terminate();
       } catch (terminateError) {
@@ -2727,6 +2774,7 @@
     }
     engine = worker;
     engineReady = false;
+    resetEngineCommandQueue();
     $('#best-move-button').prop('disabled', true);
     updateNavigationButtons();
     worker.addEventListener('error', event => {
@@ -2742,6 +2790,7 @@
           console.warn('Failed to terminate errored Stockfish worker', terminateError);
         }
         engine = null;
+        resetEngineCommandQueue();
         $('#best-move-button').prop('disabled', true);
         updateNavigationButtons();
         setAdvantageBarLoading(false);
@@ -2772,27 +2821,34 @@
 
       if (line === 'readyok') {
         if (engine !== worker) return;
+        const hadPendingCommands = engineAwaitingReadyAfterStop;
+        const wasStarting = engineStarting;
         engineReady = true;
         engineStarting = false;
-        engineLastStartWasAutostart = false;
-        engineAutostartAttempts = 0;
-        setEngineStatusDisplay('ready', 'Ready');
-        if (!engineErrorElement || engineErrorElement.dataset.source === 'config-warning') {
-          setEngineErrorMessage('');
-          if (engineErrorElement) {
-            engineErrorElement.dataset.source = '';
+        if (wasStarting) {
+          engineLastStartWasAutostart = false;
+          engineAutostartAttempts = 0;
+          setEngineStatusDisplay('ready', 'Ready');
+          if (!engineErrorElement || engineErrorElement.dataset.source === 'config-warning') {
+            setEngineErrorMessage('');
+            if (engineErrorElement) {
+              engineErrorElement.dataset.source = '';
+            }
+          }
+          updateEngineControls({ loading: false });
+          $('#best-move-button').prop('disabled', false);
+          updateNavigationButtons();
+          restartBackgroundEngine();
+          if (pendingReplayStart) {
+            const pending = pendingReplayStart;
+            pendingReplayStart = null;
+            startReplayFromIndex(pending.index, pending.depth);
+          } else {
+            requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible, depth: engineConfig.depth });
           }
         }
-        updateEngineControls({ loading: false });
-        $('#best-move-button').prop('disabled', false);
-        updateNavigationButtons();
-        restartBackgroundEngine();
-        if (pendingReplayStart) {
-          const pending = pendingReplayStart;
-          pendingReplayStart = null;
-          startReplayFromIndex(pending.index, pending.depth);
-        } else {
-          requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible, depth: engineConfig.depth });
+        if (hadPendingCommands) {
+          resolveEngineReadyWait();
         }
         return;
       }
@@ -2849,7 +2905,7 @@
           }
 
           isPieceAnalysis = false;
-          worker.postMessage('setoption name MultiPV value 1');
+          postEngineCommand('setoption name MultiPV value 1');
           if (!pieceMovesMode) {
             requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible, depth: engineConfig.depth });
           }
@@ -3064,7 +3120,9 @@
     const fenOverride = typeof analysisFen === 'string' ? analysisFen : null;
     const normalizedFen = normalizeFenTurn(latestAnalysisFen, game.turn());
 
-    engine.postMessage('stop');
+    postEngineCommand('stop', { queueIfPending: false });
+    engineCommandQueue = [];
+    beginEngineReadyWait();
     if (pieceAnalysis) {
       const moveList = Array.isArray(searchMoves) ? searchMoves.slice() : [];
       const fenTurn = getFenTurn(fenOverride) || game.turn();
@@ -3074,16 +3132,16 @@
       updateNavigationButtons();
       return;
     }
-    engine.postMessage(`setoption name MultiPV value ${multiPv}`);
-    engine.postMessage(`position fen ${normalizedFen}`);
+    const queuedCommands = [`setoption name MultiPV value ${multiPv}`, `position fen ${normalizedFen}`];
     if (autoPlay) {
       const depthLimit = Math.max(PGN_REPLAY_DEPTH, Math.floor(depth));
-      engine.postMessage(`go depth ${depthLimit}`);
+      queuedCommands.push(`go depth ${depthLimit}`);
     } else if (searchMoves && searchMoves.length) {
-      engine.postMessage(`go searchmoves ${searchMoves.join(' ')} infinite`);
+      queuedCommands.push(`go searchmoves ${searchMoves.join(' ')} infinite`);
     } else {
-      engine.postMessage('go infinite');
+      queuedCommands.push('go infinite');
     }
+    queueEngineCommands(queuedCommands);
     updateNavigationButtons();
   }
 
@@ -3308,7 +3366,8 @@
     selectedSquare = null;
     if (editMode) {
       if (engine) {
-        engine.postMessage('stop');
+        postEngineCommand('stop', { queueIfPending: false });
+        resetEngineCommandQueue();
       }
       $(document).on('click.editOutside', handleOutsideBoardClick);
       clearEditSelection();
