@@ -776,6 +776,7 @@
       let bestMoveVisible = false;
       let moveHistory = [];
       let navigationIndex = 0;
+      let enginePanelVisible = false;
       const STOCKFISH_WORKER_VARIANTS = [
         { filename: 'stockfish-17.1-lite-single-03e3232.js', requiresThreadSupport: false }
       ];
@@ -1347,8 +1348,6 @@
       let replayTimer = null;
       let pendingReplayStart = null;
       let lastImportWasPgn = false;
-      let enginePanelVisible = false;
-
       function ensureTimelineCapacity(size) {
         const target = Math.max(0, Math.floor(size));
         let extended = false;
