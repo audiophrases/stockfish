@@ -178,6 +178,12 @@
       font-variant-numeric: tabular-nums;
     }
 
+    .advantage-bar--minimal .advantage-bar__header,
+    .advantage-bar--minimal .advantage-bar__footer,
+    .advantage-bar--minimal .advantage-bar__status {
+      display: none;
+    }
+
     .advantage-bar.is-white-favored {
       background: rgba(37, 48, 94, 0.42);
       box-shadow: inset 0 0 0 1px rgba(120, 150, 255, 0.4), 0 12px 26px rgba(60, 88, 190, 0.25);
@@ -212,6 +218,99 @@
       100% {
         opacity: 0.45;
       }
+    }
+
+    .probability-panel {
+      width: 100%;
+      max-width: 440px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 12px;
+      background: rgba(14, 18, 32, 0.35);
+      border-radius: 16px;
+      padding: 16px 18px;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(6px);
+    }
+
+    .probability-panel[hidden] {
+      display: none;
+    }
+
+    .probability-panel__header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #cfd5fb;
+    }
+
+    .probability-panel__title {
+      font-weight: 600;
+    }
+
+    .probability-panel__status {
+      font-size: 0.72rem;
+      color: #9ca6d7;
+    }
+
+    .probability-panel__graph {
+      width: 100%;
+      height: 180px;
+      position: relative;
+    }
+
+    .evaluation-nav__graph {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      inset: 0;
+    }
+
+    .evaluation-nav__area {
+      fill: rgba(114, 132, 255, 0.28);
+    }
+
+    .evaluation-nav__line {
+      fill: none;
+      stroke: rgba(198, 206, 255, 0.85);
+      stroke-width: 2;
+    }
+
+    .evaluation-nav__baseline {
+      stroke: rgba(255, 255, 255, 0.15);
+      stroke-width: 1;
+      stroke-dasharray: 4 4;
+    }
+
+    .evaluation-nav__overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+    }
+
+    .evaluation-nav__segment {
+      appearance: none;
+      border: none;
+      background: transparent;
+      padding: 0;
+      margin: 0;
+      cursor: pointer;
+      flex: 1 1 0;
+    }
+
+    .evaluation-nav__segment:hover,
+    .evaluation-nav__segment.is-current {
+      background: rgba(114, 132, 255, 0.16);
+    }
+
+    .evaluation-nav__marker {
+      fill: #f6f9ff;
+      stroke: rgba(114, 132, 255, 0.85);
+      stroke-width: 2;
     }
 
     .info-line-item {
@@ -381,13 +480,13 @@
         <div class="board-container">
           <div id="board"></div>
         </div>
-        <div class="advantage-bar is-balanced" id="advantage-bar" aria-live="polite" aria-busy="false">
-          <div class="advantage-bar__header">
+        <div class="advantage-bar is-balanced advantage-bar--minimal" id="advantage-bar" aria-live="polite" aria-busy="false">
+          <div class="advantage-bar__header" aria-hidden="true">
             <span>Advantage</span>
             <span class="advantage-bar__status" id="advantage-status">Awaiting evaluation</span>
           </div>
           <div class="advantage-bar__track" id="advantage-track"></div>
-          <div class="advantage-bar__footer">
+          <div class="advantage-bar__footer" aria-hidden="true">
             <span class="advantage-bar__side advantage-bar__side--white">
               <span class="advantage-bar__side-label">White</span>
               <span class="advantage-bar__percent" id="advantage-white-percent">50%</span>
@@ -401,14 +500,22 @@
       </div>
       <div id="info-line">
         <span id="status">Ready</span>
-        <span class="info-line-item"><span>Best:</span><span id="best-move">Hidden</span></span>
         <span class="info-line-item"><span>Eval:</span><span id="evaluation">N/A</span></span>
+      </div>
+      <div class="probability-panel" id="probability-panel" hidden>
+        <div class="probability-panel__header">
+          <span class="probability-panel__title">White Win Probability</span>
+          <span class="probability-panel__status" id="evaluation-label"></span>
+        </div>
+        <div class="probability-panel__graph" id="evaluation-nav" role="listbox" aria-label="White win probability timeline"></div>
       </div>
     </div>
     <div id="controls">
       <button id="prev-button" disabled>Prev</button>
       <button id="next-button" disabled>Next</button>
       <button id="best-move-button" disabled>Best</button>
+      <button id="advantage-toggle-button">Hide Bar</button>
+      <button id="probability-button">Win Prob</button>
       <button id="piece-moves-button">Piece</button>
       <button id="flip-button">Flip</button>
       <button id="edit-button">Edit</button>
@@ -425,6 +532,7 @@
       const advantageStatusElement = document.getElementById('advantage-status');
       const advantageWhiteElement = document.getElementById('advantage-white-percent');
       const advantageBlackElement = document.getElementById('advantage-black-percent');
+      const probabilityPanel = document.getElementById('probability-panel');
       let baseFen = game.fen();
       let selectedSquare = null;
       let moveSourceSquare = null;
@@ -445,6 +553,8 @@
       const DEFAULT_DEPTH = 24;
       const PGN_REPLAY_DEPTH = 12;
       const BACKGROUND_EVAL_DEPTH = 24;
+      const PROBABILITY_GRAPH_DEPTH = 10;
+      const AUTO_NEXT_MOVE_DEPTH = 22;
       const DEFAULT_THREADS = 4;
       const DEFAULT_HASH_MB = 469;
       const AUTO_PLAY_MIN_WAIT_MS = 4000;
@@ -461,7 +571,17 @@
       let autoPlayDelayTimer = null;
       let autoPlayDepthSatisfied = false;
       const evaluationNavElement = document.getElementById('evaluation-nav');
+      let advantageBarVisible = true;
+      let probabilityPanelVisible = false;
       let evaluationTimeline = [];
+      if (advantageBarElement) {
+        advantageBarElement.hidden = false;
+        advantageBarElement.setAttribute('aria-hidden', 'false');
+      }
+      if (probabilityPanel) {
+        probabilityPanel.hidden = true;
+        probabilityPanel.setAttribute('aria-hidden', 'true');
+      }
       let lastAdvantageRatio = 0.5;
       let backgroundEngine = null;
       let backgroundEngineReady = false;
@@ -867,13 +987,16 @@
         backgroundEngine.postMessage('uci');
       }
 
-      function buildBackgroundTasksForGame() {
+      function buildBackgroundTasksForGame(depthOverride = BACKGROUND_EVAL_DEPTH) {
         const tasks = [];
         const evaluationGame = new Chess();
         if (!evaluationGame.load(baseFen)) {
           evaluationGame.reset();
         }
-        tasks.push({ index: 0, fen: evaluationGame.fen(), turn: evaluationGame.turn(), depth: BACKGROUND_EVAL_DEPTH });
+        const evaluationDepth = typeof depthOverride === 'number' && depthOverride > 0
+          ? depthOverride
+          : BACKGROUND_EVAL_DEPTH;
+        tasks.push({ index: 0, fen: evaluationGame.fen(), turn: evaluationGame.turn(), depth: evaluationDepth });
         for (let i = 0; i < moveHistory.length; i += 1) {
           const entry = moveHistory[i];
           if (!entry) continue;
@@ -883,13 +1006,18 @@
           }
           const applied = evaluationGame.move(moveConfig);
           if (!applied) break;
-          tasks.push({ index: i + 1, fen: evaluationGame.fen(), turn: evaluationGame.turn(), depth: BACKGROUND_EVAL_DEPTH });
+          tasks.push({ index: i + 1, fen: evaluationGame.fen(), turn: evaluationGame.turn(), depth: evaluationDepth });
         }
         return tasks;
       }
 
       function scheduleFullGameEvaluation() {
         const tasks = buildBackgroundTasksForGame();
+        queueBackgroundEvaluationTasks(tasks);
+      }
+
+      function scheduleProbabilityEvaluation(depth = PROBABILITY_GRAPH_DEPTH) {
+        const tasks = buildBackgroundTasksForGame(depth);
         queueBackgroundEvaluationTasks(tasks);
       }
 
@@ -928,29 +1056,24 @@
         let width = Math.round(bounds.width);
         let height = Math.round(bounds.height);
         if (!width || !height) {
-          width = Math.max(240, totalSegments * 16);
-          height = 72;
+          width = Math.max(240, totalSegments * 20);
+          height = 180;
         }
 
-        const maxAbs = evaluationTimeline.reduce((max, entry) => {
-          if (!entry || typeof entry.value !== 'number') return max;
-          return Math.max(max, Math.abs(entry.value));
-        }, 0);
-        const denominator = Math.max(200, Math.min(2000, maxAbs || 0)) || 200;
-
-        const amplitude = Math.max(6, (height / 2) - 6);
-        const midY = height / 2;
         const step = totalSegments > 1 ? width / (totalSegments - 1) : 0;
         const rawPoints = [];
 
         for (let i = 0; i < totalSegments; i += 1) {
           const entry = i < evaluationTimeline.length ? evaluationTimeline[i] : null;
-          const value = entry && typeof entry.value === 'number' ? entry.value : 0;
-          const clamped = clampEvaluationValue(value);
-          const ratio = denominator ? Math.max(-1, Math.min(1, clamped / denominator)) : 0;
+          let probability = 0.5;
+          if (entry && typeof entry.whiteWinProbability === 'number' && !Number.isNaN(entry.whiteWinProbability)) {
+            probability = Math.max(0, Math.min(1, entry.whiteWinProbability));
+          } else if (entry) {
+            probability = Math.max(0, Math.min(1, computeAdvantageRatio(entry)));
+          }
           const x = totalSegments > 1 ? i * step : width / 2;
-          const y = midY - ratio * amplitude;
-          rawPoints.push({ x, y, entry });
+          const y = height - probability * height;
+          rawPoints.push({ x, y, probability, entry });
         }
 
         const pathPoints = rawPoints.length === 1
@@ -962,13 +1085,20 @@
           return `${command}${pt.x.toFixed(2)},${pt.y.toFixed(2)}`;
         }).join(' ');
 
+        const toAreaCommand = pts => {
+          if (!pts.length) return '';
+          const commands = [`M${pts[0].x.toFixed(2)},${height.toFixed(2)}`, `L${pts[0].x.toFixed(2)},${pts[0].y.toFixed(2)}`];
+          for (let i = 1; i < pts.length; i += 1) {
+            commands.push(`L${pts[i].x.toFixed(2)},${pts[i].y.toFixed(2)}`);
+          }
+          commands.push(`L${pts[pts.length - 1].x.toFixed(2)},${height.toFixed(2)}`);
+          commands.push('Z');
+          return commands.join(' ');
+        };
+
         const lineCommands = pathPoints.length ? toCommandString(pathPoints) : '';
-        const areaBelowPath = lineCommands
-          ? `${lineCommands} L${width.toFixed(2)},${height.toFixed(2)} L0,${height.toFixed(2)} Z`
-          : '';
-        const areaAbovePath = lineCommands
-          ? `${lineCommands} L${width.toFixed(2)},0 L0,0 Z`
-          : '';
+        const areaCommand = pathPoints.length ? toAreaCommand(pathPoints) : '';
+        const baselineY = height - 0.5 * height;
 
         const svgNS = 'http://www.w3.org/2000/svg';
         const svg = document.createElementNS(svgNS, 'svg');
@@ -976,25 +1106,18 @@
         svg.setAttribute('preserveAspectRatio', 'none');
         svg.classList.add('evaluation-nav__graph');
 
-        if (areaAbovePath) {
-          const blackArea = document.createElementNS(svgNS, 'path');
-          blackArea.setAttribute('d', areaAbovePath);
-          blackArea.setAttribute('class', 'evaluation-nav__area evaluation-nav__area--black');
-          svg.appendChild(blackArea);
-        }
-
-        if (areaBelowPath) {
-          const whiteArea = document.createElementNS(svgNS, 'path');
-          whiteArea.setAttribute('d', areaBelowPath);
-          whiteArea.setAttribute('class', 'evaluation-nav__area evaluation-nav__area--white');
-          svg.appendChild(whiteArea);
+        if (areaCommand) {
+          const area = document.createElementNS(svgNS, 'path');
+          area.setAttribute('d', areaCommand);
+          area.setAttribute('class', 'evaluation-nav__area');
+          svg.appendChild(area);
         }
 
         const baseline = document.createElementNS(svgNS, 'line');
         baseline.setAttribute('x1', '0');
-        baseline.setAttribute('y1', midY.toFixed(2));
+        baseline.setAttribute('y1', baselineY.toFixed(2));
         baseline.setAttribute('x2', width.toFixed(2));
-        baseline.setAttribute('y2', midY.toFixed(2));
+        baseline.setAttribute('y2', baselineY.toFixed(2));
         baseline.setAttribute('class', 'evaluation-nav__baseline');
         svg.appendChild(baseline);
 
@@ -1026,10 +1149,15 @@
           segment.tabIndex = -1;
           segment.dataset.index = String(i);
           segment.classList.toggle('is-current', i === navigationIndex);
-        const shortLabel = entry && entry.shortText ? entry.shortText : (entry && entry.text ? entry.text : '0.00');
-        const fullLabel = entry && entry.text ? entry.text : shortLabel;
-        segment.title = `Ply ${i}: ${fullLabel}`;
-        segment.setAttribute('aria-label', `Ply ${i} evaluation ${fullLabel}`);
+          const probability = entry && typeof entry.whiteWinProbability === 'number'
+            ? Math.max(0, Math.min(1, entry.whiteWinProbability))
+            : rawPoints[i] && typeof rawPoints[i].probability === 'number'
+              ? Math.max(0, Math.min(1, rawPoints[i].probability))
+              : 0.5;
+          const probabilityLabel = `${formatWinProbability(probability)} white`;
+          segment.title = `Ply ${i}: ${probabilityLabel}`;
+          segment.setAttribute('aria-label', `Ply ${i} white win probability ${probabilityLabel}`);
+          segment.dataset.probability = probability.toFixed(4);
           overlay.appendChild(segment);
         }
 
@@ -1083,20 +1211,20 @@
 
       function updateBestMoveDisplay() {
         if (!bestMoveVisible) {
-          $('#best-move').text('Hidden');
           if (!pieceMovesMode) {
             clearHighlights();
           }
           return;
         }
 
-        if (currentBestMove) {
-          $('#best-move').text(currentBestMove);
-          if (shouldHighlightBest && !pieceMovesMode) {
-            visualize(currentBestMove);
-          }
-        } else {
-          $('#best-move').text('...');
+        if (pieceMovesMode) {
+          return;
+        }
+
+        if (currentBestMove && shouldHighlightBest) {
+          visualize(currentBestMove);
+        } else if (!currentBestMove) {
+          clearHighlights();
         }
       }
 
@@ -1184,6 +1312,9 @@
         ensureTimelineCapacity(navigationIndex + 1);
         updateNavigationButtons();
         renderEvaluationNavigation();
+        if (probabilityPanelVisible) {
+          scheduleProbabilityEvaluation(PROBABILITY_GRAPH_DEPTH);
+        }
       }
 
       function resetHistory(newBaseFen = null) {
@@ -1212,6 +1343,9 @@
         updateBestMoveDisplay();
         updateNavigationButtons();
         renderEvaluationNavigation();
+        if (probabilityPanelVisible) {
+          scheduleProbabilityEvaluation(PROBABILITY_GRAPH_DEPTH);
+        }
       }
 
       function rebuildPosition(targetIndex, analysisOptions = null) {
@@ -1553,11 +1687,8 @@
     });
     applySelectionHighlights();
     applySpareSelection();
-    if (!editMode && !pieceMovesMode && shouldHighlightBest) {
-      const currentBest = $('#best-move').text().trim();
-      if (/^[a-h][1-8][a-h][1-8]$/.test(currentBest)) {
-        visualize(currentBest);
-      }
+    if (!editMode && !pieceMovesMode && shouldHighlightBest && currentBestMove) {
+      visualize(currentBestMove);
     }
     updateNavigationButtons();
     updateBestMoveDisplay();
@@ -1880,7 +2011,10 @@
     engine.postMessage('stop');
     engine.postMessage(`setoption name MultiPV value ${multiPv}`);
     engine.postMessage(`position fen ${normalizedFen}`);
-    if (searchMoves && searchMoves.length) {
+    if (autoPlay) {
+      const depthLimit = Math.max(1, Math.floor(depth));
+      engine.postMessage(`go depth ${depthLimit}`);
+    } else if (searchMoves && searchMoves.length) {
       engine.postMessage(`go searchmoves ${searchMoves.join(' ')} infinite`);
     } else {
       engine.postMessage('go infinite');
@@ -1923,7 +2057,7 @@
     requestAnalysis({
       highlight: shouldHighlightBest && bestMoveVisible,
       revealBest: bestMoveVisible,
-      depth: DEFAULT_DEPTH,
+      depth: AUTO_NEXT_MOVE_DEPTH,
       autoPlay: true
     });
   }
@@ -1936,6 +2070,33 @@
     updateBestMoveDisplay();
     if (bestMoveVisible) {
       requestAnalysis({ highlight: shouldHighlightBest, revealBest: true });
+    }
+  });
+  $('#advantage-toggle-button').on('click', () => {
+    advantageBarVisible = !advantageBarVisible;
+    if (advantageBarElement) {
+      advantageBarElement.hidden = !advantageBarVisible;
+      advantageBarElement.setAttribute('aria-hidden', advantageBarVisible ? 'false' : 'true');
+      if (advantageBarVisible) {
+        syncEvalBarWidth();
+      }
+    }
+    $('#advantage-toggle-button').text(advantageBarVisible ? 'Hide Bar' : 'Show Bar');
+  });
+  $('#probability-button').on('click', () => {
+    probabilityPanelVisible = !probabilityPanelVisible;
+    if (probabilityPanel) {
+      probabilityPanel.hidden = !probabilityPanelVisible;
+      probabilityPanel.setAttribute('aria-hidden', probabilityPanelVisible ? 'false' : 'true');
+    }
+    if (probabilityPanelVisible) {
+      $('#probability-button').text('Hide Prob');
+      requestAnimationFrame(() => {
+        renderEvaluationNavigation();
+      });
+      scheduleProbabilityEvaluation(PROBABILITY_GRAPH_DEPTH);
+    } else {
+      $('#probability-button').text('Win Prob');
     }
   });
   $('#prev-button').on('click', goToPreviousMove);
@@ -2149,6 +2310,7 @@
     if (!board) return;
     board.resize();
     syncEvalBarWidth();
+    renderEvaluationNavigation();
   });
 
   if (evaluationNavElement) {
