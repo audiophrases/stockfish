@@ -307,6 +307,134 @@
     position: relative;
   }
 
+  .engine-settings {
+    width: 100%;
+    background: rgba(10, 14, 26, 0.85);
+    border-radius: 22px;
+    padding: 20px 22px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(8px);
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .engine-settings[hidden] {
+    display: none !important;
+  }
+
+  .engine-settings__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .engine-settings__title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #eef1ff;
+  }
+
+  .engine-settings__status {
+    font-size: 0.85rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #9ca6cf;
+  }
+
+  .engine-settings__status[data-state="ready"] {
+    color: #7fe7c4;
+  }
+
+  .engine-settings__status[data-state="loading"] {
+    color: #f7d58b;
+  }
+
+  .engine-settings__status[data-state="error"] {
+    color: #ff9aad;
+  }
+
+  .engine-settings__form {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+
+  .engine-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 0.85rem;
+    color: #c9cfef;
+  }
+
+  .engine-field__input {
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(17, 21, 32, 0.9);
+    color: #eef1ff;
+    padding: 10px 12px;
+    font-size: 1rem;
+    transition: border 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .engine-field__input:focus {
+    outline: none;
+    border-color: rgba(130, 148, 255, 0.6);
+    box-shadow: 0 0 0 2px rgba(130, 148, 255, 0.25);
+  }
+
+  .engine-settings__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .engine-action-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 14px;
+    padding: 10px 18px;
+    font-size: 0.92rem;
+    font-weight: 600;
+    line-height: 1.1;
+    background: rgba(255, 255, 255, 0.08);
+    color: #eef1ff;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
+    min-height: 44px;
+  }
+
+  .engine-action-button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    background: rgba(122, 140, 255, 0.28);
+    box-shadow: 0 10px 24px rgba(70, 90, 200, 0.35);
+  }
+
+  .engine-action-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.35;
+    transform: none;
+  }
+
+  .engine-action-button--primary {
+    background: linear-gradient(135deg, rgba(102, 126, 255, 0.85), rgba(136, 98, 255, 0.85));
+    box-shadow: 0 14px 28px rgba(88, 120, 255, 0.38);
+  }
+
+  .engine-action-button__label {
+    pointer-events: none;
+  }
+
+  .engine-settings__error {
+    font-size: 0.85rem;
+    color: #ff9aad;
+  }
+
   .evaluation-nav__graph {
     width: 100%;
     height: 100%;
@@ -457,6 +585,16 @@
       padding: 10px 12px;
       font-size: 0.88rem;
     }
+
+    .engine-settings {
+      padding: 16px 18px;
+      border-radius: 18px;
+    }
+
+    .engine-settings__form {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
   }
 </style>
 
@@ -542,7 +680,40 @@
         <span class="control-button__label" aria-hidden="true">Load FEN/PGN</span>
         <span class="visually-hidden">Load FEN or PGN</span>
       </button>
-</div>
+      <button id="engine-button" class="control-button" type="button" aria-pressed="false" aria-label="Show engine settings">
+        <span class="control-button__label" aria-hidden="true">Engine settings</span>
+        <span class="visually-hidden">Show engine settings</span>
+      </button>
+    </div>
+    <section id="engine-settings" class="engine-settings" hidden aria-hidden="true">
+      <div class="engine-settings__header">
+        <h2 class="engine-settings__title">Engine</h2>
+        <span id="engine-status" class="engine-settings__status" data-state="idle" aria-live="polite">Not started</span>
+      </div>
+      <form class="engine-settings__form" aria-label="Engine configuration">
+        <label class="engine-field" for="engine-threads">
+          <span class="engine-field__label">Threads</span>
+          <input id="engine-threads" class="engine-field__input" name="threads" type="number" min="1" max="64" step="1" inputmode="numeric" value="4">
+        </label>
+        <label class="engine-field" for="engine-hash">
+          <span class="engine-field__label">Hash (MB)</span>
+          <input id="engine-hash" class="engine-field__input" name="hash" type="number" min="1" max="8192" step="1" inputmode="numeric" value="469">
+        </label>
+        <label class="engine-field" for="engine-depth">
+          <span class="engine-field__label">Depth</span>
+          <input id="engine-depth" class="engine-field__input" name="depth" type="number" min="1" max="99" step="1" inputmode="numeric" value="24">
+        </label>
+      </form>
+      <div id="engine-error" class="engine-settings__error" role="alert" hidden></div>
+      <div class="engine-settings__actions">
+        <button type="button" id="engine-start-button" class="engine-action-button engine-action-button--primary">
+          <span class="engine-action-button__label">Start engine</span>
+        </button>
+        <button type="button" id="engine-stop-button" class="engine-action-button" disabled>
+          <span class="engine-action-button__label">Stop engine</span>
+        </button>
+      </div>
+    </section>
   </div>
   <script>
     $(function() {
@@ -562,6 +733,15 @@
       const probabilityButtonElement = document.getElementById('probability-button');
       const pieceMovesButtonElement = document.getElementById('piece-moves-button');
       const editButtonElement = document.getElementById('edit-button');
+      const engineButtonElement = document.getElementById('engine-button');
+      const engineSettingsElement = document.getElementById('engine-settings');
+      const engineStatusElement = document.getElementById('engine-status');
+      const engineErrorElement = document.getElementById('engine-error');
+      const engineStartButtonElement = document.getElementById('engine-start-button');
+      const engineStopButtonElement = document.getElementById('engine-stop-button');
+      const engineThreadsInput = document.getElementById('engine-threads');
+      const engineHashInput = document.getElementById('engine-hash');
+      const engineDepthInput = document.getElementById('engine-depth');
       const statusElement = document.getElementById('status');
       let baseFen = game.fen();
       let selectedSquare = null;
@@ -580,17 +760,24 @@
       let bestMoveVisible = false;
       let moveHistory = [];
       let navigationIndex = 0;
-      const DEFAULT_DEPTH = 24;
+      const DEFAULT_ANALYSIS_DEPTH = 24;
       const PGN_REPLAY_DEPTH = 14;
       const BACKGROUND_EVAL_DEPTH = 24;
       const PROBABILITY_GRAPH_DEPTH = 14;
       const AUTO_NEXT_MOVE_DEPTH = 22;
       const DEFAULT_THREADS = 4;
       const DEFAULT_HASH_MB = 469;
+      const engineConfig = {
+        threads: DEFAULT_THREADS,
+        hash: DEFAULT_HASH_MB,
+        depth: DEFAULT_ANALYSIS_DEPTH
+      };
+      const ENGINE_AUTOSTART_DELAY_MS = 400;
+      const ENGINE_AUTOSTART_MAX_ATTEMPTS = 3;
       const AUTO_PLAY_MIN_WAIT_MS = 4000;
       const REPLAY_STEP_DELAY_MS = 900;
       let autoPlayPending = false;
-      let autoPlayTargetDepth = DEFAULT_DEPTH;
+      let autoPlayTargetDepth = engineConfig.depth;
       let autoPlayFen = null;
       let currentBestMove = null;
       let currentDepth = 0;
@@ -604,6 +791,12 @@
       let advantageBarVisible = false;
       let probabilityPanelVisible = false;
       let evaluationTimeline = [];
+      let engineStarting = false;
+      let engineAutostartTimer = null;
+      let engineAutostartScheduled = false;
+      let engineAutostartAttempts = 0;
+      let engineLastStartWasAutostart = false;
+      let engineAutostartDisabled = false;
       function setButtonLabel(element, label) {
         if (!element || typeof label !== 'string') return;
         element.setAttribute('aria-label', label);
@@ -645,6 +838,155 @@
       function syncEditButton() {
         setButtonActive(editButtonElement, editMode, 'Exit edit mode', 'Enter edit mode');
       }
+
+      function syncEngineButton() {
+        setButtonActive(engineButtonElement, enginePanelVisible, 'Hide engine settings', 'Show engine settings');
+      }
+
+      function syncEnginePanelVisibility() {
+        if (!engineSettingsElement) return;
+        if (enginePanelVisible) {
+          engineSettingsElement.hidden = false;
+          engineSettingsElement.setAttribute('aria-hidden', 'false');
+        } else {
+          engineSettingsElement.hidden = true;
+          engineSettingsElement.setAttribute('aria-hidden', 'true');
+        }
+        syncEngineButton();
+      }
+
+      function setEngineStatusDisplay(state, label) {
+        if (!engineStatusElement) return;
+        const normalizedState = state || 'idle';
+        engineStatusElement.dataset.state = normalizedState;
+        engineStatusElement.textContent = label || '';
+      }
+
+      function setEngineErrorMessage(message) {
+        if (!engineErrorElement) return;
+        if (message) {
+          engineErrorElement.hidden = false;
+          engineErrorElement.textContent = message;
+        } else {
+          engineErrorElement.hidden = true;
+          engineErrorElement.textContent = '';
+        }
+      }
+
+      function clampInteger(value, min, max, fallback) {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) {
+          return fallback;
+        }
+        const truncated = Math.floor(numeric);
+        if (!Number.isFinite(truncated)) {
+          return fallback;
+        }
+        const clamped = Math.max(min, Math.min(max, truncated));
+        return clamped;
+      }
+
+      function applyEngineConfig(config = {}) {
+        const previousThreads = engineConfig.threads;
+        const previousHash = engineConfig.hash;
+        const previousDepth = engineConfig.depth;
+        const threads = clampInteger(config.threads, 1, 64, previousThreads);
+        const hash = clampInteger(config.hash, 1, 8192, previousHash);
+        const depth = clampInteger(config.depth, 1, 99, previousDepth);
+        engineConfig.threads = threads;
+        engineConfig.hash = hash;
+        engineConfig.depth = depth;
+        autoPlayTargetDepth = depth;
+        replayTargetDepth = depth;
+        syncEngineInputs();
+        const changed = threads !== previousThreads || hash !== previousHash || depth !== previousDepth;
+        return { threads, hash, depth, changed };
+      }
+
+      function syncEngineInputs() {
+        if (engineThreadsInput) {
+          engineThreadsInput.value = engineConfig.threads;
+        }
+        if (engineHashInput) {
+          engineHashInput.value = engineConfig.hash;
+        }
+        if (engineDepthInput) {
+          engineDepthInput.value = engineConfig.depth;
+        }
+      }
+
+      function updateEngineControls(options = {}) {
+        const { loading = false } = options;
+        const hasWorker = !!engine;
+        if (engineStartButtonElement) {
+          engineStartButtonElement.disabled = loading;
+          if (loading) {
+            engineStartButtonElement.setAttribute('aria-busy', 'true');
+          } else {
+            engineStartButtonElement.removeAttribute('aria-busy');
+          }
+          const labelElement = engineStartButtonElement.querySelector('.engine-action-button__label') || engineStartButtonElement;
+          if (labelElement) {
+            if (loading) {
+              labelElement.textContent = 'Starting…';
+            } else if (hasWorker) {
+              labelElement.textContent = 'Restart engine';
+            } else {
+              labelElement.textContent = 'Start engine';
+            }
+          }
+        }
+        if (engineStopButtonElement) {
+          engineStopButtonElement.disabled = !hasWorker || loading;
+          const stopLabel = engineStopButtonElement.querySelector('.engine-action-button__label') || engineStopButtonElement;
+          if (stopLabel) {
+            stopLabel.textContent = 'Stop engine';
+          }
+        }
+      }
+
+      function cancelEngineAutostart() {
+        if (engineAutostartTimer) {
+          clearTimeout(engineAutostartTimer);
+          engineAutostartTimer = null;
+        }
+        engineAutostartScheduled = false;
+      }
+
+      function scheduleEngineAutostart(options = {}) {
+        const { immediate = false, resetAttempts = false, delay = ENGINE_AUTOSTART_DELAY_MS } = options || {};
+        if (engineAutostartDisabled) {
+          return;
+        }
+        if (resetAttempts) {
+          engineAutostartAttempts = 0;
+        }
+        if (engineReady || engineStarting || engineAutostartScheduled) {
+          return;
+        }
+        if (engineAutostartAttempts >= ENGINE_AUTOSTART_MAX_ATTEMPTS) {
+          return;
+        }
+        engineAutostartScheduled = true;
+        const triggerStart = () => {
+          engineAutostartScheduled = false;
+          if (engineReady || engineStarting) {
+            return;
+          }
+          if (engineAutostartAttempts >= ENGINE_AUTOSTART_MAX_ATTEMPTS) {
+            return;
+          }
+          engineAutostartAttempts += 1;
+          startEngine({ autostart: true });
+        };
+        if (immediate) {
+          triggerStart();
+        } else {
+          const timeout = Math.max(0, Number(delay) || 0);
+          const scheduleFn = (typeof window !== 'undefined' && typeof window.setTimeout === 'function') ? window.setTimeout : setTimeout;
+          engineAutostartTimer = scheduleFn(triggerStart, timeout);
+        }
+      }
       const STOCKFISH_WORKER_FILENAME = 'stockfish-17.1-8e4d048.js';
       const ENGINE_WORKER_PATH = `./engine/${STOCKFISH_WORKER_FILENAME}`;
       const stockfishOverridePath = typeof window !== 'undefined'
@@ -682,19 +1024,6 @@
           } catch (error) {
             console.error(`Failed to start Stockfish worker from ${absoluteCandidate}`, error);
             lastError = error;
-          }
-          try {
-            const blob = new Blob([`importScripts(${JSON.stringify(absoluteCandidate)});`], { type: 'application/javascript' });
-            const objectUrl = URL.createObjectURL(blob);
-            const worker = new Worker(objectUrl);
-            worker.addEventListener('error', event => {
-              console.error(`Stockfish worker error (${absoluteCandidate})`, event?.message || event);
-            });
-            setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-            return worker;
-          } catch (blobError) {
-            console.error(`Failed to start fallback Stockfish worker from ${absoluteCandidate}`, blobError);
-            lastError = blobError;
           }
         }
         throw lastError || new Error('Unable to initialize Stockfish worker.');
@@ -785,12 +1114,13 @@
       let backgroundEvaluationCompleted = 0;
       let backgroundEvaluationTotal = 0;
       let replayMode = false;
-      let replayTargetDepth = DEFAULT_DEPTH;
+      let replayTargetDepth = engineConfig.depth;
       let replayPendingIndex = null;
       let replayAdvanceScheduled = false;
       let replayTimer = null;
       let pendingReplayStart = null;
       let lastImportWasPgn = false;
+      let enginePanelVisible = false;
 
       function ensureTimelineCapacity(size) {
         const target = Math.max(0, Math.floor(size));
@@ -1045,7 +1375,7 @@
       }
 
       function processBackgroundQueue() {
-        if (!backgroundEngineReady || backgroundPendingStart || backgroundCurrentTask) return;
+        if (!backgroundEngine || !backgroundEngineReady || backgroundPendingStart || backgroundCurrentTask) return;
         const nextTask = backgroundEvaluationQueue.shift();
         if (!nextTask || nextTask.token !== backgroundEvaluationToken) {
           if (!backgroundEvaluationQueue.length && backgroundEvaluationCompleted >= backgroundEvaluationTotal && backgroundEvaluationTotal > 0) {
@@ -1067,6 +1397,11 @@
           cancelBackgroundEvaluation();
           return;
         }
+        if (!engineReady) {
+          cancelBackgroundEvaluation();
+          scheduleEngineAutostart();
+          return;
+        }
         backgroundEvaluationToken += 1;
         const token = backgroundEvaluationToken;
         backgroundEvaluationQueue = tasks.map(task => ({ ...task, token }));
@@ -1083,19 +1418,57 @@
         }
       }
 
+      function shutdownBackgroundEngine() {
+        cancelBackgroundEvaluation();
+        backgroundPendingStart = false;
+        backgroundEngineReady = false;
+        backgroundCurrentTask = null;
+        backgroundLastScore = null;
+        if (backgroundEngine) {
+          try {
+            backgroundEngine.postMessage('stop');
+          } catch (error) {
+            console.warn('Failed to stop background engine', error);
+          }
+          try {
+            backgroundEngine.terminate();
+          } catch (terminateError) {
+            console.warn('Failed to terminate background engine', terminateError);
+          }
+        }
+        backgroundEngine = null;
+      }
+
+      function restartBackgroundEngine() {
+        shutdownBackgroundEngine();
+        if (!engine) {
+          return;
+        }
+        initBackgroundEngine();
+      }
+
       function initBackgroundEngine() {
         if (backgroundEngine) return;
         backgroundEngineReady = false;
         backgroundPendingStart = false;
         backgroundCurrentTask = null;
         backgroundLastScore = null;
-        backgroundEngine = createStockfishWorker();
+        try {
+          backgroundEngine = createStockfishWorker();
+        } catch (error) {
+          console.error('Failed to initialize background Stockfish worker', error);
+          backgroundEngine = null;
+          return;
+        }
+        backgroundEngine.addEventListener('error', event => {
+          console.error('Background Stockfish worker error', event?.message || event);
+        });
         backgroundEngine.onmessage = e => {
           const line = String(e.data).trim();
 
           if (line === 'uciok') {
-            backgroundEngine.postMessage(`setoption name Threads value ${DEFAULT_THREADS}`);
-            backgroundEngine.postMessage(`setoption name Hash value ${DEFAULT_HASH_MB}`);
+            backgroundEngine.postMessage(`setoption name Threads value ${engineConfig.threads}`);
+            backgroundEngine.postMessage(`setoption name Hash value ${engineConfig.hash}`);
             backgroundEngine.postMessage('isready');
             return;
           }
@@ -1467,9 +1840,9 @@
         }, REPLAY_STEP_DELAY_MS);
       }
 
-      function startReplayFromIndex(index = 0, depth = DEFAULT_DEPTH) {
+      function startReplayFromIndex(index = 0, depth = engineConfig.depth) {
         const clampedIndex = Math.max(0, Math.min(index, moveHistory.length));
-        const resolvedDepth = typeof depth === 'number' && depth > 0 ? depth : DEFAULT_DEPTH;
+        const resolvedDepth = typeof depth === 'number' && depth > 0 ? depth : engineConfig.depth;
         if (!engineReady || !engine) {
           replayMode = true;
           replayTargetDepth = Math.max(14, resolvedDepth);
@@ -1478,6 +1851,7 @@
           cancelReplayTimer();
           updateEvaluationProgressLabel();
           pendingReplayStart = { index: clampedIndex, depth: Math.max(14, resolvedDepth) };
+          scheduleEngineAutostart();
           return;
         }
         pendingReplayStart = null;
@@ -1958,28 +2332,143 @@
     pieceMoveRatings.clear();
   }
 
-  function initEngine() {
-    engine = createStockfishWorker();
-    engine.onmessage = e => {
+  function stopEngine(options = {}) {
+    const { silent = false, preserveAutostartAttempts = false } = options || {};
+    cancelEngineAutostart();
+    engineStarting = false;
+    engineLastStartWasAutostart = false;
+    if (!preserveAutostartAttempts) {
+      engineAutostartAttempts = 0;
+    }
+    if (engine) {
+      try {
+        engine.postMessage('stop');
+      } catch (error) {
+        console.warn('Failed to send stop command to engine', error);
+      }
+      try {
+        engine.terminate();
+      } catch (terminateError) {
+        console.warn('Failed to terminate engine worker', terminateError);
+      }
+    }
+    engine = null;
+    engineReady = false;
+    waitingForAutoBestMove = false;
+    autoMoveCandidate = null;
+    autoPlayPending = false;
+    autoPlayDepthSatisfied = false;
+    $('#best-move-button').prop('disabled', true);
+    updateNavigationButtons();
+    if (!silent) {
+      setEngineStatusDisplay('idle', 'Stopped');
+      setEngineErrorMessage('');
+    }
+    updateEngineControls({ loading: false });
+    currentBestMove = null;
+    updateBestMoveDisplay();
+    if (!pieceMovesMode) {
+      setEvaluationText('Eval: --', 0.5);
+      setAdvantageBarLoading(false);
+      updateAdvantageBar(null, { neutral: true, message: silent ? 'Awaiting evaluation' : 'Engine stopped' });
+    }
+    shutdownBackgroundEngine();
+  }
+
+  function startEngine(options = {}) {
+    const { autostart = false } = options || {};
+    if (engineStarting) {
+      return;
+    }
+    cancelEngineAutostart();
+    applyEngineConfig(engineConfig);
+    stopEngine({ silent: true, preserveAutostartAttempts: autostart });
+    engineStarting = true;
+    engineLastStartWasAutostart = !!autostart;
+    setEngineStatusDisplay('loading', 'Starting…');
+    setEngineErrorMessage('');
+    updateEngineControls({ loading: true });
+    let worker;
+    try {
+      worker = createStockfishWorker();
+    } catch (error) {
+      console.error('Unable to initialize Stockfish worker', error);
+      engineStarting = false;
+      const errorMessage = error && error.message ? error.message : 'Unable to initialize engine worker.';
+      setEngineErrorMessage(errorMessage);
+      if (autostart && engineAutostartAttempts < ENGINE_AUTOSTART_MAX_ATTEMPTS) {
+        setEngineStatusDisplay('loading', 'Retrying…');
+        scheduleEngineAutostart();
+      } else {
+        setEngineStatusDisplay('error', 'Failed to start');
+        updateEngineControls({ loading: false });
+      }
+      engineLastStartWasAutostart = false;
+      return;
+    }
+    engine = worker;
+    engineReady = false;
+    $('#best-move-button').prop('disabled', true);
+    updateNavigationButtons();
+    worker.addEventListener('error', event => {
+      const message = event && event.message ? event.message : 'Unknown error';
+      console.error('Stockfish worker error', message, event);
+      if (engine === worker) {
+        engineReady = false;
+        engineStarting = false;
+        const shouldRetry = engineLastStartWasAutostart && engineAutostartAttempts < ENGINE_AUTOSTART_MAX_ATTEMPTS;
+        try {
+          worker.terminate();
+        } catch (terminateError) {
+          console.warn('Failed to terminate errored Stockfish worker', terminateError);
+        }
+        engine = null;
+        $('#best-move-button').prop('disabled', true);
+        updateNavigationButtons();
+        setAdvantageBarLoading(false);
+        setEvaluationText('Eval: --', 0.5);
+        const statusMessage = shouldRetry ? 'Retrying…' : 'Engine error';
+        updateAdvantageBar(null, { neutral: true, message: statusMessage });
+        setEngineErrorMessage(message);
+        if (shouldRetry) {
+          setEngineStatusDisplay('loading', 'Retrying…');
+          updateEngineControls({ loading: true });
+          scheduleEngineAutostart();
+        } else {
+          setEngineStatusDisplay('error', 'Engine error');
+          updateEngineControls({ loading: false });
+        }
+        engineLastStartWasAutostart = false;
+      }
+    });
+    worker.onmessage = e => {
       const line = String(e.data).trim();
 
       if (line === 'uciok') {
-        engine.postMessage(`setoption name Threads value ${DEFAULT_THREADS}`);
-        engine.postMessage(`setoption name Hash value ${DEFAULT_HASH_MB}`);
-        engine.postMessage('isready');
+        worker.postMessage(`setoption name Threads value ${engineConfig.threads}`);
+        worker.postMessage(`setoption name Hash value ${engineConfig.hash}`);
+        worker.postMessage('isready');
         return;
       }
 
       if (line === 'readyok') {
+        if (engine !== worker) return;
         engineReady = true;
+        engineStarting = false;
+        engineLastStartWasAutostart = false;
+        engineAutostartAttempts = 0;
+        setEngineStatusDisplay('ready', 'Ready');
+        setEngineErrorMessage('');
+        updateEngineControls({ loading: false });
         $('#best-move-button').prop('disabled', false);
         updateNavigationButtons();
+        restartBackgroundEngine();
         if (pendingReplayStart) {
           const pending = pendingReplayStart;
           pendingReplayStart = null;
           startReplayFromIndex(pending.index, pending.depth);
         } else {
-          requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
+          requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible, depth: engineConfig.depth });
         }
         return;
       }
@@ -2019,9 +2508,9 @@
       if (line.startsWith('bestmove')) {
         if (isPieceAnalysis) {
           isPieceAnalysis = false;
-          engine.postMessage('setoption name MultiPV value 1');
+          worker.postMessage('setoption name MultiPV value 1');
           if (!pieceMovesMode) {
-            requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
+            requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible, depth: engineConfig.depth });
           }
           return;
         }
@@ -2108,10 +2597,10 @@
       const pvIndex = line.indexOf(' pv ');
       if (pvIndex !== -1) {
         const pvMoves = line.slice(pvIndex + 4).trim().split(' ');
-      if (pvMoves.length) {
-        currentBestMove = pvMoves[0];
-        updateBestMoveDisplay();
-      }
+        if (pvMoves.length) {
+          currentBestMove = pvMoves[0];
+          updateBestMoveDisplay();
+        }
       }
 
       if (replayMode && replayPendingIndex === navigationIndex && currentDepth >= replayTargetDepth) {
@@ -2124,12 +2613,13 @@
         autoPlayDepthSatisfied = true;
         waitingForAutoBestMove = true;
         autoMoveCandidate = currentBestMove;
-        engine.postMessage('stop');
+        worker.postMessage('stop');
         updateNavigationButtons();
       }
     };
-    engine.postMessage('uci');
+    worker.postMessage('uci');
   }
+
 
   function visualize(u) {
     clearHighlights();
@@ -2141,11 +2631,14 @@
   }
 
   function requestAnalysis(options = {}) {
-    if (!engineReady || !engine) return;
+    if (!engineReady || !engine) {
+      scheduleEngineAutostart();
+      return;
+    }
     const {
       highlight = false,
       revealBest = false,
-      depth = DEFAULT_DEPTH,
+      depth = engineConfig.depth,
       autoPlay = false,
       searchMoves = null,
       multiPv = 1,
@@ -2248,7 +2741,7 @@
     applySelectionHighlights();
     const searchMoves = moves.map(m => m.from + m.to + (m.promotion ? m.promotion : ''));
     requestAnalysis({
-      depth: DEFAULT_DEPTH,
+      depth: engineConfig.depth,
       searchMoves,
       multiPv: moves.length,
       pieceAnalysis: true
@@ -2270,7 +2763,10 @@
       rebuildPosition(navigationIndex + 1);
       return;
     }
-    if (!engineReady) return;
+    if (!engineReady) {
+      scheduleEngineAutostart();
+      return;
+    }
     requestAnalysis({
       highlight: shouldHighlightBest && bestMoveVisible,
       revealBest: bestMoveVisible,
@@ -2327,6 +2823,44 @@
       scheduleProbabilityEvaluation(PROBABILITY_GRAPH_DEPTH);
     }
     syncProbabilityButton();
+  });
+  $('#engine-button').on('click', () => {
+    enginePanelVisible = !enginePanelVisible;
+    syncEnginePanelVisibility();
+  });
+
+  const collectEngineFormValues = () => ({
+    threads: engineThreadsInput ? engineThreadsInput.value : engineConfig.threads,
+    hash: engineHashInput ? engineHashInput.value : engineConfig.hash,
+    depth: engineDepthInput ? engineDepthInput.value : engineConfig.depth
+  });
+
+  $('#engine-start-button').on('click', () => {
+    cancelEngineAutostart();
+    engineAutostartAttempts = 0;
+    engineAutostartDisabled = false;
+    applyEngineConfig(collectEngineFormValues());
+    startEngine({ autostart: false });
+  });
+
+  $('#engine-stop-button').on('click', () => {
+    engineAutostartDisabled = true;
+    cancelEngineAutostart();
+    stopEngine();
+  });
+
+  const engineFormInputs = [engineThreadsInput, engineHashInput, engineDepthInput].filter(Boolean);
+  const handleEngineInputUpdate = () => {
+    const result = applyEngineConfig(collectEngineFormValues());
+    setEngineErrorMessage('');
+    if (engineReady && result && result.changed) {
+      setEngineStatusDisplay('ready', 'Ready (restart to apply)');
+    }
+    updateEngineControls({ loading: false });
+  };
+  engineFormInputs.forEach(input => {
+    input.addEventListener('change', handleEngineInputUpdate);
+    input.addEventListener('blur', handleEngineInputUpdate);
   });
   $('#prev-button').on('click', goToPreviousMove);
   $('#next-button').on('click', goToNextMove);
@@ -2532,9 +3066,14 @@
   updateAdvantageBar(null, { neutral: true, message: 'Awaiting evaluation' });
   setAdvantageBarLoading(false);
   renderBoard();
-  initEngine();
-  initBackgroundEngine();
+  syncEngineInputs();
+  setEngineStatusDisplay('idle', 'Not started');
+  setEngineErrorMessage('');
+  updateEngineControls({ loading: false });
+  syncEnginePanelVisibility();
+  syncEngineButton();
   updateStatus();
+  scheduleEngineAutostart({ immediate: true, resetAttempts: true });
   $(window).off('resize.board').on('resize.board', () => {
     if (!board) return;
     board.resize();
