@@ -6,7 +6,6 @@
   <style>
     :root {
       color-scheme: dark;
-      --eval-bar-width: 100%;
     }
 
     body {
@@ -47,121 +46,6 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 20px;
-    }
-
-    .eval-bar {
-      width: 100%;
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      gap: 10px;
-    }
-
-    #evaluation-label {
-      font-size: 0.9rem;
-      color: #d4d9eb;
-      min-width: 0;
-      text-align: center;
-      font-weight: 600;
-      width: 100%;
-    }
-
-    #evaluation-nav {
-      position: relative;
-      width: var(--eval-bar-width);
-      height: 72px;
-      border-radius: 12px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      background: linear-gradient(180deg, #161823 0%, #090b12 100%);
-      overflow: hidden;
-      margin: 0 auto;
-    }
-
-    .evaluation-nav__graph {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-    }
-
-    .evaluation-nav__overlay {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: stretch;
-    }
-
-    .evaluation-nav__segment {
-      position: relative;
-      flex: 1;
-      border: none;
-      background: transparent;
-      padding: 0;
-      cursor: pointer;
-      min-width: 2px;
-    }
-
-    .evaluation-nav__segment::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: rgba(255, 255, 255, 0.06);
-      opacity: 0;
-      transition: opacity 0.15s ease;
-      pointer-events: none;
-    }
-
-    .evaluation-nav__segment:hover::before {
-      opacity: 0.35;
-    }
-
-    .evaluation-nav__segment.is-current::after {
-      content: '';
-      position: absolute;
-      top: 10%;
-      bottom: 10%;
-      left: calc(50% - 1px);
-      width: 2px;
-      border-radius: 2px;
-      background: rgba(102, 153, 255, 0.75);
-      box-shadow: 0 0 8px rgba(102, 153, 255, 0.6);
-      pointer-events: none;
-    }
-
-    .evaluation-nav__segment:focus-visible {
-      outline: 2px solid #f2ff5f;
-      outline-offset: -2px;
-    }
-
-    .evaluation-nav__area--black {
-      fill: rgba(16, 20, 32, 0.85);
-    }
-
-    .evaluation-nav__area--white {
-      fill: rgba(235, 240, 255, 0.5);
-    }
-
-    .evaluation-nav__baseline {
-      stroke: rgba(255, 255, 255, 0.22);
-      stroke-width: 1;
-      vector-effect: non-scaling-stroke;
-    }
-
-    .evaluation-nav__line {
-      fill: none;
-      stroke: rgba(255, 255, 255, 0.85);
-      stroke-width: 2;
-      vector-effect: non-scaling-stroke;
-      filter: drop-shadow(0 0 6px rgba(135, 178, 255, 0.45));
-    }
-
-    .evaluation-nav__marker {
-      fill: #f2ff5f;
-      stroke: rgba(10, 12, 22, 0.9);
-      stroke-width: 1.5;
-      vector-effect: non-scaling-stroke;
     }
 
     .board-container {
@@ -316,9 +200,6 @@
         gap: 16px;
       }
 
-      .eval-bar {
-        gap: 6px;
-      }
     }
 
     @media (max-width: 640px) {
@@ -357,10 +238,6 @@
   <div class="container">
     <div class="board-shell">
       <div class="board-area">
-        <div class="eval-bar">
-          <span id="evaluation-label"></span>
-          <div id="evaluation-nav" role="group" aria-label="Evaluation navigation"></div>
-        </div>
         <div class="board-container">
           <div id="board"></div>
         </div>
@@ -898,16 +775,7 @@
         }
       }
 
-      function syncEvalBarWidth() {
-        const boardSurface = document.querySelector('.board-container .board-b72b1');
-        const boardArea = document.querySelector('.board-area');
-        if (!boardSurface || !boardArea) return;
-        const boardWidth = boardSurface.getBoundingClientRect().width;
-        if (boardWidth) {
-          boardArea.style.setProperty('--eval-bar-width', `${Math.round(boardWidth)}px`);
-        }
-        renderEvaluationNavigation();
-      }
+      function syncEvalBarWidth() {}
 
       function normalizeFenTurn(fen, turn) {
         if (typeof fen !== 'string') return fen;
