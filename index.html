@@ -987,18 +987,65 @@
           engineAutostartTimer = scheduleFn(triggerStart, timeout);
         }
       }
-      const STOCKFISH_WORKER_FILENAME = 'stockfish-17.1-8e4d048.js';
-      const ENGINE_WORKER_PATH = `./engine/${STOCKFISH_WORKER_FILENAME}`;
       const stockfishOverridePath = typeof window !== 'undefined'
         ? (window.STOCKFISH_WORKER_PATH || (window.STOCKFISH && window.STOCKFISH.workerPath) || null)
         : null;
-      const engineWorkerCandidates = Array.from(new Set([
-        stockfishOverridePath,
-        ENGINE_WORKER_PATH,
-        `engine/${STOCKFISH_WORKER_FILENAME}`,
-        `./${STOCKFISH_WORKER_FILENAME}`,
-        STOCKFISH_WORKER_FILENAME
-      ].filter(Boolean)));
+
+      const STOCKFISH_WORKER_VARIANTS = [
+        { filename: 'stockfish-17.1-8e4d048.js', requiresThreadSupport: true },
+        { filename: 'stockfish-17.1-asm-341ff22.js', requiresThreadSupport: false }
+      ];
+
+      function supportsThreadedWorkers() {
+        if (typeof window === 'undefined') {
+          return true;
+        }
+        if (window.crossOriginIsolated !== true) {
+          return false;
+        }
+        return typeof SharedArrayBuffer === 'function' && typeof Atomics === 'object';
+      }
+
+      function buildWorkerCandidatePaths(filename) {
+        return [
+          `./engine/${filename}`,
+          `engine/${filename}`,
+          `./${filename}`,
+          filename
+        ];
+      }
+
+      const engineWorkerCandidates = (() => {
+        const seen = new Set();
+        const candidates = [];
+        const addCandidate = value => {
+          if (!value || seen.has(value)) {
+            return;
+          }
+          seen.add(value);
+          candidates.push(value);
+        };
+
+        if (stockfishOverridePath) {
+          addCandidate(stockfishOverridePath);
+        }
+
+        const threadedSupported = supportsThreadedWorkers();
+        for (const { filename, requiresThreadSupport } of STOCKFISH_WORKER_VARIANTS) {
+          if (requiresThreadSupport && !threadedSupported) {
+            continue;
+          }
+          for (const candidate of buildWorkerCandidatePaths(filename)) {
+            addCandidate(candidate);
+          }
+        }
+
+        if (!candidates.length && stockfishOverridePath) {
+          addCandidate(stockfishOverridePath);
+        }
+
+        return candidates;
+      })();
 
       function resolveWorkerCandidate(path) {
         try {
