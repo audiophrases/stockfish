@@ -951,7 +951,7 @@
         backgroundPendingStart = false;
         backgroundCurrentTask = null;
         backgroundLastScore = null;
-        backgroundEngine = new Worker('./engine/stockfish.js');
+        backgroundEngine = new Worker('./engine/stockfish-17.1-8e4d048.js');
         backgroundEngine.onmessage = e => {
           const line = String(e.data).trim();
 
@@ -1786,7 +1786,7 @@
   }
 
   function initEngine() {
-    engine = new Worker('./engine/stockfish.js');
+    engine = new Worker('./engine/stockfish-17.1-8e4d048.js');
     engine.onmessage = e => {
       const line = String(e.data).trim();
 
