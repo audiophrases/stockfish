@@ -517,9 +517,37 @@
         }
       }
 
+      // Logistic scale matching the Lichess win probability model for centipawn scores.
+      const LICHESS_WIN_PROBABILITY_SCALE = 0.004;
+
       function capitalizeWord(word) {
         if (typeof word !== 'string' || !word.length) return '';
         return word.charAt(0).toUpperCase() + word.slice(1);
+      }
+
+      function clampProbability(probability) {
+        if (typeof probability !== 'number' || Number.isNaN(probability)) {
+          return 0.5;
+        }
+        return Math.max(0, Math.min(1, probability));
+      }
+
+      function calculateWhiteWinProbabilityFromCp(cp) {
+        if (typeof cp !== 'number' || Number.isNaN(cp)) {
+          return 0.5;
+        }
+        const limited = Math.max(-2000, Math.min(2000, cp));
+        const exponent = -LICHESS_WIN_PROBABILITY_SCALE * limited;
+        const probability = 1 / (1 + Math.exp(exponent));
+        return clampProbability(probability);
+      }
+
+      function formatWinProbability(probability) {
+        const clamped = clampProbability(probability);
+        const percentValue = Math.round(clamped * 1000) / 10;
+        const hasFraction = Math.abs(percentValue - Math.round(percentValue)) > 0.001;
+        const formatted = hasFraction ? percentValue.toFixed(1) : Math.round(percentValue).toString();
+        return `${formatted}%`;
       }
 
       function computeAdvantageRatio(entry) {
@@ -527,16 +555,14 @@
           return Math.max(0, Math.min(1, lastAdvantageRatio));
         }
 
+        if (typeof entry.whiteWinProbability === 'number' && !Number.isNaN(entry.whiteWinProbability)) {
+          return clampProbability(entry.whiteWinProbability);
+        }
+
         if (entry.type === 'mate') {
           if (entry.winningSide === 'white') return 1;
           if (entry.winningSide === 'black') return 0;
           return 0.5;
-        }
-
-        if (entry.type === 'cp' && typeof entry.cp === 'number' && !Number.isNaN(entry.cp)) {
-          const limited = Math.max(-2000, Math.min(2000, entry.cp));
-          const ratio = 1 / (1 + Math.exp(-limited / 120));
-          return Math.max(0, Math.min(1, ratio));
         }
 
         if (typeof entry.value === 'number' && !Number.isNaN(entry.value)) {
@@ -564,15 +590,15 @@
         ratio = Math.max(0, Math.min(1, ratio));
         lastAdvantageRatio = ratio;
 
-        const whitePercent = Math.max(0, Math.min(100, Math.round(ratio * 100)));
-        const blackPercent = 100 - whitePercent;
+        const whitePercentLabel = formatWinProbability(ratio);
+        const blackPercentLabel = formatWinProbability(1 - ratio);
 
         advantageTrackElement.style.setProperty('--white-ratio', `${(ratio * 100).toFixed(2)}%`);
         if (advantageWhiteElement) {
-          advantageWhiteElement.textContent = `${whitePercent}%`;
+          advantageWhiteElement.textContent = whitePercentLabel;
         }
         if (advantageBlackElement) {
-          advantageBlackElement.textContent = `${blackPercent}%`;
+          advantageBlackElement.textContent = blackPercentLabel;
         }
         if (advantageStatusElement) {
           advantageStatusElement.textContent = summary || '';
@@ -631,7 +657,8 @@
           if (mateValue === 0) {
             const gaugeSign = activeTurn === 'b' ? -rawSign : rawSign;
             const winningSide = gaugeSign >= 0 ? 'white' : 'black';
-            const label = `${capitalizeWord(winningSide)} has delivered checkmate`;
+            const label = `${capitalizeWord(winningSide)} has delivered checkmate · 100% win chance`;
+            const whiteWinProbability = winningSide === 'white' ? 1 : 0;
             return {
               value: gaugeSign >= 0 ? 2000 : -2000,
               text: label,
@@ -639,14 +666,16 @@
               type: 'mate',
               matePly: 0,
               winningSide,
+              whiteWinProbability,
               raw: { mate: mateValueRaw, turn: activeTurn }
             };
           }
 
           const winningSide = mateValue > 0 ? 'white' : 'black';
           const absMoves = Math.abs(mateValue);
-          const label = `${capitalizeWord(winningSide)} mates in ${absMoves}`;
+          const label = `${capitalizeWord(winningSide)} mates in ${absMoves} · 100% win chance`;
           const shortText = mateValue > 0 ? `M${absMoves}` : `M-${absMoves}`;
+          const whiteWinProbability = winningSide === 'white' ? 1 : 0;
           return {
             value: mateValue > 0 ? 2000 : -2000,
             text: label,
@@ -654,6 +683,7 @@
             type: 'mate',
             matePly: absMoves,
             winningSide,
+            whiteWinProbability,
             raw: { mate: mateValueRaw, turn: activeTurn }
           };
         }
@@ -668,17 +698,29 @@
           const prefix = cpValue > 0 ? '+' : cpValue < 0 ? '' : '';
           const cpDisplay = `${prefix}${(cpValue / 100).toFixed(2)}`;
           const cpLabel = `${cpDisplay} cp`;
+          const whiteWinProbability = calculateWhiteWinProbabilityFromCp(cpValue);
+          const blackWinProbability = 1 - whiteWinProbability;
+          const favoredSide = descriptor.leadingSide;
+          const favoredProbability = favoredSide === 'white'
+            ? whiteWinProbability
+            : favoredSide === 'black'
+              ? blackWinProbability
+              : whiteWinProbability;
+          const probabilitySummary = favoredSide
+            ? `${formatWinProbability(favoredProbability)} win chance`
+            : `Win chances W ${formatWinProbability(whiteWinProbability)} · B ${formatWinProbability(blackWinProbability)}`;
           const summary = descriptor.leadingSide
             ? `${capitalizeWord(descriptor.leadingSide)} ${descriptor.summary}`
             : descriptor.summary;
           return {
             value: normalized,
-            text: `${summary} (${cpLabel})`,
-            shortText: cpDisplay,
+            text: `${summary} · ${probabilitySummary} (${cpLabel})`,
+            shortText: `W ${formatWinProbability(whiteWinProbability)} · ${cpDisplay}`,
             type: 'cp',
             cp: cpValue,
             winningSide: descriptor.leadingSide,
             advantageCategory: descriptor.category,
+            whiteWinProbability,
             raw: { cp, turn: activeTurn }
           };
         }
