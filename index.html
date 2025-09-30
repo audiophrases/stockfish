@@ -3437,6 +3437,14 @@
     updateNavigationButtons();
     if (lastImportWasPgn) {
       startReplayFromIndex(0, PGN_REPLAY_DEPTH);
+      probabilityPanelVisible = true;
+      if (probabilityPanel) {
+        probabilityPanel.hidden = false;
+        probabilityPanel.setAttribute('aria-hidden', 'false');
+      }
+      syncProbabilityButton();
+      renderEvaluationNavigation();
+      scheduleProbabilityEvaluation(PROBABILITY_GRAPH_DEPTH);
     } else {
       requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
     }
