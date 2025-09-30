@@ -729,547 +729,2821 @@
     </section>
   </div>
   <script>
-  $(function() {
-    let board, engine;
-    const game = new Chess();
-    const boardEl = $('#board');
-    const advantageBarElement = document.getElementById('advantage-bar');
-    const advantageTrackElement = document.getElementById('advantage-track');
-    const advantageStatusElement = document.getElementById('advantage-status');
-    const advantageWhiteElement = document.getElementById('advantage-white-percent');
-    const advantageBlackElement = document.getElementById('advantage-black-percent');
-    const advantageToggleButton = document.getElementById('advantage-toggle-button');
-    const probabilityPanel = document.getElementById('probability-panel');
-    const evaluationContainer = document.getElementById('evaluation-container');
-    const evaluationElement = document.getElementById('evaluation');
-    const bestMoveButtonElement = document.getElementById('best-move-button');
-    const probabilityButtonElement = document.getElementById('probability-button');
-    const pieceMovesButtonElement = document.getElementById('piece-moves-button');
-    const editButtonElement = document.getElementById('edit-button');
-    const engineButtonElement = document.getElementById('engine-button');
-    const engineSettingsElement = document.getElementById('engine-settings');
-    const engineStatusElement = document.getElementById('engine-status');
-    const engineErrorElement = document.getElementById('engine-error');
-    const engineHelpElement = document.getElementById('engine-settings-help');
-    const engineStartButtonElement = document.getElementById('engine-start-button');
-    const engineStopButtonElement = document.getElementById('engine-stop-button');
-    const engineThreadsInput = document.getElementById('engine-threads');
-    const engineHashInput = document.getElementById('engine-hash');
-    const engineDepthInput = document.getElementById('engine-depth');
-    const statusElement = document.getElementById('status');
-    let baseFen = game.fen();
-    let selectedSquare = null;
-    let moveSourceSquare = null;
-    let isPieceAnalysis = false;
-    let freezeMode = false;
-    let editMode = false;
-    let pieceMovesMode = false;
-    let orientation = 'white';
-    let latestAnalysisFen = null;
-    let shouldHighlightBest = false;
-    let engineReady = false;
-    let engineCommandQueue = [];
-    let engineAwaitingReadyAfterStop = false;
-    let editSelectedPiece = null;
-    let editSelectedSquare = null;
-    let editSelectionSource = null;
-    let bestMoveVisible = false;
-    let moveHistory = [];
-    let navigationIndex = 0;
-    
-    // --- FIX: Added missing variable declaration ---
-    let enginePanelVisible = false;
-
-    const STOCKFISH_WORKER_VARIANTS = [{
-      filename: 'stockfish-17.1-lite-single-03e3232.js',
-      requiresThreadSupport: false
-    }];
-    const threadSupportAvailable = typeof(SharedArrayBuffer) === 'function';
-    const selectedStockfishVariant = (() => {
-      for (const variant of STOCKFISH_WORKER_VARIANTS) {
-        if (!variant) continue;
-        if (variant.requiresThreadSupport && !threadSupportAvailable) {
-          continue;
+    $(function() {
+      let board, engine;
+      const game = new Chess();
+      const boardEl = $('#board');
+      const advantageBarElement = document.getElementById('advantage-bar');
+      const advantageTrackElement = document.getElementById('advantage-track');
+      const advantageStatusElement = document.getElementById('advantage-status');
+      const advantageWhiteElement = document.getElementById('advantage-white-percent');
+      const advantageBlackElement = document.getElementById('advantage-black-percent');
+      const advantageToggleButton = document.getElementById('advantage-toggle-button');
+      const probabilityPanel = document.getElementById('probability-panel');
+      const evaluationContainer = document.getElementById('evaluation-container');
+      const evaluationElement = document.getElementById('evaluation');
+      const bestMoveButtonElement = document.getElementById('best-move-button');
+      const probabilityButtonElement = document.getElementById('probability-button');
+      const pieceMovesButtonElement = document.getElementById('piece-moves-button');
+      const editButtonElement = document.getElementById('edit-button');
+      const engineButtonElement = document.getElementById('engine-button');
+      const engineSettingsElement = document.getElementById('engine-settings');
+      const engineStatusElement = document.getElementById('engine-status');
+      const engineErrorElement = document.getElementById('engine-error');
+      const engineHelpElement = document.getElementById('engine-settings-help');
+      const engineStartButtonElement = document.getElementById('engine-start-button');
+      const engineStopButtonElement = document.getElementById('engine-stop-button');
+      const engineThreadsInput = document.getElementById('engine-threads');
+      const engineHashInput = document.getElementById('engine-hash');
+      const engineDepthInput = document.getElementById('engine-depth');
+      const statusElement = document.getElementById('status');
+      let baseFen = game.fen();
+      let selectedSquare = null;
+      let moveSourceSquare = null;
+      let isPieceAnalysis = false;
+      let freezeMode = false;
+      let editMode = false;
+      let pieceMovesMode = false;
+      let orientation = 'white';
+      let latestAnalysisFen = null;
+      let shouldHighlightBest = false;
+      let engineReady = false;
+      let engineCommandQueue = [];
+      let engineAwaitingReadyAfterStop = false;
+      let editSelectedPiece = null;
+      let editSelectedSquare = null;
+      let editSelectionSource = null;
+      let bestMoveVisible = false;
+      let moveHistory = [];
+      let navigationIndex = 0;
+      const STOCKFISH_WORKER_VARIANTS = [
+        { filename: 'stockfish-17.1-lite-single-03e3232.js', requiresThreadSupport: false }
+      ];
+      const threadSupportAvailable = supportsThreadedWorkers();
+      const selectedStockfishVariant = (() => {
+        for (const variant of STOCKFISH_WORKER_VARIANTS) {
+          if (!variant) continue;
+          if (variant.requiresThreadSupport && !threadSupportAvailable) {
+            continue;
+          }
+          return variant;
         }
-        return variant;
+        return null;
+      })();
+      const ENGINE_THREADS_MIN = 1;
+      const ENGINE_THREADS_MAX = selectedStockfishVariant && selectedStockfishVariant.requiresThreadSupport === false
+        ? 1
+        : 64;
+      const DEFAULT_ANALYSIS_DEPTH = 24;
+      const PGN_REPLAY_DEPTH = 12;
+      const BACKGROUND_EVAL_DEPTH = 24;
+      const PROBABILITY_GRAPH_DEPTH = 14;
+      const AUTO_NEXT_MOVE_DEPTH = 22;
+      const DEFAULT_THREADS = Math.min(4, ENGINE_THREADS_MAX);
+      const DEFAULT_HASH_MB = 128;
+      const MAX_USER_HASH_MB = 256;
+      const MIN_HASH_CEILING_MB = 32;
+      const BACKGROUND_HASH_MAX_MB = 64;
+      const BACKGROUND_HASH_MIN_MB = 16;
+      const engineConfig = {
+        threads: DEFAULT_THREADS,
+        hash: DEFAULT_HASH_MB,
+        depth: DEFAULT_ANALYSIS_DEPTH
+      };
+      const ENGINE_AUTOSTART_DELAY_MS = 400;
+      const ENGINE_AUTOSTART_MAX_ATTEMPTS = 3;
+      const AUTO_PLAY_MIN_WAIT_MS = 4000;
+      const REPLAY_STEP_DELAY_MS = 900;
+      const PIECE_ANALYSIS_MODE_SEQUENTIAL = 'sequential';
+      let autoPlayPending = false;
+      let autoPlayTargetDepth = engineConfig.depth;
+      let autoPlayFen = null;
+      let currentBestMove = null;
+      let currentDepth = 0;
+      let pieceMoveRatings = new Map();
+      let pieceAnalysisMode = null;
+      let pieceAnalysisTurn = null;
+      let pieceAnalysisQueue = [];
+      let pieceAnalysisCurrentMove = null;
+      let pieceAnalysisActiveRequestId = 0;
+      let pieceAnalysisFen = null;
+      let pieceAnalysisTargetDepth = 0;
+      let pieceAnalysisWaitingForResult = false;
+      let waitingForAutoBestMove = false;
+      let autoMoveCandidate = null;
+      let autoPlayRequestedAt = 0;
+      let autoPlayDelayTimer = null;
+      let autoPlayDepthSatisfied = false;
+      const evaluationNavElement = document.getElementById('evaluation-nav');
+      let advantageBarVisible = false;
+      let probabilityPanelVisible = false;
+      let evaluationTimeline = [];
+      let engineStarting = false;
+      let engineAutostartTimer = null;
+      let engineAutostartScheduled = false;
+      let engineAutostartAttempts = 0;
+      let engineLastStartWasAutostart = false;
+      let engineAutostartDisabled = false;
+      function setButtonLabel(element, label) {
+        if (!element || typeof label !== 'string') return;
+        element.setAttribute('aria-label', label);
+        const hidden = element.querySelector('.visually-hidden');
+        if (hidden) hidden.textContent = label;
+        const visible = element.querySelector('.control-button__label');
+        if (visible) visible.textContent = label;
       }
-      return null;
-    })();
-    const ENGINE_THREADS_MIN = 1;
-    const ENGINE_THREADS_MAX = selectedStockfishVariant && selectedStockfishVariant.requiresThreadSupport === false ?
-      1 :
-      64;
-    const DEFAULT_ANALYSIS_DEPTH = 24;
-    const PGN_REPLAY_DEPTH = 12;
-    const BACKGROUND_EVAL_DEPTH = 24;
-    const PROBABILITY_GRAPH_DEPTH = 14;
-    const AUTO_NEXT_MOVE_DEPTH = 22;
-    const DEFAULT_THREADS = Math.min(4, ENGINE_THREADS_MAX);
-    const DEFAULT_HASH_MB = 128;
-    const MAX_USER_HASH_MB = 256;
-    const MIN_HASH_CEILING_MB = 32;
-    const BACKGROUND_HASH_MAX_MB = 64;
-    const BACKGROUND_HASH_MIN_MB = 16;
-    const engineConfig = {
-      threads: DEFAULT_THREADS,
-      hash: DEFAULT_HASH_MB,
-      depth: DEFAULT_ANALYSIS_DEPTH
-    };
-    const ENGINE_AUTOSTART_DELAY_MS = 400;
-    const ENGINE_AUTOSTART_MAX_ATTEMPTS = 3;
-    const AUTO_PLAY_MIN_WAIT_MS = 4000;
-    const REPLAY_STEP_DELAY_MS = 900;
-    const PIECE_ANALYSIS_MODE_SEQUENTIAL = 'sequential';
-    let autoPlayPending = false;
-    let autoPlayTargetDepth = engineConfig.depth;
-    let autoPlayFen = null;
-    let currentBestMove = null;
-    let currentDepth = 0;
-    let pieceMoveRatings = new Map();
-    let pieceAnalysisMode = null;
-    let pieceAnalysisTurn = null;
-    let pieceAnalysisQueue = [];
-    let pieceAnalysisCurrentMove = null;
-    let pieceAnalysisActiveRequestId = 0;
-    let pieceAnalysisFen = null;
-    let pieceAnalysisTargetDepth = 0;
-    let pieceAnalysisWaitingForResult = false;
-    let waitingForAutoBestMove = false;
-    let autoMoveCandidate = null;
-    let autoPlayRequestedAt = 0;
-    let autoPlayDelayTimer = null;
-    let autoPlayDepthSatisfied = false;
-    const evaluationNavElement = document.getElementById('evaluation-nav');
-    let advantageBarVisible = false;
-    let probabilityPanelVisible = false;
-    let evaluationTimeline = [];
-    let engineStarting = false;
-    let engineAutostartTimer = null;
-    let engineAutostartScheduled = false;
-    let engineAutostartAttempts = 0;
-    let engineLastStartWasAutostart = false;
-    let engineAutostartDisabled = false;
 
-    function setButtonLabel(element, label) {
-      if (!element || typeof label !== 'string') return;
-      element.setAttribute('aria-label', label);
-      const hidden = element.querySelector('.visually-hidden');
-      if (hidden) hidden.textContent = label;
-      const visible = element.querySelector('.control-button__label');
-      if (visible) visible.textContent = label;
-    }
-
-    function setButtonActive(element, isActive, activeLabel, inactiveLabel) {
-      if (!element) return;
-      element.classList.toggle('is-active', !!isActive);
-      if (element.hasAttribute('aria-pressed')) {
-        element.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      function setButtonActive(element, isActive, activeLabel, inactiveLabel) {
+        if (!element) return;
+        element.classList.toggle('is-active', !!isActive);
+        if (element.hasAttribute('aria-pressed')) {
+          element.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        }
+        if (isActive && activeLabel) {
+          setButtonLabel(element, activeLabel);
+        } else if (!isActive && inactiveLabel) {
+          setButtonLabel(element, inactiveLabel);
+        }
       }
-      if (isActive && activeLabel) {
-        setButtonLabel(element, activeLabel);
-      } else if (!isActive && inactiveLabel) {
-        setButtonLabel(element, inactiveLabel);
+
+      function syncBestMoveButton() {
+        setButtonActive(bestMoveButtonElement, bestMoveVisible, 'Hide best move', 'Best');
       }
-    }
 
-    function syncBestMoveButton() {
-      setButtonActive(bestMoveButtonElement, bestMoveVisible, 'Hide best move', 'Best');
-    }
-
-    function syncAdvantageButton() {
-      setButtonActive(advantageToggleButton, advantageBarVisible, 'Hide advantage bar', 'Gauge');
-    }
-
-    function syncProbabilityButton() {
-      setButtonActive(probabilityButtonElement, probabilityPanelVisible, 'Hide evaluation graph', 'Graph');
-    }
-
-    function syncPieceMovesButton() {
-      setButtonActive(pieceMovesButtonElement, pieceMovesMode, 'Return to play mode', 'Piece');
-    }
-
-    function syncEditButton() {
-      setButtonActive(editButtonElement, editMode, 'Exit edit mode', 'Edit');
-    }
-
-    function syncEngineButton() {
-      setButtonActive(engineButtonElement, enginePanelVisible, 'Hide engine settings', 'Engine');
-    }
-
-    function syncEnginePanelVisibility() {
-      if (!engineSettingsElement) return;
-      if (enginePanelVisible) {
-        engineSettingsElement.hidden = false;
-        engineSettingsElement.setAttribute('aria-hidden', 'false');
-      } else {
-        engineSettingsElement.hidden = true;
-        engineSettingsElement.setAttribute('aria-hidden', 'true');
+      function syncAdvantageButton() {
+        setButtonActive(advantageToggleButton, advantageBarVisible, 'Hide advantage bar', 'Gauge');
       }
-      syncEngineButton();
-    }
 
-    function setEngineStatusDisplay(state, label) {
-      if (!engineStatusElement) return;
-      const normalizedState = state || 'idle';
-      engineStatusElement.dataset.state = normalizedState;
-      engineStatusElement.textContent = label || '';
-    }
-
-    function setEngineErrorMessage(message) {
-      if (!engineErrorElement) return;
-      if (message) {
-        engineErrorElement.hidden = false;
-        engineErrorElement.textContent = message;
-      } else {
-        engineErrorElement.hidden = true;
-        engineErrorElement.textContent = '';
+      function syncProbabilityButton() {
+        setButtonActive(probabilityButtonElement, probabilityPanelVisible, 'Hide evaluation graph', 'Graph');
       }
-      engineErrorElement.dataset.source = '';
-    }
 
-    function resetEngineCommandQueue() {
-      engineCommandQueue = [];
-      engineAwaitingReadyAfterStop = false;
-    }
+      function syncPieceMovesButton() {
+        setButtonActive(pieceMovesButtonElement, pieceMovesMode, 'Return to play mode', 'Piece');
+      }
 
-    function postEngineCommand(command, options = {}) {
-      if (!engine) return;
-      const text = typeof command === 'string' ? command.trim() : '';
-      if (!text) return;
-      const {
-        queueIfPending = true
-      } = options;
-      if (queueIfPending && engineAwaitingReadyAfterStop) {
-        engineCommandQueue.push(text);
-        return;
+      function syncEditButton() {
+        setButtonActive(editButtonElement, editMode, 'Exit edit mode', 'Edit');
       }
-      try {
-        engine.postMessage(text);
-      } catch (error) {
-        console.warn(`Failed to send command to engine: ${text}`, error);
-      }
-    }
 
-    function beginEngineReadyWait() {
-      if (!engine || engineAwaitingReadyAfterStop) {
-        return;
+      function syncEngineButton() {
+        setButtonActive(engineButtonElement, enginePanelVisible, 'Hide engine settings', 'Engine');
       }
-      engineAwaitingReadyAfterStop = true;
-      try {
-        engine.postMessage('isready');
-      } catch (error) {
-        engineAwaitingReadyAfterStop = false;
+
+      function syncEnginePanelVisibility() {
+        if (!engineSettingsElement) return;
+        if (enginePanelVisible) {
+          engineSettingsElement.hidden = false;
+          engineSettingsElement.setAttribute('aria-hidden', 'false');
+        } else {
+          engineSettingsElement.hidden = true;
+          engineSettingsElement.setAttribute('aria-hidden', 'true');
+        }
+        syncEngineButton();
+      }
+
+      function setEngineStatusDisplay(state, label) {
+        if (!engineStatusElement) return;
+        const normalizedState = state || 'idle';
+        engineStatusElement.dataset.state = normalizedState;
+        engineStatusElement.textContent = label || '';
+      }
+
+      function setEngineErrorMessage(message) {
+        if (!engineErrorElement) return;
+        if (message) {
+          engineErrorElement.hidden = false;
+          engineErrorElement.textContent = message;
+        } else {
+          engineErrorElement.hidden = true;
+          engineErrorElement.textContent = '';
+        }
+        engineErrorElement.dataset.source = '';
+      }
+
+      function resetEngineCommandQueue() {
         engineCommandQueue = [];
-        console.warn('Failed to send isready command to engine', error);
+        engineAwaitingReadyAfterStop = false;
       }
-    }
 
-    function queueEngineCommands(commands) {
-      if (Array.isArray(commands)) {
-        commands.forEach(cmd => postEngineCommand(cmd));
-        return;
-      }
-      postEngineCommand(commands);
-    }
-
-    function resolveEngineReadyWait() {
-      if (!engineAwaitingReadyAfterStop) {
-        return;
-      }
-      const queued = engineCommandQueue.slice();
-      engineCommandQueue = [];
-      engineAwaitingReadyAfterStop = false;
-      if (!engine || !queued.length) {
-        return;
-      }
-      queued.forEach(cmd => postEngineCommand(cmd, {
-        queueIfPending: false
-      }));
-    }
-
-    function displayEngineConfigWarnings(result) {
-      if (result && Array.isArray(result.warnings) && result.warnings.length) {
-        setEngineErrorMessage(result.warnings.join(' '));
-      } else if (engineErrorElement && engineErrorElement.dataset.source === 'config-warning') {
-        setEngineErrorMessage('');
-      }
-      if (engineErrorElement) {
-        engineErrorElement.dataset.source = result && result.warnings && result.warnings.length ? 'config-warning' : '';
-      }
-    }
-
-    function clampInteger(value, min, max, fallback) {
-      const numeric = Number(value);
-      if (!Number.isFinite(numeric)) {
-        return fallback;
-      }
-      const truncated = Math.floor(numeric);
-      if (!Number.isFinite(truncated)) {
-        return fallback;
-      }
-      const clamped = Math.max(min, Math.min(max, truncated));
-      return clamped;
-    }
-
-    function getDeviceMemoryInGb() {
-      if (typeof navigator !== 'undefined' && navigator) {
-        const {
-          deviceMemory
-        } = navigator;
-        const numeric = Number(deviceMemory);
-        if (Number.isFinite(numeric) && numeric > 0) {
-          return numeric;
+      function postEngineCommand(command, options = {}) {
+        if (!engine) return;
+        const text = typeof command === 'string' ? command.trim() : '';
+        if (!text) return;
+        const { queueIfPending = true } = options;
+        if (queueIfPending && engineAwaitingReadyAfterStop) {
+          engineCommandQueue.push(text);
+          return;
+        }
+        try {
+          engine.postMessage(text);
+        } catch (error) {
+          console.warn(`Failed to send command to engine: ${text}`, error);
         }
       }
-      return null;
-    }
 
-    function formatDeviceMemoryGb(value) {
-      if (!Number.isFinite(value) || value <= 0) {
+      function beginEngineReadyWait() {
+        if (!engine || engineAwaitingReadyAfterStop) {
+          return;
+        }
+        engineAwaitingReadyAfterStop = true;
+        try {
+          engine.postMessage('isready');
+        } catch (error) {
+          engineAwaitingReadyAfterStop = false;
+          engineCommandQueue = [];
+          console.warn('Failed to send isready command to engine', error);
+        }
+      }
+
+      function queueEngineCommands(commands) {
+        if (Array.isArray(commands)) {
+          commands.forEach(cmd => postEngineCommand(cmd));
+          return;
+        }
+        postEngineCommand(commands);
+      }
+
+      function resolveEngineReadyWait() {
+        if (!engineAwaitingReadyAfterStop) {
+          return;
+        }
+        const queued = engineCommandQueue.slice();
+        engineCommandQueue = [];
+        engineAwaitingReadyAfterStop = false;
+        if (!engine || !queued.length) {
+          return;
+        }
+        queued.forEach(cmd => postEngineCommand(cmd, { queueIfPending: false }));
+      }
+
+      function displayEngineConfigWarnings(result) {
+        if (result && Array.isArray(result.warnings) && result.warnings.length) {
+          setEngineErrorMessage(result.warnings.join(' '));
+        } else if (engineErrorElement && engineErrorElement.dataset.source === 'config-warning') {
+          setEngineErrorMessage('');
+        }
+        if (engineErrorElement) {
+          engineErrorElement.dataset.source = result && result.warnings && result.warnings.length ? 'config-warning' : '';
+        }
+      }
+
+      function clampInteger(value, min, max, fallback) {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) {
+          return fallback;
+        }
+        const truncated = Math.floor(numeric);
+        if (!Number.isFinite(truncated)) {
+          return fallback;
+        }
+        const clamped = Math.max(min, Math.min(max, truncated));
+        return clamped;
+      }
+
+      function getDeviceMemoryInGb() {
+        if (typeof navigator !== 'undefined' && navigator) {
+          const { deviceMemory } = navigator;
+          const numeric = Number(deviceMemory);
+          if (Number.isFinite(numeric) && numeric > 0) {
+            return numeric;
+          }
+        }
         return null;
       }
-      if (value >= 4) {
-        return Math.round(value);
-      }
-      return Math.round(value * 10) / 10;
-    }
 
-    function resolveHashConstraints() {
-      const deviceMemoryGb = getDeviceMemoryInGb();
-      let ceiling = MAX_USER_HASH_MB;
-      if (deviceMemoryGb !== null) {
-        const derived = Math.floor(deviceMemoryGb * 64);
-        if (derived > 0) {
-          ceiling = Math.min(ceiling, Math.max(MIN_HASH_CEILING_MB, derived));
+      function formatDeviceMemoryGb(value) {
+        if (!Number.isFinite(value) || value <= 0) {
+          return null;
+        }
+        if (value >= 4) {
+          return Math.round(value);
+        }
+        return Math.round(value * 10) / 10;
+      }
+
+      function resolveHashConstraints() {
+        const deviceMemoryGb = getDeviceMemoryInGb();
+        let ceiling = MAX_USER_HASH_MB;
+        if (deviceMemoryGb !== null) {
+          const derived = Math.floor(deviceMemoryGb * 64);
+          if (derived > 0) {
+            ceiling = Math.min(ceiling, Math.max(MIN_HASH_CEILING_MB, derived));
+          }
+        }
+        ceiling = Math.max(MIN_HASH_CEILING_MB, ceiling);
+        return { ceiling, deviceMemoryGb };
+      }
+
+      function computeBackgroundHashBudget(mainHash) {
+        const { ceiling } = resolveHashConstraints();
+        const quarter = Math.floor(ceiling / 4);
+        const base = Math.max(BACKGROUND_HASH_MIN_MB, quarter || 0);
+        const budget = Math.min(BACKGROUND_HASH_MAX_MB, base);
+        if (mainHash >= ceiling && budget <= BACKGROUND_HASH_MIN_MB) {
+          return null;
+        }
+        return Math.max(1, Math.min(mainHash, budget));
+      }
+
+      function applyEngineConfig(config = {}) {
+        const previousThreads = engineConfig.threads;
+        const previousHash = engineConfig.hash;
+        const previousDepth = engineConfig.depth;
+        const warnings = [];
+        const fallbackThreads = Math.max(ENGINE_THREADS_MIN, Math.min(ENGINE_THREADS_MAX, previousThreads));
+        const threads = clampInteger(config.threads, ENGINE_THREADS_MIN, ENGINE_THREADS_MAX, fallbackThreads);
+        const requestedHash = clampInteger(config.hash, 1, MAX_USER_HASH_MB, previousHash);
+        const hashConstraints = resolveHashConstraints();
+        let hash = requestedHash;
+        if (hash > hashConstraints.ceiling) {
+          hash = hashConstraints.ceiling;
+        }
+        if (hash !== requestedHash) {
+          const formattedMemory = formatDeviceMemoryGb(hashConstraints.deviceMemoryGb);
+          const memoryHint = formattedMemory ? ` (device reports ~${formattedMemory} GB RAM)` : '';
+          warnings.push(`Requested hash reduced to ${hash} MB (max ${hashConstraints.ceiling} MB${memoryHint}) to avoid exhausting memory.`);
+        }
+        const depth = clampInteger(config.depth, 1, 99, previousDepth);
+        engineConfig.threads = threads;
+        engineConfig.hash = hash;
+        engineConfig.depth = depth;
+        autoPlayTargetDepth = depth;
+        replayTargetDepth = depth;
+        syncEngineInputs(hashConstraints);
+        const changed = threads !== previousThreads || hash !== previousHash || depth !== previousDepth;
+        return { threads, hash, depth, changed, warnings };
+      }
+
+      function syncEngineInputs(constraints = null) {
+        const resolvedConstraints = constraints || resolveHashConstraints();
+        if (engineThreadsInput) {
+          engineThreadsInput.max = String(ENGINE_THREADS_MAX);
+          engineThreadsInput.value = engineConfig.threads;
+        }
+        if (engineHashInput) {
+          engineHashInput.max = String(resolvedConstraints.ceiling);
+          engineHashInput.value = engineConfig.hash;
+        }
+        if (engineDepthInput) {
+          engineDepthInput.value = engineConfig.depth;
+        }
+        updateEngineHashHelp(resolvedConstraints);
+      }
+
+      function updateEngineHashHelp() {
+        if (!engineHelpElement) return;
+        engineHelpElement.textContent = '';
+      }
+
+      function updateEngineControls(options = {}) {
+        const { loading = false } = options;
+        const hasWorker = !!engine;
+        if (engineStartButtonElement) {
+          engineStartButtonElement.disabled = loading;
+          if (loading) {
+            engineStartButtonElement.setAttribute('aria-busy', 'true');
+          } else {
+            engineStartButtonElement.removeAttribute('aria-busy');
+          }
+          const labelElement = engineStartButtonElement.querySelector('.engine-action-button__label') || engineStartButtonElement;
+          if (labelElement) {
+            if (loading) {
+              labelElement.textContent = 'Starting…';
+            } else if (hasWorker) {
+              labelElement.textContent = 'Restart engine';
+            } else {
+              labelElement.textContent = 'Start engine';
+            }
+          }
+        }
+        if (engineStopButtonElement) {
+          engineStopButtonElement.disabled = !hasWorker || loading;
+          const stopLabel = engineStopButtonElement.querySelector('.engine-action-button__label') || engineStopButtonElement;
+          if (stopLabel) {
+            stopLabel.textContent = 'Stop engine';
+          }
         }
       }
-      ceiling = Math.max(MIN_HASH_CEILING_MB, ceiling);
-      return {
-        ceiling,
-        deviceMemoryGb
-      };
-    }
 
-    function computeBackgroundHashBudget(mainHash) {
-      const {
-        ceiling
-      } = resolveHashConstraints();
-      const quarter = Math.floor(ceiling / 4);
-      return Math.max(BACKGROUND_HASH_MIN_MB, Math.min(BACKGROUND_HASH_MAX_MB, quarter));
-    }
-
-    // --- START: Added missing logic ---
-
-    function updateStatus() {
-      const turn = game.turn() === 'w' ? 'White' : 'Black';
-      let state = 'normal';
-      let statusText = `${turn} to move`;
-
-      if (game.in_checkmate()) {
-        statusText = `Checkmate! ${turn === 'White' ? 'Black' : 'White'} wins.`;
-        state = 'mate';
-      } else if (game.in_draw()) {
-        statusText = 'Draw';
-        state = 'draw';
-      } else if (game.in_stalemate()) {
-        statusText = 'Draw (Stalemate)';
-        state = 'draw';
-      } else if (game.in_threefold_repetition()) {
-        statusText = 'Draw (Threefold Repetition)';
-        state = 'draw';
-      } else if (game.insufficient_material()) {
-        statusText = 'Draw (Insufficient Material)';
-        state = 'draw';
-      } else if (game.in_check()) {
-        statusText += ' (in check)';
-        state = 'check';
+      function cancelEngineAutostart() {
+        if (engineAutostartTimer) {
+          clearTimeout(engineAutostartTimer);
+          engineAutostartTimer = null;
+        }
+        engineAutostartScheduled = false;
       }
 
-      const statusLabel = statusElement.querySelector('.status-text__label');
-      if (statusLabel) {
-        statusLabel.textContent = statusText;
-      }
-      statusElement.dataset.turn = game.turn() === 'w' ? 'white' : 'black';
-      statusElement.dataset.state = state;
-
-      // Update navigation buttons
-      $('#prev-button').prop('disabled', navigationIndex <= 0);
-      $('#next-button').prop('disabled', navigationIndex >= moveHistory.length - 1);
-    }
-    
-    function startAnalysis() {
-        if (!engineReady || game.game_over()) {
-            bestMoveButtonElement.disabled = true;
+      function scheduleEngineAutostart(options = {}) {
+        const { immediate = false, resetAttempts = false, delay = ENGINE_AUTOSTART_DELAY_MS } = options || {};
+        if (engineAutostartDisabled) {
+          return;
+        }
+        if (resetAttempts) {
+          engineAutostartAttempts = 0;
+        }
+        if (engineReady || engineStarting || engineAutostartScheduled) {
+          return;
+        }
+        if (engineAutostartAttempts >= ENGINE_AUTOSTART_MAX_ATTEMPTS) {
+          return;
+        }
+        engineAutostartScheduled = true;
+        const triggerStart = () => {
+          engineAutostartScheduled = false;
+          if (engineReady || engineStarting) {
             return;
+          }
+          if (engineAutostartAttempts >= ENGINE_AUTOSTART_MAX_ATTEMPTS) {
+            return;
+          }
+          engineAutostartAttempts += 1;
+          startEngine({ autostart: true });
+        };
+        if (immediate) {
+          triggerStart();
+        } else {
+          const timeout = Math.max(0, Number(delay) || 0);
+          const scheduleFn = (typeof window !== 'undefined' && typeof window.setTimeout === 'function') ? window.setTimeout : setTimeout;
+          engineAutostartTimer = scheduleFn(triggerStart, timeout);
         }
-        bestMoveButtonElement.disabled = false;
-        postEngineCommand(`position fen ${game.fen()}`);
-        postEngineCommand(`go depth ${engineConfig.depth}`);
+      }
+      const stockfishOverridePath = typeof window !== 'undefined'
+        ? (window.STOCKFISH_WORKER_PATH || (window.STOCKFISH && window.STOCKFISH.workerPath) || null)
+        : null;
+
+      function supportsThreadedWorkers() {
+        if (typeof window === 'undefined') {
+          return true;
+        }
+        if (window.crossOriginIsolated !== true) {
+          return false;
+        }
+        return typeof SharedArrayBuffer === 'function' && typeof Atomics === 'object';
+      }
+
+      function buildWorkerCandidatePaths(filename) {
+        return [
+          `./engine/${filename}`,
+          `engine/${filename}`,
+          `./engine2/${filename}`,
+          `engine2/${filename}`,
+          `./${filename}`,
+          filename
+        ];
+      }
+
+      const engineWorkerCandidates = (() => {
+        const seen = new Set();
+        const candidates = [];
+        const addCandidate = value => {
+          if (!value || seen.has(value)) {
+            return;
+          }
+          seen.add(value);
+          candidates.push(value);
+        };
+
+        if (stockfishOverridePath) {
+          addCandidate(stockfishOverridePath);
+        }
+
+        const variantsToConsider = selectedStockfishVariant
+          ? [selectedStockfishVariant]
+          : [];
+        for (const { filename, requiresThreadSupport } of variantsToConsider) {
+          if (requiresThreadSupport && !threadSupportAvailable) {
+            continue;
+          }
+          for (const candidate of buildWorkerCandidatePaths(filename)) {
+            addCandidate(candidate);
+          }
+        }
+
+        if (!candidates.length && stockfishOverridePath) {
+          addCandidate(stockfishOverridePath);
+        }
+
+        return candidates;
+      })();
+
+      function resolveWorkerCandidate(path) {
+        try {
+          return new URL(path, window.location.href).toString();
+        } catch (error) {
+          return path;
+        }
+      }
+
+      function createStockfishWorker() {
+        if (typeof Worker !== 'function') {
+          throw new Error('Web Workers are not supported in this environment.');
+        }
+        let lastError = null;
+        for (const candidate of engineWorkerCandidates) {
+          const absoluteCandidate = resolveWorkerCandidate(candidate);
+          try {
+            const worker = new Worker(absoluteCandidate);
+            worker.addEventListener('error', event => {
+              console.error(`Stockfish worker error (${absoluteCandidate})`, event?.message || event);
+            });
+            return worker;
+          } catch (error) {
+            console.error(`Failed to start Stockfish worker from ${absoluteCandidate}`, error);
+            lastError = error;
+          }
+        }
+        throw lastError || new Error('Unable to initialize Stockfish worker.');
+      }
+      if (advantageBarElement) {
+        advantageBarElement.hidden = true;
+        advantageBarElement.style.display = 'none';
+        advantageBarElement.setAttribute('aria-hidden', 'true');
+      }
+      if (evaluationContainer) {
+        evaluationContainer.hidden = true;
+        evaluationContainer.style.display = 'none';
+        evaluationContainer.setAttribute('aria-hidden', 'true');
+      }
+      if (evaluationElement) {
+        const defaultLabel = 'Eval: --';
+        const hiddenLabel = evaluationElement.querySelector('.visually-hidden');
+        if (hiddenLabel) hiddenLabel.textContent = defaultLabel;
+        evaluationElement.setAttribute('aria-label', defaultLabel);
+        evaluationElement.dataset.probability = '0.5';
+        evaluationElement.style.setProperty('--eval-scale', '0.5');
+      }
+      syncBestMoveButton();
+      syncAdvantageButton();
+      syncProbabilityButton();
+      syncPieceMovesButton();
+      syncEditButton();
+      if (probabilityPanel) {
+        probabilityPanel.hidden = true;
+        probabilityPanel.setAttribute('aria-hidden', 'true');
+      }
+      let lastAdvantageRatio = 0.5;
+      function setEvaluationText(text, probability = null) {
+        if (!evaluationElement) return;
+        const label = typeof text === 'string' ? text : '';
+        const hiddenLabel = evaluationElement.querySelector('.visually-hidden');
+        if (hiddenLabel) {
+          hiddenLabel.textContent = label;
+        } else {
+          evaluationElement.textContent = label;
+        }
+        evaluationElement.setAttribute('aria-label', label);
+        if (probability !== null) {
+          const clamped = Math.max(0, Math.min(1, Number(probability) || 0));
+          evaluationElement.dataset.probability = clamped.toString();
+          evaluationElement.style.setProperty('--eval-scale', clamped.toString());
+        }
+      }
+
+      function formatEvaluationLabel(probability) {
+        return `Eval: ${formatWinProbability(probability)}`;
+      }
+
+      function deriveWhiteWinProbability(entry) {
+        if (!entry) {
+          return 0.5;
+        }
+        if (typeof entry.whiteWinProbability === 'number' && !Number.isNaN(entry.whiteWinProbability)) {
+          return clampProbability(entry.whiteWinProbability);
+        }
+        if (entry.type === 'mate' && entry.winningSide) {
+          return entry.winningSide === 'white' ? 1 : 0;
+        }
+        if (typeof entry.cp === 'number' && !Number.isNaN(entry.cp)) {
+          return calculateWhiteWinProbabilityFromCp(entry.cp);
+        }
+        if (typeof entry.value === 'number' && !Number.isNaN(entry.value)) {
+          return calculateWhiteWinProbabilityFromCp(entry.value);
+        }
+        return 0.5;
+      }
+
+      function updateEvaluationDisplay(entry) {
+        if (!entry) {
+          setEvaluationText('Eval: --', 0.5);
+          return;
+        }
+        const probability = deriveWhiteWinProbability(entry);
+        setEvaluationText(formatEvaluationLabel(probability), probability);
+      }
+      let backgroundEngine = null;
+      let backgroundEngineReady = false;
+      let backgroundEvaluationQueue = [];
+      let backgroundCurrentTask = null;
+      let backgroundPendingStart = false;
+      let backgroundLastScore = null;
+      let backgroundEvaluationToken = 0;
+      let backgroundEvaluationCompleted = 0;
+      let backgroundEvaluationTotal = 0;
+      let replayMode = false;
+      let replayTargetDepth = engineConfig.depth;
+      let replayPendingIndex = null;
+      let replayAdvanceScheduled = false;
+      let replayTimer = null;
+      let pendingReplayStart = null;
+      let lastImportWasPgn = false;
+      let enginePanelVisible = false;
+
+      function ensureTimelineCapacity(size) {
+        const target = Math.max(0, Math.floor(size));
+        let extended = false;
+        while (evaluationTimeline.length < target) {
+          evaluationTimeline.push(null);
+          extended = true;
+        }
+        return extended;
+      }
+
+      function clearEvaluationTimeline(initialSize = 1) {
+        const size = Math.max(1, Math.floor(initialSize));
+        evaluationTimeline = new Array(size).fill(null);
+        renderEvaluationNavigation();
+      }
+
+      function resetBackgroundEvaluationProgress() {
+        backgroundEvaluationCompleted = 0;
+        backgroundEvaluationTotal = 0;
+        updateEvaluationProgressLabel();
+      }
+
+      function updateEvaluationProgressLabel() {
+        // Intentionally left blank – the probability graph no longer shows textual status updates.
+      }
+
+      // Logistic scale matching the Lichess win probability model for centipawn scores.
+      const LICHESS_WIN_PROBABILITY_SCALE = 0.00368208;
+
+      function capitalizeWord(word) {
+        if (typeof word !== 'string' || !word.length) return '';
+        return word.charAt(0).toUpperCase() + word.slice(1);
+      }
+
+      function clampProbability(probability) {
+        if (typeof probability !== 'number' || Number.isNaN(probability)) {
+          return 0.5;
+        }
+        return Math.max(0, Math.min(1, probability));
+      }
+
+      function calculateWhiteWinProbabilityFromCp(cp) {
+        if (typeof cp !== 'number' || Number.isNaN(cp)) {
+          return 0.5;
+        }
+        const limited = Math.max(-2000, Math.min(2000, cp));
+        const exponent = -LICHESS_WIN_PROBABILITY_SCALE * limited;
+        const probability = 1 / (1 + Math.exp(exponent));
+        return clampProbability(probability);
+      }
+
+      function formatWinProbability(probability) {
+        const clamped = clampProbability(probability);
+        const percentValue = Math.round(clamped * 1000) / 10;
+        const hasFraction = Math.abs(percentValue - Math.round(percentValue)) > 0.001;
+        const formatted = hasFraction ? percentValue.toFixed(1) : Math.round(percentValue).toString();
+        return `${formatted}%`;
+      }
+
+      function computeAdvantageRatio(entry) {
+        if (!entry) {
+          return Math.max(0, Math.min(1, lastAdvantageRatio));
+        }
+
+        if (typeof entry.whiteWinProbability === 'number' && !Number.isNaN(entry.whiteWinProbability)) {
+          return clampProbability(entry.whiteWinProbability);
+        }
+
+        if (entry.type === 'mate') {
+          if (entry.winningSide === 'white') return 1;
+          if (entry.winningSide === 'black') return 0;
+          return 0.5;
+        }
+
+        if (typeof entry.value === 'number' && !Number.isNaN(entry.value)) {
+          const bounded = Math.max(-2000, Math.min(2000, entry.value));
+          return (bounded + 2000) / 4000;
+        }
+
+        return Math.max(0, Math.min(1, lastAdvantageRatio));
+      }
+
+      function updateAdvantageBar(entry, { neutral = false, message = null } = {}) {
+        if (!advantageBarElement || !advantageTrackElement) return;
+
+        let ratio = neutral ? 0.5 : Math.max(0, Math.min(1, lastAdvantageRatio));
+        let summary = message || (neutral ? 'Awaiting evaluation' : (advantageStatusElement ? advantageStatusElement.textContent || '' : ''));
+
+        if (entry) {
+          ratio = computeAdvantageRatio(entry);
+          const fallback = entry.winningSide ? `${capitalizeWord(entry.winningSide)} edge` : 'Balanced';
+          summary = entry.shortText || entry.text || fallback;
+        } else if (!entry && !message && neutral) {
+          summary = 'Awaiting evaluation';
+        }
+
+        ratio = Math.max(0, Math.min(1, ratio));
+        lastAdvantageRatio = ratio;
+
+        const whitePercentLabel = formatWinProbability(ratio);
+        const blackPercentLabel = formatWinProbability(1 - ratio);
+
+        advantageTrackElement.style.setProperty('--white-ratio', `${(ratio * 100).toFixed(2)}%`);
+        if (advantageWhiteElement) {
+          advantageWhiteElement.textContent = whitePercentLabel;
+        }
+        if (advantageBlackElement) {
+          advantageBlackElement.textContent = blackPercentLabel;
+        }
+        if (advantageStatusElement) {
+          advantageStatusElement.textContent = summary || '';
+        }
+        if (advantageBarElement) {
+          const isWhiteFavored = ratio >= 0.53;
+          const isBlackFavored = ratio <= 0.47;
+          advantageBarElement.classList.toggle('is-white-favored', isWhiteFavored);
+          advantageBarElement.classList.toggle('is-black-favored', isBlackFavored);
+          advantageBarElement.classList.toggle('is-balanced', !isWhiteFavored && !isBlackFavored);
+        }
+      }
+
+      function setAdvantageBarLoading(isLoading, { reset = true } = {}) {
+        if (!advantageBarElement) return;
+        advantageBarElement.classList.toggle('is-loading', !!isLoading);
+        advantageBarElement.setAttribute('aria-busy', isLoading ? 'true' : 'false');
+        if (isLoading) {
+          updateAdvantageBar(null, { neutral: !!reset, message: 'Analyzing...' });
+        }
+      }
+
+      function describeCentipawnAdvantage(cp) {
+        const abs = Math.abs(cp);
+        if (abs < 15) {
+          return { leadingSide: null, summary: 'Level position', category: 'level' };
+        }
+        const side = cp > 0 ? 'white' : 'black';
+        if (abs < 50) {
+          return { leadingSide: side, summary: 'has a microscopic edge', category: 'tiny' };
+        }
+        if (abs < 120) {
+          return { leadingSide: side, summary: 'has a small advantage', category: 'small' };
+        }
+        if (abs < 250) {
+          return { leadingSide: side, summary: 'is better', category: 'better' };
+        }
+        if (abs < 400) {
+          return { leadingSide: side, summary: 'is winning', category: 'winning' };
+        }
+        return { leadingSide: side, summary: 'is completely winning', category: 'crushing' };
+      }
+
+      function buildEvaluationEntryFromScore({ cp = null, mate = null, turn = 'w' }) {
+        const activeTurn = turn === 'b' ? 'b' : 'w';
+
+        if (typeof mate === 'number' && !Number.isNaN(mate)) {
+          const mateValueRaw = mate;
+          const isNegativeZero = Object.is(mateValueRaw, -0);
+          const rawSign = mateValueRaw > 0 ? 1 : mateValueRaw < 0 ? -1 : (isNegativeZero ? -1 : 1);
+          let mateValue = mateValueRaw;
+          if (activeTurn === 'b') {
+            mateValue = -mateValue;
+          }
+
+          if (mateValue === 0) {
+            const winningSide = activeTurn === 'w' ? 'black' : 'white';
+            const gaugeSign = winningSide === 'white' ? 1 : -1;
+            const label = `${capitalizeWord(winningSide)} has delivered checkmate · 100% win chance`;
+            const whiteWinProbability = winningSide === 'white' ? 1 : 0;
+            return {
+              value: gaugeSign >= 0 ? 2000 : -2000,
+              text: label,
+              shortText: 'Mate',
+              type: 'mate',
+              matePly: 0,
+              winningSide,
+              whiteWinProbability,
+              raw: { mate: mateValueRaw, turn: activeTurn }
+            };
+          }
+
+          const winningSide = mateValue > 0 ? 'white' : 'black';
+          const absMoves = Math.abs(mateValue);
+          const label = `${capitalizeWord(winningSide)} mates in ${absMoves} · 100% win chance`;
+          const shortText = mateValue > 0 ? `M${absMoves}` : `M-${absMoves}`;
+          const whiteWinProbability = winningSide === 'white' ? 1 : 0;
+          return {
+            value: mateValue > 0 ? 2000 : -2000,
+            text: label,
+            shortText,
+            type: 'mate',
+            matePly: absMoves,
+            winningSide,
+            whiteWinProbability,
+            raw: { mate: mateValueRaw, turn: activeTurn }
+          };
+        }
+
+        if (typeof cp === 'number' && !Number.isNaN(cp)) {
+          let cpValue = cp;
+          if (activeTurn === 'b') {
+            cpValue = -cpValue;
+          }
+          const normalized = Math.max(-2000, Math.min(2000, cpValue));
+          const descriptor = describeCentipawnAdvantage(cpValue);
+          const prefix = cpValue > 0 ? '+' : cpValue < 0 ? '' : '';
+          const cpDisplay = `${prefix}${(cpValue / 100).toFixed(2)}`;
+          const cpLabel = `${cpDisplay} cp`;
+          const whiteWinProbability = calculateWhiteWinProbabilityFromCp(cpValue);
+          const blackWinProbability = 1 - whiteWinProbability;
+          const favoredSide = descriptor.leadingSide;
+          const favoredProbability = favoredSide === 'white'
+            ? whiteWinProbability
+            : favoredSide === 'black'
+              ? blackWinProbability
+              : whiteWinProbability;
+          const probabilitySummary = favoredSide
+            ? `${formatWinProbability(favoredProbability)} win chance`
+            : `Win chances W ${formatWinProbability(whiteWinProbability)} · B ${formatWinProbability(blackWinProbability)}`;
+          const summary = descriptor.leadingSide
+            ? `${capitalizeWord(descriptor.leadingSide)} ${descriptor.summary}`
+            : descriptor.summary;
+          return {
+            value: normalized,
+            text: `${summary} · ${probabilitySummary} (${cpLabel})`,
+            shortText: `W ${formatWinProbability(whiteWinProbability)} · ${cpDisplay}`,
+            type: 'cp',
+            cp: cpValue,
+            winningSide: descriptor.leadingSide,
+            advantageCategory: descriptor.category,
+            whiteWinProbability,
+            raw: { cp, turn: activeTurn }
+          };
+        }
+
+        return null;
+      }
+
+      function cancelBackgroundEvaluation() {
+        backgroundEvaluationToken += 1;
+        const hadActiveTask = !!backgroundCurrentTask;
+        backgroundEvaluationQueue = [];
+        backgroundCurrentTask = null;
+        backgroundLastScore = null;
+        resetBackgroundEvaluationProgress();
+        if (backgroundEngine && hadActiveTask) {
+          backgroundPendingStart = true;
+          backgroundEngine.postMessage('stop');
+        } else {
+          backgroundPendingStart = false;
+        }
+      }
+
+      function processBackgroundQueue() {
+        if (!backgroundEngine || !backgroundEngineReady || backgroundPendingStart || backgroundCurrentTask) return;
+        const nextTask = backgroundEvaluationQueue.shift();
+        if (!nextTask || nextTask.token !== backgroundEvaluationToken) {
+          if (!backgroundEvaluationQueue.length && backgroundEvaluationCompleted >= backgroundEvaluationTotal && backgroundEvaluationTotal > 0) {
+            updateEvaluationProgressLabel();
+          }
+          return;
+        }
+        backgroundCurrentTask = nextTask;
+        backgroundLastScore = null;
+        const normalizedFen = normalizeFenTurn(nextTask.fen, nextTask.turn);
+        backgroundEngine.postMessage('setoption name MultiPV value 1');
+        backgroundEngine.postMessage(`position fen ${normalizedFen}`);
+        const depth = typeof nextTask.depth === 'number' ? nextTask.depth : BACKGROUND_EVAL_DEPTH;
+        backgroundEngine.postMessage(`go depth ${depth}`);
+      }
+
+      function queueBackgroundEvaluationTasks(tasks) {
+        if (!Array.isArray(tasks) || !tasks.length) {
+          cancelBackgroundEvaluation();
+          return;
+        }
+        if (!engineReady) {
+          cancelBackgroundEvaluation();
+          scheduleEngineAutostart();
+          return;
+        }
+        backgroundEvaluationToken += 1;
+        const token = backgroundEvaluationToken;
+        backgroundEvaluationQueue = tasks.map(task => ({ ...task, token }));
+        backgroundCurrentTask = null;
+        backgroundLastScore = null;
+        backgroundEvaluationCompleted = 0;
+        backgroundEvaluationTotal = tasks.length;
+        updateEvaluationProgressLabel();
+        if (!backgroundEngine) {
+          initBackgroundEngine();
+        }
+        if (backgroundEngineReady && !backgroundPendingStart) {
+          processBackgroundQueue();
+        }
+      }
+
+      function shutdownBackgroundEngine() {
+        cancelBackgroundEvaluation();
+        backgroundPendingStart = false;
+        backgroundEngineReady = false;
+        backgroundCurrentTask = null;
+        backgroundLastScore = null;
+        if (backgroundEngine) {
+          try {
+            backgroundEngine.postMessage('stop');
+          } catch (error) {
+            console.warn('Failed to stop background engine', error);
+          }
+          try {
+            backgroundEngine.terminate();
+          } catch (terminateError) {
+            console.warn('Failed to terminate background engine', terminateError);
+          }
+        }
+        backgroundEngine = null;
+      }
+
+      function restartBackgroundEngine() {
+        shutdownBackgroundEngine();
+        if (!engine) {
+          return;
+        }
+        initBackgroundEngine();
+      }
+
+      function initBackgroundEngine() {
+        if (backgroundEngine) return;
+        backgroundEngineReady = false;
+        backgroundPendingStart = false;
+        backgroundCurrentTask = null;
+        backgroundLastScore = null;
+        try {
+          backgroundEngine = createStockfishWorker();
+        } catch (error) {
+          console.error('Failed to initialize background Stockfish worker', error);
+          backgroundEngine = null;
+          return;
+        }
+        backgroundEngine.addEventListener('error', event => {
+          console.error('Background Stockfish worker error', event?.message || event);
+        });
+        backgroundEngine.onmessage = e => {
+          const line = String(e.data).trim();
+
+          if (line === 'uciok') {
+            backgroundEngine.postMessage(`setoption name Threads value ${engineConfig.threads}`);
+            const backgroundHash = computeBackgroundHashBudget(engineConfig.hash);
+            if (backgroundHash !== null) {
+              backgroundEngine.postMessage(`setoption name Hash value ${backgroundHash}`);
+            }
+            backgroundEngine.postMessage('isready');
+            return;
+          }
+
+          if (line === 'readyok') {
+            backgroundEngineReady = true;
+            processBackgroundQueue();
+            return;
+          }
+
+          if (!line.length) return;
+
+          if (backgroundPendingStart) {
+            if (line.startsWith('bestmove')) {
+              backgroundPendingStart = false;
+              backgroundLastScore = null;
+              processBackgroundQueue();
+            }
+            return;
+          }
+
+          if (line.startsWith('info')) {
+            if (!backgroundCurrentTask || backgroundCurrentTask.token !== backgroundEvaluationToken) {
+              return;
+            }
+            if (!line.includes('score')) return;
+
+            const cpMatch = line.match(/score cp (-?\d+)/);
+            const mateMatch = line.match(/score mate (-?\d+)/);
+            if (mateMatch) {
+              backgroundLastScore = { mate: parseInt(mateMatch[1], 10), turn: backgroundCurrentTask.turn };
+            } else if (cpMatch) {
+              backgroundLastScore = { cp: parseInt(cpMatch[1], 10), turn: backgroundCurrentTask.turn };
+            }
+            return;
+          }
+
+          if (!line.startsWith('bestmove')) return;
+
+          if (!backgroundCurrentTask) {
+            processBackgroundQueue();
+            return;
+          }
+
+          if (backgroundCurrentTask.token !== backgroundEvaluationToken) {
+            backgroundCurrentTask = null;
+            backgroundLastScore = null;
+            processBackgroundQueue();
+            return;
+          }
+
+          const currentTask = backgroundCurrentTask;
+          backgroundCurrentTask = null;
+          let entry = null;
+          if (backgroundLastScore) {
+            entry = buildEvaluationEntryFromScore({ cp: backgroundLastScore.cp ?? null, mate: backgroundLastScore.mate ?? null, turn: backgroundLastScore.turn || currentTask.turn });
+          }
+          if (!entry) {
+            entry = { value: 0, text: 'N/A' };
+          }
+          setTimelineEntry(currentTask.index, entry);
+          backgroundEvaluationCompleted = Math.min(backgroundEvaluationCompleted + 1, backgroundEvaluationTotal);
+          if (currentTask.index === navigationIndex) {
+            applyStoredEvaluationIfAvailable();
+          }
+          updateEvaluationProgressLabel();
+          backgroundLastScore = null;
+          processBackgroundQueue();
+        };
+        backgroundEngine.postMessage('uci');
+      }
+
+      function buildBackgroundTasksForGame(depthOverride = BACKGROUND_EVAL_DEPTH) {
+        const tasks = [];
+        const evaluationGame = new Chess();
+        if (!evaluationGame.load(baseFen)) {
+          evaluationGame.reset();
+        }
+        const evaluationDepth = typeof depthOverride === 'number' && depthOverride > 0
+          ? depthOverride
+          : BACKGROUND_EVAL_DEPTH;
+        tasks.push({ index: 0, fen: evaluationGame.fen(), turn: evaluationGame.turn(), depth: evaluationDepth });
+        for (let i = 0; i < moveHistory.length; i += 1) {
+          const entry = moveHistory[i];
+          if (!entry) continue;
+          const moveConfig = { from: entry.from, to: entry.to };
+          if (entry.promotion) {
+            moveConfig.promotion = entry.promotion;
+          }
+          const applied = evaluationGame.move(moveConfig);
+          if (!applied) break;
+          tasks.push({ index: i + 1, fen: evaluationGame.fen(), turn: evaluationGame.turn(), depth: evaluationDepth });
+        }
+        return tasks;
+      }
+
+      function scheduleFullGameEvaluation() {
+        const tasks = buildBackgroundTasksForGame();
+        queueBackgroundEvaluationTasks(tasks);
+      }
+
+      function scheduleProbabilityEvaluation(depth = PROBABILITY_GRAPH_DEPTH) {
+        const tasks = buildBackgroundTasksForGame(depth);
+        queueBackgroundEvaluationTasks(tasks);
+      }
+
+      function setTimelineEntry(index, entry) {
+        if (typeof index !== 'number' || index < 0) return;
+        const extended = ensureTimelineCapacity(index + 1);
+        if (entry && typeof entry === 'object') {
+          const normalizedValue = typeof entry.value === 'number' ? clampEvaluationValue(entry.value) : null;
+          evaluationTimeline[index] = { ...entry, value: normalizedValue };
+        } else {
+          evaluationTimeline[index] = entry;
+        }
+        if (extended || entry !== undefined) {
+          renderEvaluationNavigation();
+        }
+      }
+
+      function getTimelineEntry(index) {
+        if (typeof index !== 'number' || index < 0 || index >= evaluationTimeline.length) {
+          return null;
+        }
+        return evaluationTimeline[index];
+      }
+
+      function clampEvaluationValue(cp) {
+        if (typeof cp !== 'number' || Number.isNaN(cp)) return 0;
+        return Math.max(-2000, Math.min(2000, cp));
+      }
+
+      function renderEvaluationNavigation() {
+        if (!evaluationNavElement) return;
+        const totalSegments = Math.max(1, evaluationTimeline.length);
+        evaluationNavElement.innerHTML = '';
+
+        const bounds = evaluationNavElement.getBoundingClientRect();
+        let width = Math.round(evaluationNavElement.clientWidth || bounds.width);
+        let height = Math.round(evaluationNavElement.clientHeight || bounds.height);
+        if (!width) {
+          width = Math.max(240, totalSegments * 20);
+        }
+        if (!height) {
+          height = 140;
+        }
+
+        const segmentWidth = totalSegments > 0 ? width / totalSegments : width;
+        const halfSegment = segmentWidth / 2;
+        const rawPoints = [];
+
+        for (let i = 0; i < totalSegments; i += 1) {
+          const entry = i < evaluationTimeline.length ? evaluationTimeline[i] : null;
+          let probability = 0.5;
+          if (entry && typeof entry.whiteWinProbability === 'number' && !Number.isNaN(entry.whiteWinProbability)) {
+            probability = Math.max(0, Math.min(1, entry.whiteWinProbability));
+          } else if (entry) {
+            probability = Math.max(0, Math.min(1, computeAdvantageRatio(entry)));
+          }
+          const centerX = totalSegments > 0 ? (i + 0.5) * segmentWidth : width / 2;
+          const x = Math.max(halfSegment, Math.min(width - halfSegment, centerX));
+          const y = height - probability * height;
+          rawPoints.push({ x, y, probability, entry });
+        }
+
+        const pathPoints = rawPoints.length === 1
+          ? [{ x: 0, y: rawPoints[0].y }, { x: width, y: rawPoints[0].y }]
+          : rawPoints;
+        const areaPoints = rawPoints.length
+          ? [{ x: 0, y: rawPoints[0].y }, ...rawPoints, { x: width, y: rawPoints[rawPoints.length - 1].y }]
+          : [];
+
+        const toCommandString = pts => pts.map((pt, idx) => {
+          const command = idx === 0 ? 'M' : 'L';
+          return `${command}${pt.x.toFixed(2)},${pt.y.toFixed(2)}`;
+        }).join(' ');
+
+        const toAreaCommand = pts => {
+          if (!pts.length) return '';
+          const commands = [`M${pts[0].x.toFixed(2)},${height.toFixed(2)}`, `L${pts[0].x.toFixed(2)},${pts[0].y.toFixed(2)}`];
+          for (let i = 1; i < pts.length; i += 1) {
+            commands.push(`L${pts[i].x.toFixed(2)},${pts[i].y.toFixed(2)}`);
+          }
+          commands.push(`L${pts[pts.length - 1].x.toFixed(2)},${height.toFixed(2)}`);
+          commands.push('Z');
+          return commands.join(' ');
+        };
+
+        const lineCommands = pathPoints.length ? toCommandString(pathPoints) : '';
+        const areaCommand = areaPoints.length ? toAreaCommand(areaPoints) : '';
+        const baselineY = height - 0.5 * height;
+
+        const svgNS = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(svgNS, 'svg');
+        svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+        svg.setAttribute('preserveAspectRatio', 'none');
+        svg.setAttribute('width', width.toString());
+        svg.setAttribute('height', height.toString());
+        svg.classList.add('evaluation-nav__graph');
+
+        if (areaCommand) {
+          const area = document.createElementNS(svgNS, 'path');
+          area.setAttribute('d', areaCommand);
+          area.setAttribute('class', 'evaluation-nav__area');
+          svg.appendChild(area);
+        }
+
+        const baseline = document.createElementNS(svgNS, 'line');
+        baseline.setAttribute('x1', '0');
+        baseline.setAttribute('y1', baselineY.toFixed(2));
+        baseline.setAttribute('x2', width.toFixed(2));
+        baseline.setAttribute('y2', baselineY.toFixed(2));
+        baseline.setAttribute('class', 'evaluation-nav__baseline');
+        svg.appendChild(baseline);
+
+        if (lineCommands) {
+          const linePath = document.createElementNS(svgNS, 'path');
+          linePath.setAttribute('d', lineCommands);
+          linePath.setAttribute('class', 'evaluation-nav__line');
+          svg.appendChild(linePath);
+
+          const currentPoint = rawPoints[Math.min(navigationIndex, rawPoints.length - 1)];
+          if (currentPoint) {
+            const marker = document.createElementNS(svgNS, 'circle');
+            marker.setAttribute('cx', currentPoint.x.toFixed(2));
+            marker.setAttribute('cy', currentPoint.y.toFixed(2));
+            marker.setAttribute('r', '4');
+            marker.setAttribute('class', 'evaluation-nav__marker');
+            svg.appendChild(marker);
+          }
+        }
+
+        const overlay = document.createElement('div');
+        overlay.className = 'evaluation-nav__overlay';
+        overlay.style.display = 'grid';
+        overlay.style.gridTemplateColumns = `repeat(${totalSegments}, 1fr)`;
+        overlay.style.alignItems = 'stretch';
+
+        for (let i = 0; i < totalSegments; i += 1) {
+          const entry = i < evaluationTimeline.length ? evaluationTimeline[i] : null;
+          const segment = document.createElement('button');
+          segment.type = 'button';
+          segment.className = 'evaluation-nav__segment';
+          segment.tabIndex = -1;
+          segment.dataset.index = String(i);
+          segment.classList.toggle('is-current', i === navigationIndex);
+          const probability = entry && typeof entry.whiteWinProbability === 'number'
+            ? Math.max(0, Math.min(1, entry.whiteWinProbability))
+            : rawPoints[i] && typeof rawPoints[i].probability === 'number'
+              ? Math.max(0, Math.min(1, rawPoints[i].probability))
+              : 0.5;
+          const probabilityPercent = formatWinProbability(probability);
+          segment.title = `Ply ${i}: White win probability ${probabilityPercent}`;
+          segment.setAttribute('aria-label', `Ply ${i} white win probability ${probabilityPercent}`);
+          segment.dataset.probability = probability.toFixed(4);
+          overlay.appendChild(segment);
+        }
+
+        evaluationNavElement.appendChild(svg);
+        evaluationNavElement.appendChild(overlay);
+      }
+
+      function applyEvaluationEntry(entry) {
+        if (!entry) return;
+        updateEvaluationDisplay(entry);
+        setTimelineEntry(navigationIndex, entry);
+        setAdvantageBarLoading(false);
+        updateAdvantageBar(entry);
+      }
+
+      function applyStoredEvaluationIfAvailable() {
+        const entry = getTimelineEntry(navigationIndex);
+        if (entry) {
+          updateEvaluationDisplay(entry);
+          setAdvantageBarLoading(false);
+          updateAdvantageBar(entry);
+        } else {
+          setEvaluationText('Eval: --', 0.5);
+          setAdvantageBarLoading(false);
+          updateAdvantageBar(null, { neutral: true, message: 'Awaiting evaluation' });
+        }
+      }
+
+      function syncEvalBarWidth() {
+        if (!advantageBarElement) return;
+        const container = boardEl && typeof boardEl.closest === 'function'
+          ? boardEl.closest('.board-container')
+          : null;
+        const refEl = container && container.length ? container.get(0) : null;
+        if (!refEl) return;
+        const bounds = refEl.getBoundingClientRect();
+        if (!bounds || !bounds.width) return;
+        advantageBarElement.style.maxWidth = `${Math.round(bounds.width)}px`;
+      }
+
+      function getFenTurn(fen) {
+        if (typeof fen !== 'string') return null;
+        const trimmed = fen.trim();
+        if (!trimmed.length) return null;
+        const parts = trimmed.split(/\s+/);
+        if (parts.length < 2) return null;
+        return parts[1] === 'b' ? 'b' : 'w';
+      }
+
+      function normalizeFenTurn(fen, turn) {
+        if (typeof fen !== 'string') return fen;
+        const trimmed = fen.trim();
+        if (!trimmed.length) return fen;
+        const parts = trimmed.split(/\s+/);
+        if (parts.length < 2) return trimmed;
+        parts[1] = turn === 'b' ? 'b' : 'w';
+        return parts.join(' ');
+      }
+
+      function updateBestMoveDisplay() {
+        if (!bestMoveVisible) {
+          if (!pieceMovesMode) {
+            clearHighlights();
+          }
+          return;
+        }
+
+        if (pieceMovesMode) {
+          return;
+        }
+
+        if (currentBestMove && shouldHighlightBest) {
+          visualize(currentBestMove);
+        } else if (!currentBestMove) {
+          clearHighlights();
+        }
+      }
+
+      function updateNavigationButtons() {
+        const hasFutureMove = navigationIndex < moveHistory.length;
+        const prevDisabled = navigationIndex === 0 || pieceMovesMode || editMode || waitingForAutoBestMove;
+        const nextDisabled = autoPlayPending || waitingForAutoBestMove || pieceMovesMode || editMode || (!hasFutureMove && !engineReady);
+        $('#prev-button').prop('disabled', prevDisabled);
+        $('#next-button').prop('disabled', nextDisabled);
+      }
+
+      function cancelReplayTimer() {
+        if (replayTimer) {
+          clearTimeout(replayTimer);
+          replayTimer = null;
+        }
+      }
+
+      function stopReplay() {
+        replayMode = false;
+        replayPendingIndex = null;
+        replayAdvanceScheduled = false;
+        cancelReplayTimer();
+        pendingReplayStart = null;
+        updateEvaluationProgressLabel();
+      }
+
+      function scheduleReplayAdvance() {
+        if (!replayMode) return;
+        if (replayAdvanceScheduled) return;
+        replayAdvanceScheduled = true;
+        cancelReplayTimer();
+        replayTimer = setTimeout(() => {
+          replayTimer = null;
+          replayAdvanceScheduled = false;
+          if (!replayMode) return;
+          const nextIndex = navigationIndex + 1;
+          if (nextIndex > moveHistory.length) {
+            stopReplay();
+            return;
+          }
+          rebuildPosition(nextIndex, {
+            highlight: shouldHighlightBest && bestMoveVisible,
+            revealBest: bestMoveVisible,
+            depth: replayTargetDepth,
+            replay: true
+          });
+        }, REPLAY_STEP_DELAY_MS);
+      }
+
+      function startReplayFromIndex(index = 0, depth = engineConfig.depth) {
+        const clampedIndex = Math.max(0, Math.min(index, moveHistory.length));
+        const resolvedDepth = typeof depth === 'number' && depth > 0 ? depth : engineConfig.depth;
+        if (!engineReady || !engine) {
+          replayMode = true;
+          replayTargetDepth = Math.max(PGN_REPLAY_DEPTH, resolvedDepth);
+          replayPendingIndex = clampedIndex;
+          replayAdvanceScheduled = false;
+          cancelReplayTimer();
+          updateEvaluationProgressLabel();
+          pendingReplayStart = { index: clampedIndex, depth: Math.max(PGN_REPLAY_DEPTH, resolvedDepth) };
+          scheduleEngineAutostart();
+          return;
+        }
+        pendingReplayStart = null;
+        stopReplay();
+        replayTargetDepth = Math.max(PGN_REPLAY_DEPTH, resolvedDepth);
+        cancelReplayTimer();
+        replayAdvanceScheduled = false;
+        rebuildPosition(clampedIndex, {
+          highlight: shouldHighlightBest && bestMoveVisible,
+          revealBest: bestMoveVisible,
+          depth: replayTargetDepth,
+          replay: true
+        });
+      }
+
+      function recordMove(move) {
+        if (!move) return;
+        lastImportWasPgn = false;
+        if (navigationIndex < moveHistory.length) {
+          moveHistory = moveHistory.slice(0, navigationIndex);
+          evaluationTimeline = evaluationTimeline.slice(0, navigationIndex + 1);
+        }
+        moveHistory.push({ from: move.from, to: move.to, promotion: move.promotion });
+        navigationIndex = moveHistory.length;
+        ensureTimelineCapacity(navigationIndex + 1);
+        updateNavigationButtons();
+        renderEvaluationNavigation();
+        if (probabilityPanelVisible) {
+          scheduleProbabilityEvaluation(PROBABILITY_GRAPH_DEPTH);
+        }
+      }
+
+      function resetHistory(newBaseFen = null) {
+        moveHistory = [];
+        navigationIndex = 0;
+        autoPlayPending = false;
+        waitingForAutoBestMove = false;
+        autoMoveCandidate = null;
+        autoPlayFen = null;
+        autoPlayDepthSatisfied = false;
+        stopReplay();
+        cancelBackgroundEvaluation();
+        if (autoPlayDelayTimer) {
+          clearTimeout(autoPlayDelayTimer);
+          autoPlayDelayTimer = null;
+        }
+        if (typeof newBaseFen === 'string' && newBaseFen.length) {
+          baseFen = newBaseFen;
+        }
+        clearEvaluationTimeline(1);
+        setEvaluationText('Eval: --', 0.5);
+        currentBestMove = null;
+        latestAnalysisFen = null;
+        setAdvantageBarLoading(false);
+        updateAdvantageBar(null, { neutral: true, message: 'Awaiting evaluation' });
+        updateBestMoveDisplay();
+        updateNavigationButtons();
+        renderEvaluationNavigation();
+        if (probabilityPanelVisible) {
+          scheduleProbabilityEvaluation(PROBABILITY_GRAPH_DEPTH);
+        }
+      }
+
+      function rebuildPosition(targetIndex, analysisOptions = null) {
+        const clamped = Math.max(0, Math.min(targetIndex, moveHistory.length));
+        const loaded = game.load(baseFen);
+        if (!loaded) {
+          game.reset();
+          baseFen = game.fen();
+        }
+        for (let i = 0; i < clamped; i += 1) {
+          const entry = moveHistory[i];
+          if (!entry) continue;
+          const move = game.move({ from: entry.from, to: entry.to, promotion: entry.promotion || 'q' });
+          if (!move) break;
+        }
+        navigationIndex = clamped;
+        if (pieceMovesMode) {
+          pieceMovesMode = false;
+          freezeMode = false;
+          syncPieceMovesButton();
+        }
+        moveSourceSquare = null;
+        selectedSquare = null;
+        updateNavigationButtons();
+        renderBoard();
+        updateStatus();
+        applyStoredEvaluationIfAvailable();
+        renderEvaluationNavigation();
+        const requestOptions = analysisOptions || {
+          highlight: shouldHighlightBest && bestMoveVisible,
+          revealBest: bestMoveVisible
+        };
+        requestAnalysis(requestOptions);
+        updateEvaluationProgressLabel();
+      }
+
+      function applyAutoMove(uciMove) {
+        if (!uciMove || uciMove === '(none)') {
+          return;
+        }
+        const from = uciMove.slice(0, 2);
+        const to = uciMove.slice(2, 4);
+        const promotion = uciMove.length > 4 ? uciMove.slice(4, 5) : undefined;
+        const move = game.move({ from, to, promotion });
+        if (move) {
+          moveSourceSquare = null;
+          selectedSquare = null;
+          recordMove(move);
+          renderBoard();
+          updateStatus();
+          requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
+        }
+      }
+
+  function clearSelectionHighlight() {
+    boardEl.find('.highlight-selection').removeClass('highlight-selection');
+  }
+
+  function highlightSelection(square) {
+    if (!square) return;
+    boardEl.find(`.square-${square}`).addClass('highlight-selection');
+  }
+
+  function applySelectionHighlights() {
+    clearSelectionHighlight();
+    if (editMode) {
+      if (editSelectionSource === 'board' && editSelectedSquare) {
+        highlightSelection(editSelectedSquare);
+      }
+      return;
+    }
+    if (pieceMovesMode && selectedSquare) {
+      highlightSelection(selectedSquare);
+    } else if (!pieceMovesMode && moveSourceSquare) {
+      highlightSelection(moveSourceSquare);
+    }
+  }
+
+  function clearSpareSelectionHighlight() {
+    $('.board-container .selected-spare-piece').removeClass('selected-spare-piece');
+  }
+
+  function applySpareSelection() {
+    clearSpareSelectionHighlight();
+    if (!editMode || editSelectionSource !== 'spare' || !editSelectedPiece) return;
+    const pieceCode = `${editSelectedPiece.color}${editSelectedPiece.type.toUpperCase()}`;
+    $('.board-container .spare-pieces-7492f .piece-417db').filter(`[data-piece='${pieceCode}']`).first().addClass('selected-spare-piece');
+  }
+
+  function clearEditSelection() {
+    editSelectedPiece = null;
+    editSelectedSquare = null;
+    editSelectionSource = null;
+    applySelectionHighlights();
+    applySpareSelection();
+  }
+
+  function commitEditedBoardState() {
+    lastImportWasPgn = false;
+    resetHistory(game.fen());
+    renderBoard();
+    updateStatus();
+    requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
+  }
+
+  function toggleEditingTurn() {
+    if (!editMode) return;
+    const fen = game.fen();
+    if (typeof fen !== 'string' || !fen.length) return;
+    const parts = fen.trim().split(/\s+/);
+    if (parts.length < 2) return;
+    parts[1] = parts[1] === 'w' ? 'b' : 'w';
+    const updatedFen = parts.join(' ');
+    const loaded = game.load(updatedFen);
+    if (!loaded) return;
+    commitEditedBoardState();
+  }
+
+  function clonePiece(piece) {
+    if (!piece) return null;
+    return { type: piece.type, color: piece.color };
+  }
+
+  function attemptPlacePiece(square, piece) {
+    if (!square || !piece) {
+      return { success: false, changed: false };
+    }
+    const existing = game.get(square);
+    if (existing && existing.type === piece.type && existing.color === piece.color) {
+      return { success: true, changed: false };
+    }
+    const backup = clonePiece(existing);
+    if (existing) {
+      game.remove(square);
+    }
+    const placed = game.put({ type: piece.type, color: piece.color }, square);
+    if (!placed) {
+      if (backup) {
+        game.put(backup, square);
+      }
+      return { success: false, changed: false };
+    }
+    return { success: true, changed: true };
+  }
+
+  function removePieceAtSquare(square) {
+    if (!square) return false;
+    const existing = game.get(square);
+    if (!existing) return false;
+    const removed = game.remove(square);
+    if (!removed) return false;
+    commitEditedBoardState();
+    return true;
+  }
+
+  function handleSparePieceClick(pieceCode) {
+    if (!editMode || !pieceCode || pieceCode.length < 2) return;
+    editSelectedPiece = { color: pieceCode[0], type: pieceCode[1].toLowerCase() };
+    editSelectedSquare = null;
+    editSelectionSource = 'spare';
+    applySelectionHighlights();
+    applySpareSelection();
+  }
+
+  function handleEditSquareClick(square) {
+    if (!editMode) return;
+    if (!square) return;
+
+    const piece = game.get(square);
+
+    if (!editSelectedPiece) {
+      if (piece) {
+        editSelectedPiece = { type: piece.type, color: piece.color };
+        editSelectedSquare = square;
+        editSelectionSource = 'board';
+        applySelectionHighlights();
+      }
+      return;
     }
 
-    function onDragStart(source, piece) {
-      if (game.game_over() || freezeMode || editMode ||
-        (game.turn() === 'w' && piece.search(/^b/) !== -1) ||
-        (game.turn() === 'b' && piece.search(/^w/) !== -1) ||
-        (navigationIndex < moveHistory.length -1) // Can't move if navigating history
-      ) {
-        return false;
+    if (editSelectionSource === 'spare') {
+      const result = attemptPlacePiece(square, editSelectedPiece);
+      if (!result.success) {
+        applySelectionHighlights();
+        applySpareSelection();
+        return;
       }
+      if (result.changed) {
+        commitEditedBoardState();
+      }
+      return;
     }
 
-    function onDrop(source, target) {
-      if (freezeMode) return 'snapback';
-      
-      const move = game.move({
-        from: source,
-        to: target,
-        promotion: 'q' // NOTE: always promote to a queen for simplicity
-      });
-
-      if (move === null) {
-        return 'snapback';
+    if (editSelectionSource === 'board') {
+      const sourceSquare = editSelectedSquare;
+      if (!sourceSquare) {
+        clearEditSelection();
+        return;
       }
-      
-      moveHistory.push(move);
-      navigationIndex = moveHistory.length;
+      if (sourceSquare === square) {
+        clearEditSelection();
+        return;
+      }
 
+      const destinationBackup = clonePiece(piece);
+      const removedSource = game.remove(sourceSquare);
+      if (!removedSource) {
+        applySelectionHighlights();
+        return;
+      }
+      if (destinationBackup) {
+        game.remove(square);
+      }
+      const movingPiece = { type: removedSource.type, color: removedSource.color };
+      const placed = game.put(movingPiece, square);
+      if (!placed) {
+        game.put({ type: removedSource.type, color: removedSource.color }, sourceSquare);
+        if (destinationBackup) {
+          game.put(destinationBackup, square);
+        }
+        applySelectionHighlights();
+        return;
+      }
+      clearEditSelection();
+      commitEditedBoardState();
+    }
+  }
+
+  function handleOutsideBoardClick(event) {
+    if (!editMode) return;
+    const $target = $(event.target);
+    if ($target.closest('.board-container').length) return;
+    if (editSelectionSource) {
+      clearEditSelection();
+    }
+  }
+
+  function handleSquareClick(square) {
+    if (!square) return;
+    if (editMode) {
+      handleEditSquareClick(square);
+      return;
+    }
+
+    if (pieceMovesMode) {
+      selectedSquare = square;
+      applySelectionHighlights();
+      analyzeMoves();
+      return;
+    }
+
+    if (freezeMode || game.game_over()) return;
+
+    const piece = game.get(square);
+    const turn = game.turn();
+
+    if (!moveSourceSquare) {
+      if (!piece || piece.color !== turn) return;
+      moveSourceSquare = square;
+      applySelectionHighlights();
+      return;
+    }
+
+    if (moveSourceSquare === square) {
+      moveSourceSquare = null;
+      applySelectionHighlights();
+      return;
+    }
+
+    clearHighlights();
+    clearRatings();
+
+    const move = game.move({ from: moveSourceSquare, to: square, promotion: 'q' });
+
+    if (move) {
+      recordMove(move);
+      moveSourceSquare = null;
+      renderBoard();
       updateStatus();
-      startAnalysis();
+      requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
+    } else {
+      if (piece && piece.color === turn) {
+        moveSourceSquare = square;
+      }
+      applySelectionHighlights();
     }
+  }
 
-    function onSnapEnd() {
-      board.position(game.fen());
+  function handleSquareDoubleClick(square) {
+    if (!square) return;
+    if (!editMode) return;
+    const removed = removePieceAtSquare(square);
+    if (removed) {
+      clearEditSelection();
     }
-    
-    // --- Board Initialization ---
-    const boardConfig = {
-      draggable: true,
-      position: 'start',
+  }
+
+  function renderBoard() {
+    const cfg = {
+      position: game.fen(),
+      draggable: editMode,
+      sparePieces: editMode,
+      orientation: orientation,
       onDragStart: onDragStart,
       onDrop: onDrop,
       onSnapEnd: onSnapEnd,
-      pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
+      pieceTheme: p => {
+        if (!p) return '';
+        const color = p[0] === 'w' ? 'white' : 'black';
+        const map = {K:'king',Q:'queen',R:'rook',B:'bishop',N:'knight',P:'pawn'};
+        return `pieces/${color}-${map[p[1]]}.png`;
+      }
     };
-    board = Chessboard('board', boardConfig);
-    
-    updateStatus(); // Initial status update
-    
-    // --- Event Listeners for Controls ---
-    $('#flip-button').on('click', () => {
-        orientation = orientation === 'white' ? 'black' : 'white';
-        board.orientation(orientation);
+    if (board) board.destroy();
+    board = Chessboard('board', cfg);
+    $('.board-container').toggleClass('editing', editMode);
+    board.resize();
+    syncEvalBarWidth();
+    requestAnimationFrame(() => {
+      if (!board) return;
+      board.resize();
+      syncEvalBarWidth();
     });
-    
-    $('#edit-button').on('click', () => {
-        editMode = !editMode;
-        syncEditButton();
-        board.resize(); // Re-renders board, useful for edit mode changes
+    boardEl.off('click.square').on('click.square', 'div.square-55d63', function() {
+      const cls = $(this).attr('class').split(/\s+/);
+      const sq = cls.find(c => /^square-[a-h][1-8]$/.test(c));
+      if (!sq) return;
+      handleSquareClick(sq.replace('square-',''));
     });
-    
-    $('#engine-button').on('click', () => {
-        enginePanelVisible = !enginePanelVisible;
-        syncEnginePanelVisibility();
+    boardEl.off('dblclick.square').on('dblclick.square', 'div.square-55d63', function() {
+      const cls = $(this).attr('class').split(/\s+/);
+      const sq = cls.find(c => /^square-[a-h][1-8]$/.test(c));
+      if (!sq) return;
+      handleSquareDoubleClick(sq.replace('square-',''));
     });
-
-    $('#advantage-toggle-button').on('click', () => {
-        advantageBarVisible = !advantageBarVisible;
-        $('#advantage-bar').attr('hidden', !advantageBarVisible);
-        syncAdvantageButton();
+    $('.board-container .spare-pieces-7492f').off('click.spare').on('click.spare', '.piece-417db', function() {
+      const pieceCode = $(this).attr('data-piece');
+      handleSparePieceClick(pieceCode);
     });
-
-    $('#probability-button').on('click', () => {
-        probabilityPanelVisible = !probabilityPanelVisible;
-        $('#probability-panel').attr('hidden', !probabilityPanelVisible);
-        syncProbabilityButton();
-    });
-
-    $('#piece-moves-button').on('click', () => {
-        pieceMovesMode = !pieceMovesMode;
-        syncPieceMovesButton();
-    });
-    
-    $('#best-move-button').on('click', () => {
-        bestMoveVisible = !bestMoveVisible;
-        syncBestMoveButton();
-    });
-
-    $('#prev-button').on('click', () => {
-        if (navigationIndex > 0) {
-            navigationIndex--;
-            game.undo();
-            board.position(game.fen());
-            updateStatus();
-        }
-    });
-
-    $('#next-button').on('click', () => {
-        // This requires re-doing moves, which isn't simple with chess.js `undo`.
-        // A proper implementation would replay from the start or store move objects.
-        // For now, this button logic will be simplified.
-        console.log("Next move functionality requires a more complex history management.");
-    });
-    
-    $('#fen-button').on('click', () => {
-        const fen = prompt("Enter FEN or PGN string:");
-        if (fen) {
-            const validFen = game.load(fen);
-            if (validFen) {
-                board.position(game.fen());
-                moveHistory = [];
-                navigationIndex = 0;
-                updateStatus();
-                startAnalysis();
-            } else {
-                alert("Invalid FEN or PGN string.");
-            }
-        }
-    });
-    
-    // --- Engine Initialization ---
-    function initializeEngine() {
-        setEngineStatusDisplay('loading', 'Loading...');
-        try {
-            // Assuming stockfish worker file is in a 'js' subfolder
-            engine = new Worker('js/stockfish.js');
-            engine.onmessage = (event) => {
-                const message = event.data;
-                if (message === 'uciok') {
-                    engineReady = true;
-                    setEngineStatusDisplay('ready', 'Ready');
-                    engineStopButtonElement.disabled = false;
-                    engineStartButtonElement.disabled = true;
-                    postEngineCommand('ucinewgame');
-                    startAnalysis();
-                } else if (message.startsWith('bestmove')) {
-                    const bestMove = message.split(' ')[1];
-                    currentBestMove = bestMove;
-                    console.log(`Best move: ${bestMove}`);
-                }
-            };
-            postEngineCommand('uci');
-        } catch (error) {
-            setEngineStatusDisplay('error', 'Error');
-            console.error("Failed to load Stockfish engine:", error);
-        }
+    applySelectionHighlights();
+    applySpareSelection();
+    if (!editMode && !pieceMovesMode && shouldHighlightBest && currentBestMove) {
+      visualize(currentBestMove);
     }
-    
-    $('#engine-start-button').on('click', initializeEngine);
-    $('#engine-stop-button').on('click', () => {
-        if (engine) {
-            engine.terminate();
-            engine = null;
-            engineReady = false;
-            setEngineStatusDisplay('idle', 'Not started');
-            engineStopButtonElement.disabled = true;
-            engineStartButtonElement.disabled = false;
-        }
-    });
-    
-    // Auto-start the engine for convenience
-    initializeEngine();
+    updateNavigationButtons();
+    updateBestMoveDisplay();
+  }
 
-    // --- END: Added missing logic ---
+  function updateStatus() {
+    if (!statusElement) return;
+    const turnColor = game.turn() === 'b' ? 'black' : 'white';
+    const turnLabel = turnColor === 'white' ? 'White' : 'Black';
+    let state = 'normal';
+    let label = '';
+    if (game.in_checkmate()) {
+      state = 'mate';
+      label = `Game over, ${turnLabel} is checkmated.`;
+    } else if (game.in_draw()) {
+      state = 'draw';
+      label = 'Game over, drawn position';
+    } else if (game.in_check()) {
+      state = 'check';
+      label = `${turnLabel} to move, ${turnLabel} is in check`;
+    } else {
+      label = `${turnLabel} to move`;
+    }
+    statusElement.dataset.turn = turnColor;
+    statusElement.dataset.state = state;
+    statusElement.classList.toggle('is-editing', editMode);
+    statusElement.setAttribute('aria-label', label);
+    const labelElement = statusElement.querySelector('.status-text__label');
+    if (labelElement) {
+      labelElement.textContent = label;
+    } else {
+      statusElement.textContent = label;
+    }
+    if (editMode) {
+      statusElement.setAttribute('role', 'button');
+      statusElement.setAttribute('tabindex', '0');
+      statusElement.setAttribute('aria-pressed', turnColor === 'black' ? 'true' : 'false');
+    } else {
+      statusElement.removeAttribute('role');
+      statusElement.removeAttribute('tabindex');
+      statusElement.removeAttribute('aria-pressed');
+    }
+  }
+
+  function onDragStart(src, piece) {
+    if (replayMode) stopReplay();
+    if (editMode) return false;
+    if (freezeMode) return false;
+    return !game.game_over() && ((game.turn() === 'w' && piece[0] === 'w') || (game.turn() === 'b' && piece[0] === 'b'));
+  }
+
+  function onDrop(src, tgt, piece, newPos) {
+    if (replayMode) stopReplay();
+    clearHighlights(); clearRatings();
+    if (editMode) {
+      game.clear();
+      Object.entries(newPos).forEach(([sq,p]) => { if (p) game.put({type:p[1].toLowerCase(), color:p[0]}, sq); });
+      lastImportWasPgn = false;
+      resetHistory(game.fen());
+      renderBoard(); updateStatus(); requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
+      return;
+    }
+    if (freezeMode && !editMode) return 'snapback';
+    const m = game.move({from:src,to:tgt,promotion:'q'});
+    if (!m) return 'snapback';
+    recordMove(m);
+    renderBoard(); updateStatus(); requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
+  }
+
+  function onSnapEnd() { if (!editMode) board.position(game.fen()); }
+  function clearHighlights() {
+    boardEl
+      .find('.highlight-move-from, .highlight-move-to, .highlight-piece-move-target')
+      .removeClass('highlight-move-from highlight-move-to highlight-piece-move-target');
+  }
+  function clearRatings() {
+    boardEl.find('.move-rating').remove();
+    pieceMoveRatings.clear();
+  }
+
+  function resetPieceAnalysisState() {
+    pieceAnalysisMode = null;
+    pieceAnalysisQueue = [];
+    pieceAnalysisCurrentMove = null;
+    pieceAnalysisFen = null;
+    pieceAnalysisTargetDepth = 0;
+    pieceAnalysisWaitingForResult = false;
+    pieceAnalysisTurn = null;
+  }
+
+  function ensurePieceMoveRatingElement(moveKey) {
+    if (!moveKey) return null;
+    let ratingEl = pieceMoveRatings.get(moveKey);
+    if (ratingEl) return ratingEl;
+    const destination = moveKey.slice(2, 4);
+    if (!destination) return null;
+    const squareEl = boardEl.find(`.square-${destination}`);
+    if (!squareEl.length) return null;
+    ratingEl = $('<div class="move-rating"></div>').appendTo(squareEl);
+    pieceMoveRatings.set(moveKey, ratingEl);
+    return ratingEl;
+  }
+
+  function setPieceMoveRating(moveKey, label) {
+    if (!moveKey) return;
+    const ratingEl = ensurePieceMoveRatingElement(moveKey);
+    if (!ratingEl) return;
+    ratingEl.text(label);
+  }
+
+  function applyPieceMoveEvaluation(moveKey, entry) {
+    if (!moveKey || !entry) return;
+    const displayScore = entry.shortText || entry.text || '';
+    if (!displayScore) return;
+    setPieceMoveRating(moveKey, displayScore);
+  }
+
+  function beginPieceAnalysisSearch({ fen, moves = [], depth = engineConfig.depth }) {
+    resetPieceAnalysisState();
+    pieceAnalysisMode = PIECE_ANALYSIS_MODE_SEQUENTIAL;
+    pieceAnalysisFen = typeof fen === 'string' ? fen : normalizeFenTurn(game.fen(), game.turn());
+    pieceAnalysisTargetDepth = Math.max(1, Math.floor(typeof depth === 'number' ? depth : engineConfig.depth));
+    pieceAnalysisQueue = Array.isArray(moves) ? moves.filter(Boolean) : [];
+    pieceAnalysisActiveRequestId += 1;
+    if (!pieceAnalysisQueue.length) {
+      pieceAnalysisWaitingForResult = false;
+      return;
+    }
+    if (engine) {
+      postEngineCommand('setoption name MultiPV value 1');
+    }
+    processNextPieceAnalysis(pieceAnalysisActiveRequestId);
+  }
+
+  function processNextPieceAnalysis(requestId) {
+    if (!engineReady || !engine) {
+      pieceAnalysisWaitingForResult = false;
+      return;
+    }
+    if (requestId !== pieceAnalysisActiveRequestId) return;
+    if (!pieceAnalysisQueue.length) {
+      finalizePieceAnalysis(requestId);
+      return;
+    }
+    const nextMove = pieceAnalysisQueue.shift();
+    if (!nextMove) {
+      processNextPieceAnalysis(requestId);
+      return;
+    }
+    pieceAnalysisCurrentMove = nextMove;
+    pieceAnalysisWaitingForResult = true;
+    setPieceMoveRating(nextMove, '…');
+    const targetFen = pieceAnalysisFen || normalizeFenTurn(game.fen(), game.turn());
+    postEngineCommand(`position fen ${targetFen}`);
+    const depthLimit = Math.max(1, pieceAnalysisTargetDepth || engineConfig.depth);
+    postEngineCommand(`go searchmoves ${nextMove} depth ${depthLimit}`);
+  }
+
+  function finalizePieceAnalysis(requestId) {
+    if (requestId !== pieceAnalysisActiveRequestId) return;
+    pieceAnalysisCurrentMove = null;
+    pieceAnalysisQueue = [];
+    pieceAnalysisMode = null;
+    pieceAnalysisFen = null;
+    pieceAnalysisTargetDepth = 0;
+    pieceAnalysisWaitingForResult = false;
+    pieceAnalysisTurn = null;
+    isPieceAnalysis = false;
+    if (engine) {
+      postEngineCommand('setoption name MultiPV value 1');
+    }
+    if (!pieceMovesMode) {
+      requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible, depth: engineConfig.depth });
+    }
+  }
+
+  function handleSequentialPieceAnalysisInfo(line) {
+    if (pieceAnalysisMode !== PIECE_ANALYSIS_MODE_SEQUENTIAL) return false;
+    if (!pieceAnalysisWaitingForResult || !pieceAnalysisCurrentMove) return true;
+    if (!line.startsWith('info')) return false;
+    const pvIndex = line.indexOf(' pv ');
+    if (pvIndex !== -1) {
+      const pvMoves = line.slice(pvIndex + 4).trim().split(' ');
+      if (pvMoves[0] && pvMoves[0] !== pieceAnalysisCurrentMove) {
+        return true;
+      }
+    }
+    const cp = line.match(/score cp (-?\d+)/);
+    const mate = line.match(/score mate (-?\d+)/);
+    if (!cp && !mate) {
+      return true;
+    }
+    const entry = buildEvaluationEntryFromScore({
+      cp: cp ? parseInt(cp[1], 10) : null,
+      mate: mate ? parseInt(mate[1], 10) : null,
+      turn: pieceAnalysisTurn || game.turn()
+    });
+    applyPieceMoveEvaluation(pieceAnalysisCurrentMove, entry);
+    return true;
+  }
+
+  function stopEngine(options = {}) {
+    const { silent = false, preserveAutostartAttempts = false } = options || {};
+    cancelEngineAutostart();
+    engineStarting = false;
+    engineLastStartWasAutostart = false;
+    resetEngineCommandQueue();
+    if (!preserveAutostartAttempts) {
+      engineAutostartAttempts = 0;
+    }
+    if (engine) {
+      postEngineCommand('stop', { queueIfPending: false });
+      try {
+        engine.terminate();
+      } catch (terminateError) {
+        console.warn('Failed to terminate engine worker', terminateError);
+      }
+    }
+    engine = null;
+    engineReady = false;
+    waitingForAutoBestMove = false;
+    autoMoveCandidate = null;
+    autoPlayPending = false;
+    autoPlayDepthSatisfied = false;
+    resetPieceAnalysisState();
+    $('#best-move-button').prop('disabled', true);
+    updateNavigationButtons();
+    if (!silent) {
+      setEngineStatusDisplay('idle', 'Stopped');
+      setEngineErrorMessage('');
+    }
+    updateEngineControls({ loading: false });
+    currentBestMove = null;
+    updateBestMoveDisplay();
+    if (!pieceMovesMode) {
+      setEvaluationText('Eval: --', 0.5);
+      setAdvantageBarLoading(false);
+      updateAdvantageBar(null, { neutral: true, message: silent ? 'Awaiting evaluation' : 'Engine stopped' });
+    }
+    shutdownBackgroundEngine();
+  }
+
+  function startEngine(options = {}) {
+    const { autostart = false } = options || {};
+    if (engineStarting) {
+      return;
+    }
+    cancelEngineAutostart();
+    const sanitizedConfig = applyEngineConfig(engineConfig);
+    displayEngineConfigWarnings(sanitizedConfig);
+    stopEngine({ silent: true, preserveAutostartAttempts: autostart });
+    engineStarting = true;
+    engineLastStartWasAutostart = !!autostart;
+    setEngineStatusDisplay('loading', 'Starting…');
+    const hasConfigWarnings = sanitizedConfig && Array.isArray(sanitizedConfig.warnings) && sanitizedConfig.warnings.length > 0;
+    if (!hasConfigWarnings) {
+      setEngineErrorMessage('');
+    }
+    updateEngineControls({ loading: true });
+    let worker;
+    try {
+      worker = createStockfishWorker();
+    } catch (error) {
+      console.error('Unable to initialize Stockfish worker', error);
+      engineStarting = false;
+      const errorMessage = error && error.message ? error.message : 'Unable to initialize engine worker.';
+      setEngineErrorMessage(errorMessage);
+      if (autostart && engineAutostartAttempts < ENGINE_AUTOSTART_MAX_ATTEMPTS) {
+        setEngineStatusDisplay('loading', 'Retrying…');
+        scheduleEngineAutostart();
+      } else {
+        setEngineStatusDisplay('error', 'Failed to start');
+        updateEngineControls({ loading: false });
+      }
+      engineLastStartWasAutostart = false;
+      return;
+    }
+    engine = worker;
+    engineReady = false;
+    resetEngineCommandQueue();
+    $('#best-move-button').prop('disabled', true);
+    updateNavigationButtons();
+    worker.addEventListener('error', event => {
+      const message = event && event.message ? event.message : 'Unknown error';
+      console.error('Stockfish worker error', message, event);
+      if (engine === worker) {
+        engineReady = false;
+        engineStarting = false;
+        const shouldRetry = engineLastStartWasAutostart && engineAutostartAttempts < ENGINE_AUTOSTART_MAX_ATTEMPTS;
+        try {
+          worker.terminate();
+        } catch (terminateError) {
+          console.warn('Failed to terminate errored Stockfish worker', terminateError);
+        }
+        engine = null;
+        resetEngineCommandQueue();
+        $('#best-move-button').prop('disabled', true);
+        updateNavigationButtons();
+        setAdvantageBarLoading(false);
+        setEvaluationText('Eval: --', 0.5);
+        const statusMessage = shouldRetry ? 'Retrying…' : 'Engine error';
+        updateAdvantageBar(null, { neutral: true, message: statusMessage });
+        setEngineErrorMessage(message);
+        if (shouldRetry) {
+          setEngineStatusDisplay('loading', 'Retrying…');
+          updateEngineControls({ loading: true });
+          scheduleEngineAutostart();
+        } else {
+          setEngineStatusDisplay('error', 'Engine error');
+          updateEngineControls({ loading: false });
+        }
+        engineLastStartWasAutostart = false;
+      }
+    });
+    worker.onmessage = e => {
+      const line = String(e.data).trim();
+
+      if (line === 'uciok') {
+        worker.postMessage(`setoption name Threads value ${engineConfig.threads}`);
+        worker.postMessage(`setoption name Hash value ${engineConfig.hash}`);
+        worker.postMessage('isready');
+        return;
+      }
+
+      if (line === 'readyok') {
+        if (engine !== worker) return;
+        const hadPendingCommands = engineAwaitingReadyAfterStop;
+        const wasStarting = engineStarting;
+        engineReady = true;
+        engineStarting = false;
+        if (wasStarting) {
+          engineLastStartWasAutostart = false;
+          engineAutostartAttempts = 0;
+          setEngineStatusDisplay('ready', 'Ready');
+          if (!engineErrorElement || engineErrorElement.dataset.source === 'config-warning') {
+            setEngineErrorMessage('');
+            if (engineErrorElement) {
+              engineErrorElement.dataset.source = '';
+            }
+          }
+          updateEngineControls({ loading: false });
+          $('#best-move-button').prop('disabled', false);
+          updateNavigationButtons();
+          restartBackgroundEngine();
+          if (pendingReplayStart) {
+            const pending = pendingReplayStart;
+            pendingReplayStart = null;
+            startReplayFromIndex(pending.index, pending.depth);
+          } else {
+            requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible, depth: engineConfig.depth });
+          }
+        }
+        if (hadPendingCommands) {
+          resolveEngineReadyWait();
+        }
+        return;
+      }
+
+      if (!line.length) return;
+
+      if (isPieceAnalysis) {
+        if (pieceAnalysisMode === PIECE_ANALYSIS_MODE_SEQUENTIAL) {
+          if (handleSequentialPieceAnalysisInfo(line)) {
+            return;
+          }
+        } else if (line.startsWith('info') && line.includes('multipv')) {
+          const pvIndex = line.indexOf(' pv ');
+          if (pvIndex === -1) return;
+          const pvMoves = line.slice(pvIndex + 4).trim().split(' ');
+          const moveKey = pvMoves[0];
+          if (!moveKey) return;
+
+          const cp = line.match(/score cp (-?\d+)/);
+          const mate = line.match(/score mate (-?\d+)/);
+          const entry = buildEvaluationEntryFromScore({
+            cp: cp ? parseInt(cp[1], 10) : null,
+            mate: mate ? parseInt(mate[1], 10) : null,
+            turn: pieceAnalysisTurn || game.turn()
+          });
+          applyPieceMoveEvaluation(moveKey, entry);
+          return;
+        }
+      }
+
+      if (line.startsWith('bestmove')) {
+        if (isPieceAnalysis) {
+          if (pieceAnalysisMode === PIECE_ANALYSIS_MODE_SEQUENTIAL) {
+            if (!pieceAnalysisWaitingForResult) {
+              return;
+            }
+            const parts = line.split(' ');
+            const reportedMove = parts.length > 1 ? parts[1] : '';
+            const activeMove = pieceAnalysisCurrentMove;
+            if (!reportedMove || reportedMove === '(none)') {
+              return;
+            }
+            if (activeMove && reportedMove !== activeMove) {
+              return;
+            }
+            pieceAnalysisWaitingForResult = false;
+            pieceAnalysisCurrentMove = null;
+            if (pieceAnalysisQueue.length) {
+              processNextPieceAnalysis(pieceAnalysisActiveRequestId);
+            } else {
+              finalizePieceAnalysis(pieceAnalysisActiveRequestId);
+            }
+            return;
+          }
+
+          isPieceAnalysis = false;
+          postEngineCommand('setoption name MultiPV value 1');
+          if (!pieceMovesMode) {
+            requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible, depth: engineConfig.depth });
+          }
+          return;
+        }
+
+        if (!latestAnalysisFen || latestAnalysisFen !== game.fen()) {
+          return;
+        }
+
+        const parts = line.split(' ');
+        const move = parts[1];
+
+        if (waitingForAutoBestMove) {
+          const fallback = autoMoveCandidate && autoMoveCandidate !== '(none)' ? autoMoveCandidate : null;
+          const moveToPlay = move && move !== '(none)' ? move : fallback;
+
+          const finalizeAutoMove = () => {
+            if (autoPlayDelayTimer) {
+              clearTimeout(autoPlayDelayTimer);
+              autoPlayDelayTimer = null;
+            }
+            waitingForAutoBestMove = false;
+            autoMoveCandidate = null;
+            autoPlayDepthSatisfied = false;
+            if (moveToPlay) {
+              applyAutoMove(moveToPlay);
+            }
+            updateNavigationButtons();
+          };
+
+          if (!moveToPlay) {
+            finalizeAutoMove();
+            return;
+          }
+
+          const elapsed = Date.now() - autoPlayRequestedAt;
+          const remaining = Math.max(0, AUTO_PLAY_MIN_WAIT_MS - elapsed);
+
+          if (!autoPlayDepthSatisfied || remaining <= 0) {
+            finalizeAutoMove();
+          } else {
+            if (autoPlayDelayTimer) {
+              clearTimeout(autoPlayDelayTimer);
+            }
+            autoPlayDelayTimer = setTimeout(() => {
+              autoPlayDelayTimer = null;
+              finalizeAutoMove();
+            }, remaining);
+          }
+          return;
+        }
+
+        if (move && move !== '(none)') {
+          currentBestMove = move;
+          updateBestMoveDisplay();
+        }
+        return;
+      }
+
+      if (!line.startsWith('info') || !line.includes('score')) {
+        return;
+      }
+
+      if (!latestAnalysisFen || latestAnalysisFen !== game.fen()) return;
+      if (isPieceAnalysis) return;
+
+      const depthMatch = line.match(/depth (\d+)/);
+      if (depthMatch) {
+        currentDepth = parseInt(depthMatch[1], 10);
+      }
+
+      const cpMatch = line.match(/score cp (-?\d+)/);
+      const mateMatch = line.match(/score mate (-?\d+)/);
+      const turn = game.turn();
+
+      if (cpMatch || mateMatch) {
+        const cpValue = cpMatch ? parseInt(cpMatch[1], 10) : null;
+        const mateValue = mateMatch ? parseInt(mateMatch[1], 10) : null;
+        const entry = buildEvaluationEntryFromScore({ cp: cpValue, mate: mateValue, turn });
+        if (entry) {
+          applyEvaluationEntry(entry);
+        }
+      }
+
+      const pvIndex = line.indexOf(' pv ');
+      if (pvIndex !== -1) {
+        const pvMoves = line.slice(pvIndex + 4).trim().split(' ');
+        if (pvMoves.length) {
+          currentBestMove = pvMoves[0];
+          updateBestMoveDisplay();
+        }
+      }
+
+      if (replayMode && replayPendingIndex === navigationIndex && currentDepth >= replayTargetDepth) {
+        scheduleReplayAdvance();
+      }
+
+      if (autoPlayPending && autoPlayFen === latestAnalysisFen && currentDepth >= autoPlayTargetDepth && currentBestMove && !game.game_over()) {
+        autoPlayPending = false;
+        autoPlayFen = null;
+        autoPlayDepthSatisfied = true;
+        waitingForAutoBestMove = true;
+        autoMoveCandidate = currentBestMove;
+        worker.postMessage('stop');
+        updateNavigationButtons();
+      }
+    };
+    worker.postMessage('uci');
+  }
+
+
+  function visualize(u) {
+    clearHighlights();
+    if (!u || u.length < 4) return;
+    const from = u.slice(0, 2);
+    const to = u.slice(2, 4);
+    boardEl.find(`.square-${from}`).addClass('highlight-move-from');
+    boardEl.find(`.square-${to}`).addClass('highlight-move-to');
+  }
+
+  function requestAnalysis(options = {}) {
+    if (!engineReady || !engine) {
+      scheduleEngineAutostart();
+      return;
+    }
+    const {
+      highlight = false,
+      revealBest = false,
+      depth = engineConfig.depth,
+      autoPlay = false,
+      searchMoves = null,
+      multiPv = 1,
+      pieceAnalysis = false,
+      replay = false,
+      analysisFen = null
+    } = options;
+
+    latestAnalysisFen = game.fen();
+    shouldHighlightBest = highlight && revealBest;
+    isPieceAnalysis = pieceAnalysis;
+    if (!pieceAnalysis) {
+      resetPieceAnalysisState();
+    }
+    currentBestMove = null;
+    currentDepth = 0;
+    waitingForAutoBestMove = false;
+    autoMoveCandidate = null;
+
+    if (!pieceAnalysis && !pieceMovesMode) {
+      clearHighlights();
+    }
+    if (!pieceAnalysis) {
+      clearRatings();
+    }
+
+    if (replay) {
+      replayMode = true;
+      replayTargetDepth = Math.max(PGN_REPLAY_DEPTH, depth);
+      replayPendingIndex = navigationIndex;
+      replayAdvanceScheduled = false;
+      cancelReplayTimer();
+      updateEvaluationProgressLabel();
+    } else if (!pieceAnalysis) {
+      if (replayMode) {
+        stopReplay();
+      }
+    }
+
+    if (autoPlay) {
+      autoPlayPending = true;
+      const depthFloor = Math.max(1, Math.floor(depth));
+      autoPlayTargetDepth = Math.max(PGN_REPLAY_DEPTH, depthFloor);
+      autoPlayFen = latestAnalysisFen;
+      autoPlayRequestedAt = Date.now();
+      autoPlayDepthSatisfied = false;
+      if (autoPlayDelayTimer) {
+        clearTimeout(autoPlayDelayTimer);
+        autoPlayDelayTimer = null;
+      }
+    } else if (!pieceAnalysis) {
+      autoPlayPending = false;
+      autoPlayFen = null;
+      autoPlayDepthSatisfied = false;
+      if (autoPlayDelayTimer) {
+        clearTimeout(autoPlayDelayTimer);
+        autoPlayDelayTimer = null;
+      }
+    }
+
+    if (revealBest) {
+      bestMoveVisible = true;
+    } else if (!bestMoveVisible) {
+      shouldHighlightBest = false;
+    }
+    syncBestMoveButton();
+
+    if (pieceAnalysis) {
+      setEvaluationText('Eval: --', 0.5);
+    } else {
+      const stored = getTimelineEntry(navigationIndex);
+      if (!stored || typeof stored.value !== 'number') {
+        setEvaluationText('Eval: --', 0.5);
+      }
+    }
+    setAdvantageBarLoading(true, { reset: !pieceAnalysis });
+    updateBestMoveDisplay();
+    if (replay) {
+      updateEvaluationProgressLabel();
+    }
+
+    const fenOverride = typeof analysisFen === 'string' ? analysisFen : null;
+    const normalizedFen = normalizeFenTurn(latestAnalysisFen, game.turn());
+
+    postEngineCommand('stop', { queueIfPending: false });
+    engineCommandQueue = [];
+    beginEngineReadyWait();
+    if (pieceAnalysis) {
+      const moveList = Array.isArray(searchMoves) ? searchMoves.slice() : [];
+      const fenTurn = getFenTurn(fenOverride) || game.turn();
+      const targetFen = normalizeFenTurn(fenOverride || latestAnalysisFen, fenTurn);
+      beginPieceAnalysisSearch({ fen: targetFen, moves: moveList, depth });
+      pieceAnalysisTurn = fenTurn;
+      updateNavigationButtons();
+      return;
+    }
+    const queuedCommands = [`setoption name MultiPV value ${multiPv}`, `position fen ${normalizedFen}`];
+    if (autoPlay) {
+      const depthLimit = Math.max(PGN_REPLAY_DEPTH, Math.floor(depth));
+      queuedCommands.push(`go depth ${depthLimit}`);
+    } else if (searchMoves && searchMoves.length) {
+      queuedCommands.push(`go searchmoves ${searchMoves.join(' ')} infinite`);
+    } else {
+      queuedCommands.push('go infinite');
+    }
+    queueEngineCommands(queuedCommands);
+    updateNavigationButtons();
+  }
+
+  function analyzeMoves() {
+    clearRatings();
+    if (!selectedSquare) return;
+    const piece = game.get(selectedSquare);
+    if (!piece) return;
+    let analysisGame = game;
+    let analysisFenOverride = null;
+    if (piece.color !== game.turn()) {
+      const candidateFen = normalizeFenTurn(game.fen(), piece.color);
+      const tempGame = new Chess();
+      if (tempGame.load(candidateFen)) {
+        analysisGame = tempGame;
+        analysisFenOverride = candidateFen;
+      }
+    }
+    const moves = analysisGame.moves({ verbose: true, square: selectedSquare });
+    if (!moves.length) return;
+    clearHighlights();
+    const destinationSquares = new Set();
+    const pendingLabel = engineReady ? '…' : '—';
+    moves.forEach(move => {
+      const destination = move.to;
+      if (destination && !destinationSquares.has(destination)) {
+        destinationSquares.add(destination);
+        boardEl.find(`.square-${destination}`).addClass('highlight-piece-move-target');
+      }
+      const moveKey = move.from + move.to + (move.promotion ? move.promotion : '');
+      setPieceMoveRating(moveKey, pendingLabel);
+    });
+    applySelectionHighlights();
+    const searchMoves = moves.map(m => m.from + m.to + (m.promotion ? m.promotion : ''));
+    requestAnalysis({
+      depth: engineConfig.depth,
+      searchMoves,
+      multiPv: moves.length,
+      pieceAnalysis: true,
+      analysisFen: analysisFenOverride
+    });
+  }
+
+  // UI hooks
+  function goToPreviousMove() {
+    if (replayMode) stopReplay();
+    if (navigationIndex === 0) return;
+    rebuildPosition(navigationIndex - 1);
+  }
+
+  function goToNextMove() {
+    if (replayMode) stopReplay();
+    if (autoPlayPending) return;
+    if (game.game_over()) return;
+    if (navigationIndex < moveHistory.length) {
+      rebuildPosition(navigationIndex + 1);
+      return;
+    }
+    if (!engineReady) {
+      scheduleEngineAutostart();
+      return;
+    }
+    requestAnalysis({
+      highlight: shouldHighlightBest && bestMoveVisible,
+      revealBest: bestMoveVisible,
+      depth: AUTO_NEXT_MOVE_DEPTH,
+      autoPlay: true
+    });
+  }
+
+  $('#best-move-button').on('click', () => {
+    if (replayMode) stopReplay();
+    bestMoveVisible = !bestMoveVisible;
+    shouldHighlightBest = bestMoveVisible;
+    syncBestMoveButton();
+    updateBestMoveDisplay();
+    if (bestMoveVisible) {
+      requestAnalysis({ highlight: shouldHighlightBest, revealBest: true });
+    }
   });
-</script>
+  $('#advantage-toggle-button').on('click', () => {
+    advantageBarVisible = !advantageBarVisible;
+    if (advantageBarElement) {
+      advantageBarElement.hidden = !advantageBarVisible;
+      if (advantageBarVisible) {
+        advantageBarElement.style.removeProperty('display');
+      } else {
+        advantageBarElement.style.display = 'none';
+      }
+      advantageBarElement.setAttribute('aria-hidden', advantageBarVisible ? 'false' : 'true');
+      if (advantageBarVisible) {
+        syncEvalBarWidth();
+      }
+    }
+    if (evaluationContainer) {
+      evaluationContainer.hidden = !advantageBarVisible;
+      if (advantageBarVisible) {
+        evaluationContainer.style.removeProperty('display');
+      } else {
+        evaluationContainer.style.display = 'none';
+      }
+      evaluationContainer.setAttribute('aria-hidden', advantageBarVisible ? 'false' : 'true');
+    }
+    syncAdvantageButton();
+  });
+  $('#probability-button').on('click', () => {
+    probabilityPanelVisible = !probabilityPanelVisible;
+    if (probabilityPanel) {
+      probabilityPanel.hidden = !probabilityPanelVisible;
+      probabilityPanel.setAttribute('aria-hidden', probabilityPanelVisible ? 'false' : 'true');
+    }
+    if (probabilityPanelVisible) {
+      requestAnimationFrame(() => {
+        renderEvaluationNavigation();
+      });
+      scheduleProbabilityEvaluation(PROBABILITY_GRAPH_DEPTH);
+    }
+    syncProbabilityButton();
+  });
+  $('#engine-button').on('click', () => {
+    enginePanelVisible = !enginePanelVisible;
+    syncEnginePanelVisibility();
+  });
+
+  const collectEngineFormValues = () => ({
+    threads: engineThreadsInput ? engineThreadsInput.value : engineConfig.threads,
+    hash: engineHashInput ? engineHashInput.value : engineConfig.hash,
+    depth: engineDepthInput ? engineDepthInput.value : engineConfig.depth
+  });
+
+  $('#engine-start-button').on('click', () => {
+    cancelEngineAutostart();
+    engineAutostartAttempts = 0;
+    engineAutostartDisabled = false;
+    const result = applyEngineConfig(collectEngineFormValues());
+    displayEngineConfigWarnings(result);
+    startEngine({ autostart: false });
+  });
+
+  $('#engine-stop-button').on('click', () => {
+    engineAutostartDisabled = true;
+    cancelEngineAutostart();
+    stopEngine();
+  });
+
+  const engineFormInputs = [engineThreadsInput, engineHashInput, engineDepthInput].filter(Boolean);
+  const handleEngineInputUpdate = () => {
+    const result = applyEngineConfig(collectEngineFormValues());
+    displayEngineConfigWarnings(result);
+    if (engineReady && result && result.changed) {
+      setEngineStatusDisplay('ready', 'Ready (restart to apply)');
+    }
+    updateEngineControls({ loading: false });
+  };
+  engineFormInputs.forEach(input => {
+    input.addEventListener('change', handleEngineInputUpdate);
+    input.addEventListener('blur', handleEngineInputUpdate);
+  });
+  $('#prev-button').on('click', goToPreviousMove);
+  $('#next-button').on('click', goToNextMove);
+  $('#status').on('click', () => {
+    if (!editMode) return;
+    toggleEditingTurn();
+  });
+  $('#status').on('keydown', event => {
+    if (!editMode) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      toggleEditingTurn();
+    }
+  });
+
+  $(document).on('keydown', event => {
+    const activeElement = document.activeElement;
+    if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.isContentEditable)) {
+      return;
+    }
+
+    if (editMode && (event.key === 'Delete' || event.key === 'Backspace')) {
+      if (editSelectionSource === 'board' && editSelectedSquare) {
+        event.preventDefault();
+        const targetSquare = editSelectedSquare;
+        if (removePieceAtSquare(targetSquare)) {
+          clearEditSelection();
+        }
+      }
+      return;
+    }
+
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      goToPreviousMove();
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      goToNextMove();
+    }
+  });
+  $('#piece-moves-button').on('click', () => {
+    if (replayMode) stopReplay();
+    pieceMovesMode = !pieceMovesMode;
+    freezeMode = pieceMovesMode;
+    if (!pieceMovesMode) {
+      requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
+    }
+    selectedSquare = null;
+    moveSourceSquare = null;
+    syncPieceMovesButton();
+    clearHighlights();
+    clearRatings();
+    renderBoard();
+    updateStatus();
+  });
+  $('#flip-button').on('click', () => {
+    orientation = orientation === 'white' ? 'black' : 'white';
+    renderBoard();
+    updateStatus();
+  });
+  $('#edit-button').on('click', () => {
+    if (replayMode) stopReplay();
+    editMode = !editMode;
+    moveSourceSquare = null;
+    selectedSquare = null;
+    if (editMode) {
+      if (engine) {
+        postEngineCommand('stop', { queueIfPending: false });
+        resetEngineCommandQueue();
+      }
+      $(document).on('click.editOutside', handleOutsideBoardClick);
+      clearEditSelection();
+      clearHighlights();
+      clearRatings();
+      latestAnalysisFen = null;
+      currentBestMove = null;
+      setEvaluationText('Eval: --', 0.5);
+      updateBestMoveDisplay();
+      setAdvantageBarLoading(false);
+      updateAdvantageBar(null, { neutral: true, message: 'Editing' });
+    } else {
+      $(document).off('click.editOutside');
+      clearEditSelection();
+      currentBestMove = null;
+      updateBestMoveDisplay();
+      requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
+    }
+    syncEditButton();
+    renderBoard();
+    updateStatus();
+  });
+  $('#fen-button').on('click', () => {
+    if (replayMode) stopReplay();
+    const raw = prompt('Enter FEN or PGN');
+    if (!raw) return;
+    const trimmed = raw.trim();
+    if (!trimmed.length) return;
+
+    const looksLikePgn = /\d+\./.test(trimmed) || /\[\w+\s+".*"\]/.test(trimmed) || trimmed.includes('\n');
+
+      const loadFen = () => {
+        const fenTest = new Chess();
+        if (!fenTest.load(trimmed)) {
+          return false;
+        }
+        const canonicalFen = fenTest.fen();
+        if (!game.load(canonicalFen)) {
+          return false;
+        }
+        resetHistory(game.fen());
+        lastImportWasPgn = false;
+        return true;
+      };
+
+      const loadPgn = () => {
+        let importGame = new Chess();
+      let loaded = false;
+      if (typeof importGame.load_pgn === 'function') {
+        loaded = importGame.load_pgn(trimmed, { sloppy: true });
+        if (!loaded) {
+          importGame = new Chess();
+          loaded = importGame.load_pgn(trimmed);
+        }
+      }
+      if (!loaded) return false;
+
+      const header = typeof importGame.header === 'function' ? importGame.header() : {};
+      const history = importGame.history({ verbose: true }) || [];
+      let initialFen = null;
+      if (header && header.SetUp === '1' && header.FEN) {
+        initialFen = header.FEN;
+      }
+
+      const baseCandidate = new Chess();
+      if (initialFen) {
+        if (!baseCandidate.load(initialFen)) {
+          return false;
+        }
+      }
+      const basePositionFen = baseCandidate.fen();
+      const moves = history.map(m => ({ from: m.from, to: m.to, promotion: m.promotion }));
+
+      const verificationGame = new Chess();
+      if (!verificationGame.load(basePositionFen)) {
+        return false;
+      }
+      for (const mv of moves) {
+        const moveConfig = { from: mv.from, to: mv.to };
+        if (mv.promotion) {
+          moveConfig.promotion = mv.promotion;
+        }
+        const applied = verificationGame.move(moveConfig);
+        if (!applied) {
+          return false;
+        }
+      }
+
+      resetHistory(basePositionFen);
+      moveHistory = moves;
+      navigationIndex = 0;
+      clearEvaluationTimeline(moveHistory.length + 1);
+      if (!game.load(basePositionFen)) {
+        return false;
+      }
+      updateNavigationButtons();
+      renderEvaluationNavigation();
+      lastImportWasPgn = true;
+      return true;
+    };
+
+    lastImportWasPgn = false;
+    const loaders = looksLikePgn ? [loadPgn, loadFen] : [loadFen, loadPgn];
+    let loaded = false;
+    for (const loader of loaders) {
+      if (loader()) {
+        loaded = true;
+        break;
+      }
+    }
+
+    if (!loaded) {
+      alert('Invalid FEN or PGN');
+      return;
+    }
+
+    moveSourceSquare = null;
+    selectedSquare = null;
+    editSelectedPiece = null;
+    editSelectedSquare = null;
+    editSelectionSource = null;
+    applySelectionHighlights();
+    applySpareSelection();
+    renderBoard();
+    updateStatus();
+    updateNavigationButtons();
+    if (lastImportWasPgn) {
+      startReplayFromIndex(0, PGN_REPLAY_DEPTH);
+      probabilityPanelVisible = true;
+      if (probabilityPanel) {
+        probabilityPanel.hidden = false;
+        probabilityPanel.setAttribute('aria-hidden', 'false');
+      }
+      syncProbabilityButton();
+      renderEvaluationNavigation();
+      scheduleProbabilityEvaluation(PROBABILITY_GRAPH_DEPTH);
+    } else {
+      requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
+    }
+  });
+
+  clearEvaluationTimeline(1);
+  updateAdvantageBar(null, { neutral: true, message: 'Awaiting evaluation' });
+  setAdvantageBarLoading(false);
+  renderBoard();
+  applyEngineConfig(engineConfig);
+  syncEngineInputs();
+  setEngineStatusDisplay('idle', 'Not started');
+  setEngineErrorMessage('');
+  updateEngineControls({ loading: false });
+  syncEnginePanelVisibility();
+  syncEngineButton();
+  updateStatus();
+  scheduleEngineAutostart({ immediate: true, resetAttempts: true });
+  $(window).off('resize.board').on('resize.board', () => {
+    if (!board) return;
+    board.resize();
+    syncEvalBarWidth();
+    renderEvaluationNavigation();
+  });
+
+  if (evaluationNavElement) {
+    evaluationNavElement.addEventListener('click', event => {
+      if (replayMode) stopReplay();
+      if (editMode || pieceMovesMode) return;
+      const segment = event.target.closest('.evaluation-nav__segment');
+      if (!segment) return;
+      const { index } = segment.dataset;
+      const targetIndex = Number.parseInt(index, 10);
+      if (!Number.isInteger(targetIndex)) return;
+      if (targetIndex === navigationIndex) return;
+      rebuildPosition(Math.max(0, Math.min(targetIndex, moveHistory.length)));
+    });
+  }
+});
+
+  </script>
 </body>
 </html>
