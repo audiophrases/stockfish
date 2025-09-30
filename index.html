@@ -992,6 +992,7 @@
         : null;
 
       const STOCKFISH_WORKER_VARIANTS = [
+        { filename: 'stockfish-17.1-lite-51f59da.js', requiresThreadSupport: false },
         { filename: 'stockfish-17.1-8e4d048.js', requiresThreadSupport: true },
         { filename: 'stockfish-17.1-asm-341ff22.js', requiresThreadSupport: false }
       ];
@@ -1010,6 +1011,8 @@
         return [
           `./engine/${filename}`,
           `engine/${filename}`,
+          `./engine2/${filename}`,
+          `engine2/${filename}`,
           `./${filename}`,
           filename
         ];
