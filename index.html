@@ -3839,7 +3839,9 @@
 
     const normalizedFen = normalizeFenTurn(latestAnalysisFen, game.turn());
 
-    postEngineCommand('stop', { queueIfPending: false });
+    if (!engineAwaitingReadyAfterStop) {
+      postEngineCommand('stop', { queueIfPending: false });
+    }
     engineCommandQueue = [];
     beginEngineReadyWait();
     if (pieceAnalysis) {
