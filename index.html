@@ -884,9 +884,25 @@
       </div>
     </div>
   </div>
-  <script defer>
-    $(function() {
-      let board, engine;
+  <script>
+    (function setup() {
+      function initialize() {
+        const $ = window.jQuery;
+        if (typeof $ !== 'function') {
+          console.error('jQuery failed to load; the chess interface cannot initialize.');
+          return;
+        }
+        const Chessboard = window.Chessboard;
+        if (typeof Chessboard !== 'function') {
+          console.error('Chessboard.js failed to load; the chess interface cannot initialize.');
+          return;
+        }
+        const Chess = window.Chess;
+        if (typeof Chess !== 'function') {
+          console.error('Chess.js failed to load; the chess interface cannot initialize.');
+          return;
+        }
+        let board, engine;
       let lastBoardConfig = { editMode: null, orientation: null };
       const game = new Chess();
       const boardEl = $('#board');
@@ -4014,7 +4030,14 @@
       rebuildPosition(targetIndex);
     });
   }
-});
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initialize, { once: true });
+      } else {
+        initialize();
+      }
+    })();
 
   </script>
 </body>
