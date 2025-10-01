@@ -968,14 +968,15 @@
       let navigationIndex = 0;
       let enginePanelVisible = false;
       const STOCKFISH_WORKER_VARIANTS = [
-        { filename: 'stockfish-17.1-lite-single-03e3232.js', requiresThreadSupport: false }
+        { filename: 'stockfish-11.js', requiresThreadSupport: false }
       ];
+      const STOCKFISH_ENGINE_DIRECTORY = 'stockfish-11';
       const STOCKFISH_WORKER_ROLE_DIRECTORIES = Object.freeze({
-        best: ['engines/best'],
-        next: ['engines/next'],
-        gauge: ['engines/gauge'],
-        graph: ['engines/graph'],
-        piece: ['engines/piece']
+        best: [STOCKFISH_ENGINE_DIRECTORY, 'engines/best'],
+        next: [STOCKFISH_ENGINE_DIRECTORY, 'engines/next'],
+        gauge: [STOCKFISH_ENGINE_DIRECTORY, 'engines/gauge'],
+        graph: [STOCKFISH_ENGINE_DIRECTORY, 'engines/graph'],
+        piece: [STOCKFISH_ENGINE_DIRECTORY, 'engines/piece']
       });
       const DEFAULT_STOCKFISH_WORKER_ROLE = 'best';
       const threadSupportAvailable = supportsThreadedWorkers();
@@ -1635,6 +1636,9 @@
             } else if (typeof value === 'string' && value.length) {
               directories.push(value);
             }
+          }
+          if (typeof STOCKFISH_ENGINE_DIRECTORY === 'string' && STOCKFISH_ENGINE_DIRECTORY.length) {
+            directories.push(STOCKFISH_ENGINE_DIRECTORY);
           }
           directories.push('engine', 'engine2', '.');
           return directories;
