@@ -3528,20 +3528,28 @@
 
   function analyzeMoves() {
     clearRatings();
-    if (!selectedSquare) return;
-    const piece = game.get(selectedSquare);
-    if (!piece) return;
     let analysisGame = game;
     let analysisFenOverride = null;
-    if (piece.color !== game.turn()) {
-      const candidateFen = normalizeFenTurn(game.fen(), piece.color);
-      const tempGame = new Chess();
-      if (tempGame.load(candidateFen)) {
-        analysisGame = tempGame;
-        analysisFenOverride = candidateFen;
+    let moves = [];
+
+    if (selectedSquare) {
+      const piece = game.get(selectedSquare);
+      if (!piece) return;
+
+      if (piece.color !== game.turn()) {
+        const candidateFen = normalizeFenTurn(game.fen(), piece.color);
+        const tempGame = new Chess();
+        if (tempGame.load(candidateFen)) {
+          analysisGame = tempGame;
+          analysisFenOverride = candidateFen;
+        }
       }
+
+      moves = analysisGame.moves({ verbose: true, square: selectedSquare });
+    } else {
+      moves = analysisGame.moves({ verbose: true });
     }
-    const moves = analysisGame.moves({ verbose: true, square: selectedSquare });
+
     if (!moves.length) return;
     clearHighlights();
     const destinationSquares = new Set();
@@ -3868,6 +3876,9 @@
     clearRatings();
     renderBoard();
     updateStatus();
+    if (pieceMovesMode) {
+      analyzeMoves();
+    }
   });
   $('#flip-button').on('click', () => {
     orientation = orientation === 'white' ? 'black' : 'white';
