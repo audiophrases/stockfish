@@ -845,15 +845,15 @@
       <form class="engine-settings__form" aria-label="Engine configuration">
         <label class="engine-field" for="engine-threads">
           <span class="engine-field__label">Threads</span>
-          <input id="engine-threads" class="engine-field__input" name="threads" type="number" min="1" max="64" step="1" inputmode="numeric" value="4">
+          <input id="engine-threads" class="engine-field__input" name="threads" type="number" min="1" step="1" inputmode="numeric" value="1">
         </label>
         <label class="engine-field" for="engine-hash">
           <span class="engine-field__label">Hash (MB)</span>
-          <input id="engine-hash" class="engine-field__input" name="hash" type="number" min="1" max="256" step="1" inputmode="numeric" value="16">
+          <input id="engine-hash" class="engine-field__input" name="hash" type="number" min="1" step="1" inputmode="numeric" value="8">
         </label>
         <label class="engine-field" for="engine-depth">
           <span class="engine-field__label">Depth</span>
-          <input id="engine-depth" class="engine-field__input" name="depth" type="number" min="1" max="99" step="1" inputmode="numeric" value="24">
+          <input id="engine-depth" class="engine-field__input" name="depth" type="number" min="1" step="1" inputmode="numeric" value="12">
         </label>
       </form>
       <label class="engine-autostart-toggle" for="engine-autostart-toggle">
@@ -1005,21 +1005,11 @@
         ? `${primaryWorkerDirectory}/${selectedStockfishVariant.filename}`
         : null;
       const ENGINE_THREADS_MIN = 1;
-      const ENGINE_THREADS_MAX = selectedStockfishVariant && selectedStockfishVariant.requiresThreadSupport === false
-        ? 1
-        : 64;
-      const DEFAULT_ANALYSIS_DEPTH = 16;
+      const DEFAULT_ANALYSIS_DEPTH = 12;
       const PGN_REPLAY_DEPTH = 12;
-      const BACKGROUND_EVAL_DEPTH = 16;
-      const PROBABILITY_GRAPH_DEPTH = 14;
-      const AUTO_NEXT_MOVE_DEPTH = 16;
-      const DEFAULT_THREADS = Math.min(4, ENGINE_THREADS_MAX);
-      const DEFAULT_HASH_MB = 16;
+      const DEFAULT_THREADS = 1;
+      const DEFAULT_HASH_MB = 8;
       const ENGINE_MEMORY_ERROR_FALLBACK_HASH_MB = DEFAULT_HASH_MB;
-      const MAX_USER_HASH_MB = 256;
-      const MIN_HASH_CEILING_MB = 32;
-      const BACKGROUND_HASH_MAX_MB = 64;
-      const BACKGROUND_HASH_MIN_MB = 16;
       const engineConfig = {
         threads: DEFAULT_THREADS,
         hash: DEFAULT_HASH_MB,
@@ -1409,62 +1399,12 @@
         }
       }
 
-      function clampInteger(value, min, max, fallback) {
-        const numeric = Number(value);
-        if (!Number.isFinite(numeric)) {
-          return fallback;
-        }
-        const truncated = Math.floor(numeric);
-        if (!Number.isFinite(truncated)) {
-          return fallback;
-        }
-        const clamped = Math.max(min, Math.min(max, truncated));
-        return clamped;
-      }
-
-      function getDeviceMemoryInGb() {
-        if (typeof navigator !== 'undefined' && navigator) {
-          const { deviceMemory } = navigator;
-          const numeric = Number(deviceMemory);
-          if (Number.isFinite(numeric) && numeric > 0) {
-            return numeric;
-          }
-        }
-        return null;
-      }
-
-      function formatDeviceMemoryGb(value) {
-        if (!Number.isFinite(value) || value <= 0) {
-          return null;
-        }
-        if (value >= 4) {
-          return Math.round(value);
-        }
-        return Math.round(value * 10) / 10;
-      }
-
-      function resolveHashConstraints() {
-        const deviceMemoryGb = getDeviceMemoryInGb();
-        let ceiling = MAX_USER_HASH_MB;
-        if (deviceMemoryGb !== null) {
-          const derived = Math.floor(deviceMemoryGb * 64);
-          if (derived > 0) {
-            ceiling = Math.min(ceiling, Math.max(MIN_HASH_CEILING_MB, derived));
-          }
-        }
-        ceiling = Math.max(MIN_HASH_CEILING_MB, ceiling);
-        return { ceiling, deviceMemoryGb };
-      }
-
       function computeBackgroundHashBudget(mainHash) {
-        const { ceiling } = resolveHashConstraints();
-        const quarter = Math.floor(ceiling / 4);
-        const base = Math.max(BACKGROUND_HASH_MIN_MB, quarter || 0);
-        const budget = Math.min(BACKGROUND_HASH_MAX_MB, base);
-        if (mainHash >= ceiling && budget <= BACKGROUND_HASH_MIN_MB) {
-          return null;
+        const numericHash = Number(mainHash);
+        if (!Number.isFinite(numericHash)) {
+          return Math.max(1, Math.floor(engineConfig.hash));
         }
-        return Math.max(1, Math.min(mainHash, budget));
+        return Math.max(1, Math.floor(numericHash));
       }
 
       function applyEngineConfig(config = {}) {
@@ -1472,48 +1412,51 @@
         const previousHash = engineConfig.hash;
         const previousDepth = engineConfig.depth;
         const warnings = [];
-        const fallbackThreads = Math.max(ENGINE_THREADS_MIN, Math.min(ENGINE_THREADS_MAX, previousThreads));
-        const threads = clampInteger(config.threads, ENGINE_THREADS_MIN, ENGINE_THREADS_MAX, fallbackThreads);
-        const requestedThreads = Number(config.threads);
-        if (Number.isFinite(requestedThreads) && requestedThreads > ENGINE_THREADS_MAX) {
-          warnings.push(`Threads limited to ${ENGINE_THREADS_MAX} for this engine build.`);
+        const fallbackThreads = previousThreads >= ENGINE_THREADS_MIN ? previousThreads : ENGINE_THREADS_MIN;
+        let threads = Number(config.threads);
+        if (!Number.isFinite(threads) || threads < ENGINE_THREADS_MIN) {
+          threads = fallbackThreads;
+        } else {
+          threads = Math.floor(threads);
         }
-        const requestedHash = clampInteger(config.hash, 1, MAX_USER_HASH_MB, previousHash);
-        const hashConstraints = resolveHashConstraints();
-        let hash = requestedHash;
-        if (hash > hashConstraints.ceiling) {
-          hash = hashConstraints.ceiling;
+        const fallbackHash = previousHash >= 1 ? previousHash : 1;
+        let hash = Number(config.hash);
+        if (!Number.isFinite(hash) || hash < 1) {
+          hash = fallbackHash;
+        } else {
+          hash = Math.floor(hash);
         }
-        if (hash !== requestedHash) {
-          const formattedMemory = formatDeviceMemoryGb(hashConstraints.deviceMemoryGb);
-          const memoryHint = formattedMemory ? ` (device reports ~${formattedMemory} GB RAM)` : '';
-          warnings.push(`Requested hash reduced to ${hash} MB (max ${hashConstraints.ceiling} MB${memoryHint}) to avoid exhausting memory.`);
+        const fallbackDepth = previousDepth >= 1 ? previousDepth : 1;
+        let depth = Number(config.depth);
+        if (!Number.isFinite(depth) || depth < 1) {
+          depth = fallbackDepth;
+        } else {
+          depth = Math.floor(depth);
         }
-        const depth = clampInteger(config.depth, 1, 99, previousDepth);
         engineConfig.threads = threads;
         engineConfig.hash = hash;
         engineConfig.depth = depth;
         autoPlayTargetDepth = depth;
         replayTargetDepth = depth;
-        syncEngineInputs(hashConstraints);
+        syncEngineInputs();
         const changed = threads !== previousThreads || hash !== previousHash || depth !== previousDepth;
         return { threads, hash, depth, changed, warnings };
       }
 
-      function syncEngineInputs(constraints = null) {
-        const resolvedConstraints = constraints || resolveHashConstraints();
+      function syncEngineInputs() {
         if (engineThreadsInput) {
-          engineThreadsInput.max = String(ENGINE_THREADS_MAX);
+          engineThreadsInput.removeAttribute('max');
           engineThreadsInput.value = engineConfig.threads;
         }
         if (engineHashInput) {
-          engineHashInput.max = String(resolvedConstraints.ceiling);
+          engineHashInput.removeAttribute('max');
           engineHashInput.value = engineConfig.hash;
         }
         if (engineDepthInput) {
+          engineDepthInput.removeAttribute('max');
           engineDepthInput.value = engineConfig.depth;
         }
-        updateEngineHashHelp(resolvedConstraints);
+        updateEngineHashHelp();
       }
 
       function updateEngineHashHelp() {
@@ -2258,7 +2201,7 @@
         backgroundEngine.postMessage('setoption name MultiPV value 1');
         backgroundEngine.postMessage('ucinewgame');
         backgroundEngine.postMessage(`position fen ${safeFen}`);
-        const depth = typeof nextTask.depth === 'number' ? nextTask.depth : BACKGROUND_EVAL_DEPTH;
+        const depth = typeof nextTask.depth === 'number' ? nextTask.depth : engineConfig.depth;
         backgroundEngine.postMessage(`go depth ${depth}`);
       }
 
@@ -2424,7 +2367,7 @@
         backgroundEngine.postMessage('uci');
       }
 
-      function buildBackgroundTasksForGame(depthOverride = BACKGROUND_EVAL_DEPTH) {
+      function buildBackgroundTasksForGame(depthOverride = engineConfig.depth) {
         const tasks = [];
         const evaluationGame = new Chess();
         if (!evaluationGame.load(baseFen)) {
@@ -2432,7 +2375,7 @@
         }
         const evaluationDepth = typeof depthOverride === 'number' && depthOverride > 0
           ? depthOverride
-          : BACKGROUND_EVAL_DEPTH;
+          : engineConfig.depth;
         tasks.push({ index: 0, fen: evaluationGame.fen(), turn: evaluationGame.turn(), depth: evaluationDepth });
         for (let i = 0; i < moveHistory.length; i += 1) {
           const entry = moveHistory[i];
@@ -2453,7 +2396,7 @@
         queueBackgroundEvaluationTasks(tasks);
       }
 
-      function scheduleProbabilityEvaluation(depth = PROBABILITY_GRAPH_DEPTH) {
+      function scheduleProbabilityEvaluation(depth = engineConfig.depth) {
         const tasks = buildBackgroundTasksForGame(depth);
         queueBackgroundEvaluationTasks(tasks);
       }
@@ -2825,7 +2768,7 @@
       updateNavigationButtons();
       scheduleEvaluationNavigationRender();
       if (probabilityPanelVisible) {
-        scheduleProbabilityEvaluation(PROBABILITY_GRAPH_DEPTH);
+        scheduleProbabilityEvaluation();
       }
     }
 
@@ -2858,7 +2801,7 @@
         updateNavigationButtons();
         scheduleEvaluationNavigationRender();
         if (probabilityPanelVisible) {
-          scheduleProbabilityEvaluation(PROBABILITY_GRAPH_DEPTH);
+          scheduleProbabilityEvaluation();
         }
       }
 
@@ -4000,7 +3943,7 @@
     requestAnalysis({
       highlight: shouldHighlightBest && bestMoveVisible,
       revealBest: bestMoveVisible,
-      depth: AUTO_NEXT_MOVE_DEPTH,
+      depth: engineConfig.depth,
       autoPlay: true
     });
   }
@@ -4119,7 +4062,7 @@
       }
       syncProbabilityButton();
       scheduleEvaluationNavigationRender();
-      scheduleProbabilityEvaluation(PROBABILITY_GRAPH_DEPTH);
+      scheduleProbabilityEvaluation();
     } else {
       requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
     }
@@ -4171,7 +4114,7 @@
     }
     if (probabilityPanelVisible) {
       scheduleEvaluationNavigationRender();
-      scheduleProbabilityEvaluation(PROBABILITY_GRAPH_DEPTH);
+      scheduleProbabilityEvaluation();
     } else {
       cancelBackgroundEvaluation();
     }
