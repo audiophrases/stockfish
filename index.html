@@ -979,7 +979,7 @@
         return null;
       })();
       const defaultWorkerLocation = selectedStockfishVariant
-        ? `/engine/${selectedStockfishVariant.filename}`
+        ? `engine/${selectedStockfishVariant.filename}`
         : null;
       const ENGINE_THREADS_MIN = 1;
       const ENGINE_THREADS_MAX = selectedStockfishVariant && selectedStockfishVariant.requiresThreadSupport === false
