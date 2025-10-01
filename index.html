@@ -1018,8 +1018,9 @@
       const ENGINE_AUTOSTART_DELAY_MS = 400;
       const ENGINE_AUTOSTART_MAX_ATTEMPTS = 3;
       const AUTO_PLAY_MIN_WAIT_MS = 4000;
+      const MIN_THINK_TIME_MS = 3000;
       const REPLAY_STEP_DELAY_MS = 900;
-      const PIECE_ANALYSIS_MODE_SEQUENTIAL = 'sequential';
+      const PIECE_ANALYSIS_MODE_MULTIPV = 'multipv';
       let autoPlayPending = false;
       let autoPlayTargetDepth = engineConfig.depth;
       let autoPlayFen = null;
@@ -1028,21 +1029,30 @@
       let pieceMoveRatings = new Map();
       let pieceAnalysisMode = null;
       let pieceAnalysisTurn = null;
-      let pieceAnalysisQueue = [];
-      let pieceAnalysisCurrentMove = null;
       let pieceAnalysisActiveRequestId = 0;
+      let pieceAnalysisCurrentRequestId = 0;
+      let pieceAnalysisPendingRequestId = 0;
       let pieceAnalysisFen = null;
       let pieceAnalysisTargetDepth = 0;
-      let pieceAnalysisWaitingForResult = false;
+      let pieceAnalysisMoveSet = new Set();
+      let pieceAnalysisResults = new Map();
+      let pieceAnalysisSearchInFlight = false;
       let waitingForAutoBestMove = false;
       let autoMoveCandidate = null;
       let autoPlayRequestedAt = 0;
       let autoPlayDelayTimer = null;
       let autoPlayDepthSatisfied = false;
+      let autoPlayMinThinkTimer = null;
+      let pendingSearchContext = null;
+      let currentSearchContext = null;
       function resetAutoPlayState() {
         if (autoPlayDelayTimer) {
           clearTimeout(autoPlayDelayTimer);
           autoPlayDelayTimer = null;
+        }
+        if (autoPlayMinThinkTimer) {
+          clearTimeout(autoPlayMinThinkTimer);
+          autoPlayMinThinkTimer = null;
         }
         waitingForAutoBestMove = false;
         autoMoveCandidate = null;
@@ -1338,6 +1348,27 @@
         engineAwaitingReadyAfterStop = false;
         engineStopPending = false;
         invalidateAnalysisCache();
+        pendingSearchContext = null;
+        currentSearchContext = null;
+      }
+
+      function activatePendingSearchContext(command) {
+        if (typeof command !== 'string' || !command.trim().startsWith('go')) {
+          return;
+        }
+        const now = Date.now();
+        const context = pendingSearchContext
+          ? { ...pendingSearchContext }
+          : { type: 'analysis', metadata: {} };
+        currentSearchContext = { ...context, startedAt: now };
+        pendingSearchContext = null;
+        if (currentSearchContext.type === 'piece') {
+          pieceAnalysisSearchInFlight = true;
+          if (pieceAnalysisPendingRequestId) {
+            pieceAnalysisCurrentRequestId = pieceAnalysisPendingRequestId;
+            pieceAnalysisPendingRequestId = 0;
+          }
+        }
       }
 
       function postEngineCommand(command, options = {}) {
@@ -1345,12 +1376,16 @@
         const text = typeof command === 'string' ? command.trim() : '';
         if (!text) return;
         const { queueIfPending = true } = options;
-        if (queueIfPending && engineAwaitingReadyAfterStop) {
+        const willQueue = queueIfPending && engineAwaitingReadyAfterStop;
+        if (willQueue) {
           engineCommandQueue.push(text);
           return;
         }
         try {
           engine.postMessage(text);
+          if (text.startsWith('go ')) {
+            activatePendingSearchContext(text);
+          }
         } catch (error) {
           console.warn(`Failed to send command to engine: ${text}`, error);
         }
@@ -3221,8 +3256,27 @@
     if (replayMode) stopReplay();
     clearHighlights(); clearRatings();
     if (editMode) {
+      const previousFen = game.fen();
+      const entries = Object.entries(newPos);
       game.clear();
-      Object.entries(newPos).forEach(([sq,p]) => { if (p) game.put({type:p[1].toLowerCase(), color:p[0]}, sq); });
+      let placementFailed = false;
+      for (const [square, pieceCode] of entries) {
+        if (!pieceCode) continue;
+        const color = pieceCode[0];
+        const type = pieceCode[1] ? pieceCode[1].toLowerCase() : null;
+        if (!type || (color !== 'w' && color !== 'b')) continue;
+        const placed = game.put({ type, color }, square);
+        if (!placed) {
+          placementFailed = true;
+          break;
+        }
+      }
+      if (placementFailed) {
+        game.load(previousFen);
+        renderBoard();
+        updateStatus();
+        return;
+      }
       lastImportWasPgn = false;
       resetHistory(game.fen());
       renderBoard(); updateStatus(); requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
@@ -3248,12 +3302,14 @@
 
   function resetPieceAnalysisState() {
     pieceAnalysisMode = null;
-    pieceAnalysisQueue = [];
-    pieceAnalysisCurrentMove = null;
     pieceAnalysisFen = null;
     pieceAnalysisTargetDepth = 0;
-    pieceAnalysisWaitingForResult = false;
     pieceAnalysisTurn = null;
+    pieceAnalysisCurrentRequestId = 0;
+    pieceAnalysisPendingRequestId = 0;
+    pieceAnalysisMoveSet.clear();
+    pieceAnalysisResults.clear();
+    pieceAnalysisSearchInFlight = false;
   }
 
   function ensurePieceMoveRatingElement(moveKey) {
@@ -3278,64 +3334,45 @@
 
   function applyPieceMoveEvaluation(moveKey, entry) {
     if (!moveKey || !entry) return;
-    const displayScore = entry.shortText || entry.text || '';
-    if (!displayScore) return;
-    setPieceMoveRating(moveKey, displayScore);
+    if (!pieceAnalysisMoveSet.has(moveKey)) return;
+    if (typeof entry.whiteWinProbability !== 'number' || Number.isNaN(entry.whiteWinProbability)) {
+      return;
+    }
+    const moverTurn = pieceAnalysisTurn === 'b' ? 'b' : 'w';
+    const moverWinProbability = moverTurn === 'w'
+      ? clampProbability(entry.whiteWinProbability)
+      : clampProbability(1 - entry.whiteWinProbability);
+    const label = formatWinProbability(moverWinProbability);
+    pieceAnalysisResults.set(moveKey, moverWinProbability);
+    setPieceMoveRating(moveKey, label);
   }
 
-  function beginPieceAnalysisSearch({ fen, moves = [], depth = engineConfig.depth }) {
+  function beginPieceAnalysisSearch({ fen, moves = [], depth = engineConfig.depth, turn = game.turn() }) {
     resetPieceAnalysisState();
-    pieceAnalysisMode = PIECE_ANALYSIS_MODE_SEQUENTIAL;
-    pieceAnalysisFen = typeof fen === 'string' ? fen : normalizeFenTurn(game.fen(), game.turn());
+    const filteredMoves = Array.isArray(moves) ? moves.filter(Boolean) : [];
+    if (!filteredMoves.length || !engineReady || !engine) {
+      return false;
+    }
+    pieceAnalysisMode = PIECE_ANALYSIS_MODE_MULTIPV;
+    pieceAnalysisTurn = turn === 'b' ? 'b' : 'w';
+    pieceAnalysisFen = typeof fen === 'string' ? fen : normalizeFenTurn(game.fen(), pieceAnalysisTurn);
     pieceAnalysisTargetDepth = Math.max(1, Math.floor(typeof depth === 'number' ? depth : engineConfig.depth));
-    pieceAnalysisQueue = Array.isArray(moves) ? moves.filter(Boolean) : [];
+    pieceAnalysisMoveSet = new Set(filteredMoves);
+    pieceAnalysisResults = new Map();
     pieceAnalysisActiveRequestId += 1;
-    if (!pieceAnalysisQueue.length) {
-      pieceAnalysisWaitingForResult = false;
-      return;
-    }
-    if (engine) {
-      postEngineCommand('setoption name MultiPV value 1');
-    }
-    processNextPieceAnalysis(pieceAnalysisActiveRequestId);
-  }
-
-  function processNextPieceAnalysis(requestId) {
-    if (!engineReady || !engine) {
-      pieceAnalysisWaitingForResult = false;
-      return;
-    }
-    if (requestId !== pieceAnalysisActiveRequestId) return;
-    if (!pieceAnalysisQueue.length) {
-      finalizePieceAnalysis(requestId);
-      return;
-    }
-    const nextMove = pieceAnalysisQueue.shift();
-    if (!nextMove) {
-      processNextPieceAnalysis(requestId);
-      return;
-    }
-    pieceAnalysisCurrentMove = nextMove;
-    pieceAnalysisWaitingForResult = true;
-    setPieceMoveRating(nextMove, '…');
-    const targetFen = pieceAnalysisFen || normalizeFenTurn(game.fen(), game.turn());
-    const safeFen = sanitizeFenForStockfish(targetFen);
+    pieceAnalysisPendingRequestId = pieceAnalysisActiveRequestId;
+    const safeFen = sanitizeFenForStockfish(pieceAnalysisFen);
+    const multiPv = Math.max(1, Math.min(50, filteredMoves.length));
+    postEngineCommand(`setoption name MultiPV value ${multiPv}`);
+    pendingSearchContext = { type: 'piece', metadata: { requestId: pieceAnalysisPendingRequestId, moveCount: filteredMoves.length } };
     postEngineCommand(`position fen ${safeFen}`);
-    const depthLimit = Math.max(1, pieceAnalysisTargetDepth || engineConfig.depth);
-    postEngineCommand(`go searchmoves ${nextMove} depth ${depthLimit}`);
+    postEngineCommand(`go searchmoves ${filteredMoves.join(' ')} infinite`);
+    return true;
   }
 
-  function finalizePieceAnalysis(requestId) {
-    if (requestId !== pieceAnalysisActiveRequestId) return;
-    pieceAnalysisCurrentMove = null;
-    pieceAnalysisQueue = [];
-    pieceAnalysisMode = null;
-    pieceAnalysisFen = null;
-    pieceAnalysisTargetDepth = 0;
-    pieceAnalysisWaitingForResult = false;
-    pieceAnalysisTurn = null;
+  function finalizePieceAnalysis() {
+    resetPieceAnalysisState();
     isPieceAnalysis = false;
-    invalidateAnalysisCache();
     if (engine) {
       postEngineCommand('setoption name MultiPV value 1');
     }
@@ -3344,28 +3381,24 @@
     }
   }
 
-  function handleSequentialPieceAnalysisInfo(line) {
-    if (pieceAnalysisMode !== PIECE_ANALYSIS_MODE_SEQUENTIAL) return false;
-    if (!pieceAnalysisWaitingForResult || !pieceAnalysisCurrentMove) return true;
-    if (!line.startsWith('info')) return false;
+  function handleMultipvPieceAnalysisInfo(line) {
+    if (pieceAnalysisMode !== PIECE_ANALYSIS_MODE_MULTIPV) return false;
+    if (!pieceAnalysisSearchInFlight || !pieceAnalysisCurrentRequestId) return false;
+    if (!line.startsWith('info') || !line.includes('multipv')) return false;
     const pvIndex = line.indexOf(' pv ');
-    if (pvIndex !== -1) {
-      const pvMoves = line.slice(pvIndex + 4).trim().split(' ');
-      if (pvMoves[0] && pvMoves[0] !== pieceAnalysisCurrentMove) {
-        return true;
-      }
-    }
+    if (pvIndex === -1) return false;
+    const pvMoves = line.slice(pvIndex + 4).trim().split(' ');
+    const moveKey = pvMoves[0];
+    if (!moveKey || !pieceAnalysisMoveSet.has(moveKey)) return true;
     const cp = line.match(/score cp (-?\d+)/);
     const mate = line.match(/score mate (-?\d+)/);
-    if (!cp && !mate) {
-      return true;
-    }
+    if (!cp && !mate) return true;
     const entry = buildEvaluationEntryFromScore({
       cp: cp ? parseInt(cp[1], 10) : null,
       mate: mate ? parseInt(mate[1], 10) : null,
       turn: pieceAnalysisTurn || game.turn()
     });
-    applyPieceMoveEvaluation(pieceAnalysisCurrentMove, entry);
+    applyPieceMoveEvaluation(moveKey, entry);
     return true;
   }
 
@@ -3535,25 +3568,7 @@
       if (!line.length) return;
 
       if (isPieceAnalysis) {
-        if (pieceAnalysisMode === PIECE_ANALYSIS_MODE_SEQUENTIAL) {
-          if (handleSequentialPieceAnalysisInfo(line)) {
-            return;
-          }
-        } else if (line.startsWith('info') && line.includes('multipv')) {
-          const pvIndex = line.indexOf(' pv ');
-          if (pvIndex === -1) return;
-          const pvMoves = line.slice(pvIndex + 4).trim().split(' ');
-          const moveKey = pvMoves[0];
-          if (!moveKey) return;
-
-          const cp = line.match(/score cp (-?\d+)/);
-          const mate = line.match(/score mate (-?\d+)/);
-          const entry = buildEvaluationEntryFromScore({
-            cp: cp ? parseInt(cp[1], 10) : null,
-            mate: mate ? parseInt(mate[1], 10) : null,
-            turn: pieceAnalysisTurn || game.turn()
-          });
-          applyPieceMoveEvaluation(moveKey, entry);
+        if (handleMultipvPieceAnalysisInfo(line)) {
           return;
         }
       }
@@ -3563,35 +3578,12 @@
           engineStopPending = false;
         }
         if (isPieceAnalysis) {
-          if (pieceAnalysisMode === PIECE_ANALYSIS_MODE_SEQUENTIAL) {
-            if (!pieceAnalysisWaitingForResult) {
-              return;
-            }
-            const parts = line.split(' ');
-            const reportedMove = parts.length > 1 ? parts[1] : '';
-            const activeMove = pieceAnalysisCurrentMove;
-            if (!reportedMove || reportedMove === '(none)') {
-              return;
-            }
-            if (activeMove && reportedMove !== activeMove) {
-              return;
-            }
-            pieceAnalysisWaitingForResult = false;
-            pieceAnalysisCurrentMove = null;
-            if (pieceAnalysisQueue.length) {
-              processNextPieceAnalysis(pieceAnalysisActiveRequestId);
-            } else {
-              finalizePieceAnalysis(pieceAnalysisActiveRequestId);
-            }
+          pieceAnalysisSearchInFlight = false;
+          if (pieceAnalysisMode === PIECE_ANALYSIS_MODE_MULTIPV) {
+            currentSearchContext = null;
+            finalizePieceAnalysis();
             return;
           }
-
-          isPieceAnalysis = false;
-          postEngineCommand('setoption name MultiPV value 1');
-          if (!pieceMovesMode) {
-            requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible, depth: engineConfig.depth });
-          }
-          return;
         }
 
         if (!latestAnalysisFen || latestAnalysisFen !== game.fen()) {
@@ -3641,6 +3633,7 @@
           currentBestMove = move;
           updateBestMoveDisplay();
         }
+        currentSearchContext = null;
         return;
       }
 
@@ -3683,14 +3676,37 @@
       }
 
       if (autoPlayPending && autoPlayFen === latestAnalysisFen && currentDepth >= autoPlayTargetDepth && currentBestMove && !game.game_over()) {
-        autoPlayPending = false;
-        autoPlayFen = null;
-        autoPlayDepthSatisfied = true;
-        waitingForAutoBestMove = true;
-        autoMoveCandidate = currentBestMove;
-        postEngineCommand('stop');
-        engineStopPending = true;
-        updateNavigationButtons();
+        const searchStartedAt = currentSearchContext && currentSearchContext.type === 'autoPlay'
+          ? currentSearchContext.startedAt
+          : null;
+        const elapsed = searchStartedAt ? Date.now() - searchStartedAt : null;
+        const thinkSatisfied = elapsed !== null ? elapsed >= MIN_THINK_TIME_MS : false;
+        const triggerAutoPlayStop = () => {
+          autoPlayPending = false;
+          autoPlayFen = null;
+          autoPlayDepthSatisfied = true;
+          waitingForAutoBestMove = true;
+          autoMoveCandidate = currentBestMove;
+          if (autoPlayMinThinkTimer) {
+            clearTimeout(autoPlayMinThinkTimer);
+            autoPlayMinThinkTimer = null;
+          }
+          postEngineCommand('stop');
+          engineStopPending = true;
+          updateNavigationButtons();
+        };
+
+        if (thinkSatisfied || !searchStartedAt) {
+          triggerAutoPlayStop();
+        } else if (!autoPlayMinThinkTimer) {
+          const waitTime = Math.max(0, MIN_THINK_TIME_MS - elapsed);
+          autoPlayMinThinkTimer = setTimeout(() => {
+            autoPlayMinThinkTimer = null;
+            if (autoPlayPending && autoPlayFen === latestAnalysisFen && currentBestMove && !game.game_over() && currentDepth >= autoPlayTargetDepth) {
+              triggerAutoPlayStop();
+            }
+          }, waitTime);
+        }
       }
     };
     worker.postMessage('uci');
@@ -3846,11 +3862,11 @@
     if (pieceAnalysis) {
       const moveList = Array.isArray(searchMoves) ? searchMoves.slice() : [];
       const targetFen = normalizedFenForCache;
-      beginPieceAnalysisSearch({ fen: targetFen, moves: moveList, depth });
-      pieceAnalysisTurn = fenTurn;
-      if (pieceAnalysisQueue.length) {
+      const started = beginPieceAnalysisSearch({ fen: targetFen, moves: moveList, depth, turn: fenTurn });
+      if (started) {
         markAnalysisRequestActive(requestCacheEntry);
       } else {
+        isPieceAnalysis = false;
         invalidateAnalysisCache();
       }
       updateNavigationButtons();
@@ -3858,15 +3874,24 @@
     }
     const resolvedDepth = Math.floor(typeof depth === 'number' ? depth : engineConfig.depth);
     const depthLimit = Math.max(PGN_REPLAY_DEPTH, Math.max(1, resolvedDepth));
+    const goCommand = autoPlay
+      ? 'go infinite'
+      : (searchMoves && searchMoves.length
+        ? `go searchmoves ${searchMoves.join(' ')} infinite`
+        : 'go infinite');
+    pendingSearchContext = {
+      type: autoPlay ? 'autoPlay' : 'analysis',
+      metadata: {
+        fen: safeFen,
+        depth: depthLimit,
+        searchMoves: searchMoves && searchMoves.length ? searchMoves.slice() : null
+      }
+    };
     const queuedCommands = [
       'ucinewgame',
       `setoption name MultiPV value ${multiPv}`,
       `position fen ${safeFen}`,
-      autoPlay
-        ? `go depth ${depthLimit}`
-        : (searchMoves && searchMoves.length
-          ? `go searchmoves ${searchMoves.join(' ')} infinite`
-          : 'go infinite')
+      goCommand
     ];
     markAnalysisRequestActive(requestCacheEntry);
     queueEngineCommands(queuedCommands);
