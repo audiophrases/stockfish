@@ -953,6 +953,8 @@
       let pieceMovesMode = false;
       let orientation = 'white';
       let latestAnalysisFen = null;
+      let lastAnalysisRequest = null;
+      let lastObservedPositionFen = game.fen();
       let shouldHighlightBest = false;
       let engineReady = false;
       let engineCommandQueue = [];
@@ -1212,9 +1214,84 @@
         engineErrorElement.dataset.source = source;
       }
 
+      function deactivateLastAnalysisRequest() {
+        if (lastAnalysisRequest) {
+          lastAnalysisRequest.active = false;
+        }
+      }
+
+      function invalidateAnalysisCache() {
+        deactivateLastAnalysisRequest();
+        lastAnalysisRequest = null;
+      }
+
+      function normalizeSearchMovesForCache(value) {
+        if (!value) {
+          return '';
+        }
+        if (Array.isArray(value)) {
+          return value.filter(move => typeof move === 'string' && move.length).join(' ');
+        }
+        if (typeof value === 'string') {
+          return value.trim();
+        }
+        return '';
+      }
+
+      function createAnalysisRequestCacheEntry({
+        fen,
+        pieceAnalysis = false,
+        searchMoves = null,
+        multiPv = 1,
+        autoPlay = false,
+        depth = engineConfig.depth
+      }) {
+        const numericDepth = Number(depth);
+        const resolvedDepth = Number.isFinite(numericDepth)
+          ? Math.max(1, Math.floor(numericDepth))
+          : engineConfig.depth;
+        const numericMultiPv = Number(multiPv);
+        const resolvedMultiPv = Number.isFinite(numericMultiPv)
+          ? Math.max(1, Math.floor(numericMultiPv))
+          : 1;
+        return {
+          fen: typeof fen === 'string' ? fen : '',
+          pieceAnalysis: !!pieceAnalysis,
+          searchMoves: normalizeSearchMovesForCache(searchMoves),
+          multiPv: resolvedMultiPv,
+          autoPlay: !!autoPlay,
+          depth: resolvedDepth
+        };
+      }
+
+      function analysisRequestsMatch(a, b) {
+        if (!a || !b) return false;
+        return a.fen === b.fen
+          && a.pieceAnalysis === b.pieceAnalysis
+          && a.searchMoves === b.searchMoves
+          && a.multiPv === b.multiPv
+          && a.autoPlay === b.autoPlay
+          && a.depth === b.depth;
+      }
+
+      function markAnalysisRequestActive(entry) {
+        if (!entry) {
+          lastAnalysisRequest = null;
+          return;
+        }
+        lastAnalysisRequest = { ...entry, active: true };
+      }
+
+      function updateLastObservedFen(fen) {
+        if (typeof fen === 'string' && fen.length) {
+          lastObservedPositionFen = fen;
+        }
+      }
+
       function resetEngineCommandQueue() {
         engineCommandQueue = [];
         engineAwaitingReadyAfterStop = false;
+        invalidateAnalysisCache();
       }
 
       function postEngineCommand(command, options = {}) {
@@ -2563,6 +2640,8 @@
           clearTimeout(autoPlayDelayTimer);
           autoPlayDelayTimer = null;
         }
+        invalidateAnalysisCache();
+        updateLastObservedFen(game.fen());
         if (typeof newBaseFen === 'string' && newBaseFen.length) {
           baseFen = newBaseFen;
         }
@@ -2593,6 +2672,8 @@
           const move = game.move({ from: entry.from, to: entry.to, promotion: entry.promotion || 'q' });
           if (!move) break;
         }
+        invalidateAnalysisCache();
+        updateLastObservedFen(game.fen());
         navigationIndex = clamped;
         if (pieceMovesMode) {
           pieceMovesMode = false;
@@ -3107,6 +3188,7 @@
     pieceAnalysisWaitingForResult = false;
     pieceAnalysisTurn = null;
     isPieceAnalysis = false;
+    invalidateAnalysisCache();
     if (engine) {
       postEngineCommand('setoption name MultiPV value 1');
     }
@@ -3468,10 +3550,17 @@
   }
 
   function requestAnalysis(options = {}) {
+    const currentFen = game.fen();
+    if (lastObservedPositionFen !== currentFen) {
+      invalidateAnalysisCache();
+    }
+    updateLastObservedFen(currentFen);
+
     if (!engineReady || !engine) {
       scheduleEngineAutostart();
       return;
     }
+
     const {
       highlight = false,
       revealBest = false,
@@ -3481,26 +3570,36 @@
       multiPv = 1,
       pieceAnalysis = false,
       replay = false,
-      analysisFen = null
+      analysisFen = null,
+      forceRefresh = false
     } = options;
 
-    latestAnalysisFen = game.fen();
+    latestAnalysisFen = currentFen;
     shouldHighlightBest = highlight && revealBest;
     isPieceAnalysis = pieceAnalysis;
     if (!pieceAnalysis) {
       resetPieceAnalysisState();
     }
-    currentBestMove = null;
-    currentDepth = 0;
-    waitingForAutoBestMove = false;
-    autoMoveCandidate = null;
 
-    if (!pieceAnalysis && !pieceMovesMode) {
-      clearHighlights();
-    }
-    if (!pieceAnalysis) {
-      clearRatings();
-    }
+    const fenOverride = typeof analysisFen === 'string' ? analysisFen : null;
+    const fenTurn = pieceAnalysis ? (getFenTurn(fenOverride) || game.turn()) : game.turn();
+    const normalizedFenForCache = pieceAnalysis
+      ? normalizeFenTurn(fenOverride || latestAnalysisFen, fenTurn)
+      : normalizeFenTurn(latestAnalysisFen, game.turn());
+    const searchMovesForCache = pieceAnalysis
+      ? (Array.isArray(searchMoves) ? searchMoves : [])
+      : (Array.isArray(searchMoves) ? searchMoves : null);
+    const requestCacheEntry = createAnalysisRequestCacheEntry({
+      fen: normalizedFenForCache,
+      pieceAnalysis,
+      searchMoves: searchMovesForCache,
+      multiPv,
+      autoPlay,
+      depth
+    });
+    const cacheMatches = lastAnalysisRequest && analysisRequestsMatch(lastAnalysisRequest, requestCacheEntry);
+    const engineBusy = !!engine && (engineAwaitingReadyAfterStop || (lastAnalysisRequest && lastAnalysisRequest.active));
+    const shouldRestart = forceRefresh || !cacheMatches || !engineBusy;
 
     if (replay) {
       replayMode = true;
@@ -3543,6 +3642,22 @@
     }
     syncBestMoveButton();
 
+    if (!shouldRestart) {
+      return;
+    }
+
+    currentBestMove = null;
+    currentDepth = 0;
+    waitingForAutoBestMove = false;
+    autoMoveCandidate = null;
+
+    if (!pieceAnalysis && !pieceMovesMode) {
+      clearHighlights();
+    }
+    if (!pieceAnalysis) {
+      clearRatings();
+    }
+
     if (pieceAnalysis) {
       setEvaluationText('Eval: --', 0.5);
     } else {
@@ -3557,7 +3672,8 @@
       updateEvaluationProgressLabel();
     }
 
-    const fenOverride = typeof analysisFen === 'string' ? analysisFen : null;
+    deactivateLastAnalysisRequest();
+
     const normalizedFen = normalizeFenTurn(latestAnalysisFen, game.turn());
 
     postEngineCommand('stop', { queueIfPending: false });
@@ -3565,10 +3681,14 @@
     beginEngineReadyWait();
     if (pieceAnalysis) {
       const moveList = Array.isArray(searchMoves) ? searchMoves.slice() : [];
-      const fenTurn = getFenTurn(fenOverride) || game.turn();
-      const targetFen = normalizeFenTurn(fenOverride || latestAnalysisFen, fenTurn);
+      const targetFen = normalizedFenForCache;
       beginPieceAnalysisSearch({ fen: targetFen, moves: moveList, depth });
       pieceAnalysisTurn = fenTurn;
+      if (pieceAnalysisQueue.length) {
+        markAnalysisRequestActive(requestCacheEntry);
+      } else {
+        invalidateAnalysisCache();
+      }
       updateNavigationButtons();
       return;
     }
@@ -3581,6 +3701,7 @@
     } else {
       queuedCommands.push('go infinite');
     }
+    markAnalysisRequestActive(requestCacheEntry);
     queueEngineCommands(queuedCommands);
     updateNavigationButtons();
   }
