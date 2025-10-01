@@ -1025,6 +1025,15 @@
       let autoPlayRequestedAt = 0;
       let autoPlayDelayTimer = null;
       let autoPlayDepthSatisfied = false;
+      function resetAutoPlayState() {
+        if (autoPlayDelayTimer) {
+          clearTimeout(autoPlayDelayTimer);
+          autoPlayDelayTimer = null;
+        }
+        waitingForAutoBestMove = false;
+        autoMoveCandidate = null;
+        autoPlayDepthSatisfied = false;
+      }
       const evaluationNavElement = document.getElementById('evaluation-nav');
       let evaluationNavNeedsVisibleRender = false;
       let advantageBarVisible = false;
@@ -3321,6 +3330,8 @@
         }
 
         if (!latestAnalysisFen || latestAnalysisFen !== game.fen()) {
+          resetAutoPlayState();
+          updateNavigationButtons();
           return;
         }
 
@@ -3332,13 +3343,7 @@
           const moveToPlay = move && move !== '(none)' ? move : fallback;
 
           const finalizeAutoMove = () => {
-            if (autoPlayDelayTimer) {
-              clearTimeout(autoPlayDelayTimer);
-              autoPlayDelayTimer = null;
-            }
-            waitingForAutoBestMove = false;
-            autoMoveCandidate = null;
-            autoPlayDepthSatisfied = false;
+            resetAutoPlayState();
             if (moveToPlay) {
               applyAutoMove(moveToPlay);
             }
