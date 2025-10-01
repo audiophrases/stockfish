@@ -3,6 +3,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Chess Interface</title>
+  <!-- Added dependencies from online sources -->
   <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
   <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
   <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
@@ -256,6 +257,7 @@
   </div>
   <div class="edit-controls">
     <div class="pieces">
+      <!-- Changed piece image paths to an online source -->
       <img src="https://lichess1.org/assets/piece/alpha/wP.svg" data-piece="wP" alt="White Pawn">
       <img src="https://lichess1.org/assets/piece/alpha/wN.svg" data-piece="wN" alt="White Knight">
       <img src="https://lichess1.org/assets/piece/alpha/wB.svg" data-piece="wB" alt="White Bishop">
@@ -290,6 +292,7 @@ $(function() {
   let pieceMovesMode = false;
   let selectedPiece = null;
 
+  // Changed audio paths to an online source
   const audioMove = new Audio('https://sound.peal.io/lichess/move.ogg');
   const audioCapture = new Audio('https://sound.peal.io/lichess/capture.ogg');
   const boardElement = document.getElementById('board');
@@ -482,6 +485,7 @@ $(function() {
   };
 
   const syncEvalBarWidth = () => {
+    // Fixed runtime error by checking if the square element exists
     const squareElement = boardElement.querySelector('.white-1a1b');
     if (!squareElement) return;
     const squareSize = squareElement.getBoundingClientRect().width;
@@ -499,6 +503,7 @@ $(function() {
     onDragStart: onDragStart,
     onDrop: onDrop,
     onSnapEnd: onSnapEnd,
+    // Changed pieceTheme to use a function loading from an online source
     pieceTheme: (piece) => `https://lichess1.org/assets/piece/alpha/${piece}.svg`,
   };
   board = Chessboard('board', config);
