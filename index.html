@@ -1015,6 +1015,7 @@
       const AUTO_NEXT_MOVE_DEPTH = 16;
       const DEFAULT_THREADS = Math.min(4, ENGINE_THREADS_MAX);
       const DEFAULT_HASH_MB = 16;
+      const ENGINE_MEMORY_ERROR_FALLBACK_HASH_MB = DEFAULT_HASH_MB;
       const MAX_USER_HASH_MB = 256;
       const MIN_HASH_CEILING_MB = 32;
       const BACKGROUND_HASH_MAX_MB = 64;
@@ -1120,14 +1121,47 @@
         }
       }
 
+      function extractErrorMessage(error) {
+        if (!error) return '';
+        if (typeof error === 'string') {
+          return error;
+        }
+        if (typeof error.message === 'string') {
+          return error.message;
+        }
+        try {
+          return String(error);
+        } catch (stringifyError) {
+          return '';
+        }
+      }
+
+      function isMemoryAccessOutOfBoundsError(error) {
+        const message = extractErrorMessage(error);
+        if (!message) return false;
+        return /memory access out of bounds/i.test(message);
+      }
+
+      function applyEngineMemoryFallback() {
+        if (engineConfig.hash <= ENGINE_MEMORY_ERROR_FALLBACK_HASH_MB) {
+          return false;
+        }
+        engineConfig.hash = ENGINE_MEMORY_ERROR_FALLBACK_HASH_MB;
+        syncEngineInputs();
+        return true;
+      }
+
       function buildWorkerInitializationErrorMessage(error, context = {}) {
         const stage = context && context.stage === 'runtime' ? 'runtime' : 'load';
-        const detail = error && error.message ? String(error.message) : 'Unable to initialize Stockfish worker.';
+        const detail = extractErrorMessage(error) || 'Unable to initialize Stockfish worker.';
         const trimmedDetail = detail.trim();
         const normalizedDetail = trimmedDetail.length
           ? (trimmedDetail.endsWith('.') ? trimmedDetail : `${trimmedDetail}.`)
           : '';
         if (stage === 'runtime') {
+          if (isMemoryAccessOutOfBoundsError(error)) {
+            return 'Stockfish worker crashed. The engine ran out of memory while allocating its hash table. Reduce the Hash setting (e.g., 16 MB) and try again.';
+          }
           return normalizedDetail
             ? `Stockfish worker crashed. ${normalizedDetail}`
             : 'Stockfish worker crashed.';
@@ -2304,6 +2338,9 @@
             : new Error(message || 'Unknown background Stockfish worker error');
           const errorStage = determineWorkerErrorStage(event, message);
           const friendlyMessage = buildWorkerInitializationErrorMessage(errorForMessage, { stage: errorStage });
+          if (errorStage === 'runtime' && isMemoryAccessOutOfBoundsError(errorForMessage)) {
+            applyEngineMemoryFallback();
+          }
           console.error('Background Stockfish worker error', friendlyMessage, event);
         });
         backgroundEngine.onmessage = e => {
@@ -3495,6 +3532,9 @@
           : new Error(message || 'Unknown Stockfish worker error');
         const errorStage = determineWorkerErrorStage(event, message);
         const friendlyMessage = buildWorkerInitializationErrorMessage(errorForMessage, { stage: errorStage });
+        if (errorStage === 'runtime' && isMemoryAccessOutOfBoundsError(errorForMessage)) {
+          applyEngineMemoryFallback();
+        }
         setEngineErrorMessage(friendlyMessage, { source: 'engine-error' });
         if (shouldRetry) {
           setEngineStatusDisplay('loading', 'Retrying…');
