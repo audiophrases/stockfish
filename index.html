@@ -849,7 +849,7 @@
         </label>
         <label class="engine-field" for="engine-hash">
           <span class="engine-field__label">Hash (MB)</span>
-          <input id="engine-hash" class="engine-field__input" name="hash" type="number" min="1" max="256" step="1" inputmode="numeric" value="128">
+          <input id="engine-hash" class="engine-field__input" name="hash" type="number" min="1" max="256" step="1" inputmode="numeric" value="16">
         </label>
         <label class="engine-field" for="engine-depth">
           <span class="engine-field__label">Depth</span>
@@ -975,7 +975,7 @@
       const PROBABILITY_GRAPH_DEPTH = 14;
       const AUTO_NEXT_MOVE_DEPTH = 16;
       const DEFAULT_THREADS = Math.min(4, ENGINE_THREADS_MAX);
-      const DEFAULT_HASH_MB = 128;
+      const DEFAULT_HASH_MB = 16;
       const MAX_USER_HASH_MB = 256;
       const MIN_HASH_CEILING_MB = 32;
       const BACKGROUND_HASH_MAX_MB = 64;
