@@ -959,6 +959,7 @@
       let engineReady = false;
       let engineCommandQueue = [];
       let engineAwaitingReadyAfterStop = false;
+      let engineStopPending = false;
       let editSelectedPiece = null;
       let editSelectedSquare = null;
       let editSelectionSource = null;
@@ -1309,6 +1310,7 @@
       function resetEngineCommandQueue() {
         engineCommandQueue = [];
         engineAwaitingReadyAfterStop = false;
+        engineStopPending = false;
         invalidateAnalysisCache();
       }
 
@@ -2228,8 +2230,10 @@
         backgroundCurrentTask = nextTask;
         backgroundLastScore = null;
         const normalizedFen = normalizeFenTurn(nextTask.fen, nextTask.turn);
+        const safeFen = sanitizeFenForStockfish(normalizedFen);
         backgroundEngine.postMessage('setoption name MultiPV value 1');
-        backgroundEngine.postMessage(`position fen ${normalizedFen}`);
+        backgroundEngine.postMessage('ucinewgame');
+        backgroundEngine.postMessage(`position fen ${safeFen}`);
         const depth = typeof nextTask.depth === 'number' ? nextTask.depth : BACKGROUND_EVAL_DEPTH;
         backgroundEngine.postMessage(`go depth ${depth}`);
       }
@@ -2677,6 +2681,28 @@
         if (parts.length < 2) return trimmed;
         parts[1] = turn === 'b' ? 'b' : 'w';
         return parts.join(' ');
+      }
+
+      function sanitizeFenForStockfish(fen) {
+        try {
+          const g = new Chess();
+          if (!g.load(fen)) return fen;
+
+          const parts = fen.trim().split(/\s+/);
+          if (parts.length < 4) return fen;
+
+          const ep = parts[3];
+          if (ep === '-') return fen;
+
+          const hasEp = g.moves({ verbose: true }).some(m => m.flags && m.flags.includes('e'));
+          if (!hasEp) {
+            parts[3] = '-';
+            return parts.join(' ');
+          }
+          return fen;
+        } catch {
+          return fen;
+        }
       }
 
       function updateBestMoveDisplay() {
@@ -3336,7 +3362,8 @@
     pieceAnalysisWaitingForResult = true;
     setPieceMoveRating(nextMove, '…');
     const targetFen = pieceAnalysisFen || normalizeFenTurn(game.fen(), game.turn());
-    postEngineCommand(`position fen ${targetFen}`);
+    const safeFen = sanitizeFenForStockfish(targetFen);
+    postEngineCommand(`position fen ${safeFen}`);
     const depthLimit = Math.max(1, pieceAnalysisTargetDepth || engineConfig.depth);
     postEngineCommand(`go searchmoves ${nextMove} depth ${depthLimit}`);
   }
@@ -3515,6 +3542,9 @@
 
       if (line === 'readyok') {
         if (engine !== worker) return;
+        if (engineStopPending) {
+          engineStopPending = false;
+        }
         const hadPendingCommands = engineAwaitingReadyAfterStop;
         const wasStarting = engineStarting;
         engineReady = true;
@@ -3569,6 +3599,9 @@
       }
 
       if (line.startsWith('bestmove')) {
+        if (engine === worker && engineStopPending) {
+          engineStopPending = false;
+        }
         if (isPieceAnalysis) {
           if (pieceAnalysisMode === PIECE_ANALYSIS_MODE_SEQUENTIAL) {
             if (!pieceAnalysisWaitingForResult) {
@@ -3695,7 +3728,8 @@
         autoPlayDepthSatisfied = true;
         waitingForAutoBestMove = true;
         autoMoveCandidate = currentBestMove;
-        worker.postMessage('stop');
+        postEngineCommand('stop');
+        engineStopPending = true;
         updateNavigationButtons();
       }
     };
@@ -3761,7 +3795,9 @@
       depth
     });
     const cacheMatches = lastAnalysisRequest && analysisRequestsMatch(lastAnalysisRequest, requestCacheEntry);
-    const engineBusy = !!engine && (engineAwaitingReadyAfterStop || (lastAnalysisRequest && lastAnalysisRequest.active));
+    const engineBusy = !!engine && (
+      engineStopPending || engineAwaitingReadyAfterStop || (lastAnalysisRequest && lastAnalysisRequest.active)
+    );
     const shouldRestart = forceRefresh || !cacheMatches || !engineBusy;
 
     if (replay) {
@@ -3838,9 +3874,12 @@
     deactivateLastAnalysisRequest();
 
     const normalizedFen = normalizeFenTurn(latestAnalysisFen, game.turn());
+    const safeFen = sanitizeFenForStockfish(normalizedFen);
+    const stopHandshakePending = engineAwaitingReadyAfterStop || engineStopPending;
 
-    if (!engineAwaitingReadyAfterStop) {
+    if (!stopHandshakePending) {
       postEngineCommand('stop', { queueIfPending: false });
+      engineStopPending = true;
     }
     engineCommandQueue = [];
     beginEngineReadyWait();
@@ -3857,15 +3896,18 @@
       updateNavigationButtons();
       return;
     }
-    const queuedCommands = [`setoption name MultiPV value ${multiPv}`, `position fen ${normalizedFen}`];
-    if (autoPlay) {
-      const depthLimit = Math.max(PGN_REPLAY_DEPTH, Math.floor(depth));
-      queuedCommands.push(`go depth ${depthLimit}`);
-    } else if (searchMoves && searchMoves.length) {
-      queuedCommands.push(`go searchmoves ${searchMoves.join(' ')} infinite`);
-    } else {
-      queuedCommands.push('go infinite');
-    }
+    const resolvedDepth = Math.floor(typeof depth === 'number' ? depth : engineConfig.depth);
+    const depthLimit = Math.max(PGN_REPLAY_DEPTH, Math.max(1, resolvedDepth));
+    const queuedCommands = [
+      'ucinewgame',
+      `setoption name MultiPV value ${multiPv}`,
+      `position fen ${safeFen}`,
+      autoPlay
+        ? `go depth ${depthLimit}`
+        : (searchMoves && searchMoves.length
+          ? `go searchmoves ${searchMoves.join(' ')} infinite`
+          : 'go infinite')
+    ];
     markAnalysisRequestActive(requestCacheEntry);
     queueEngineCommands(queuedCommands);
     updateNavigationButtons();
