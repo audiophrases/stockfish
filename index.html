@@ -3,6 +3,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Chess Interface</title>
+  <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+  <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+  <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
   
 <style>
   :root {
@@ -42,3941 +46,511 @@
     flex-direction: column;
     align-items: center;
     gap: 20px;
-    box-shadow: 0 40px 80px rgba(0, 0, 0, 0.55);
-  }
-
-  .board-area {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-    align-items: center;
-  }
-
-  .board-container {
-    width: 100%;
-    display: flex;
-    justify-content: center;
+    --square-size: 8px;
   }
 
   #board {
     width: 100%;
-    max-width: 480px;
   }
 
-  .visually-hidden {
-    border: 0 !important;
-    clip: rect(1px, 1px, 1px, 1px) !important;
-    clip-path: inset(50%) !important;
-    height: 1px !important;
-    margin: -1px !important;
-    overflow: hidden !important;
-    padding: 0 !important;
-    position: absolute !important;
-    width: 1px !important;
-    white-space: nowrap !important;
-  }
-
-  #info-line {
-    display: flex;
-    gap: 18px;
-    align-items: center;
-    justify-content: center;
-  }
-
-  #status {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 6px 12px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.07);
-    color: #d8ddff;
-    font-size: 0.72rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    font-weight: 600;
-    line-height: 1.1;
-    transition: background 0.3s ease, color 0.3s ease, box-shadow 0.2s ease;
-  }
-
-  #status .status-text__label {
-    line-height: 1.2;
-  }
-
-  #status[data-turn="white"] {
-    color: #f4f6ff;
-  }
-
-  #status[data-turn="black"] {
-    color: #b9c5ff;
-  }
-
-  #status[data-state="check"] {
-    background: rgba(255, 147, 101, 0.18);
-    color: #ffb08a;
-    box-shadow: 0 0 0 1px rgba(255, 147, 101, 0.18);
-  }
-
-  #status[data-state="mate"] {
-    background: rgba(255, 112, 145, 0.22);
-    color: #ff7da1;
-    box-shadow: 0 0 0 1px rgba(255, 112, 145, 0.18);
-  }
-
-  #status[data-state="draw"] {
-    background: rgba(188, 196, 226, 0.18);
-    color: #d9defa;
-    box-shadow: 0 0 0 1px rgba(188, 196, 226, 0.18);
-  }
-
-  #status.is-editing {
-    cursor: pointer;
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.24);
-  }
-
-  #status.is-editing:focus-visible {
-    outline: 2px solid rgba(143, 165, 255, 0.7);
-    outline-offset: 2px;
-  }
-
-  .info-line-item {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .evaluation-indicator {
-    --eval-scale: 0.5;
-    position: relative;
-    width: 140px;
-    height: 8px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.08);
-    overflow: hidden;
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
-  }
-
-  .evaluation-indicator::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(90deg, #69f0ff, #7b7dff 55%, #ff7ce8);
-    transform: scaleX(var(--eval-scale));
-    transform-origin: left center;
-    transition: transform 0.35s ease;
-  }
-
-  .advantage-bar {
-    position: relative;
+  .evaluation-nav {
     width: 100%;
-    max-width: 320px;
-    height: 12px;
-    border-radius: 999px;
-    overflow: hidden;
-    background: rgba(255, 255, 255, 0.08);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
-    display: block;
-  }
-
-  .advantage-bar[hidden] {
-    display: none !important;
-  }
-
-  .advantage-bar__header,
-  .advantage-bar__status,
-  .advantage-bar__footer {
-    display: none !important;
-  }
-
-  .advantage-bar__track {
-    position: absolute;
-    inset: 0;
-    --white-ratio: 50%;
-    background: linear-gradient(90deg, rgba(236, 244, 255, 0.85) 0%, rgba(236, 244, 255, 0.85) var(--white-ratio), rgba(18, 26, 44, 0.85) var(--white-ratio), rgba(18, 26, 44, 0.85) 100%);
-  }
-
-  .advantage-bar__track::after {
-    content: '';
-    position: absolute;
-    top: -4px;
-    bottom: -4px;
-    width: 4px;
+    height: 32px;
+    background: #0d111c;
     border-radius: 8px;
-    background: rgba(255, 255, 255, 0.6);
-    left: calc(var(--white-ratio) - 2px);
-    transition: left 0.35s ease;
-  }
-
-  .advantage-bar.is-white-favored {
-    box-shadow: inset 0 0 0 1px rgba(165, 199, 255, 0.4), 0 12px 24px rgba(80, 140, 255, 0.25);
-  }
-
-  .advantage-bar.is-black-favored {
-    box-shadow: inset 0 0 0 1px rgba(130, 110, 255, 0.4), 0 12px 24px rgba(130, 110, 255, 0.22);
-  }
-
-  .advantage-bar.is-balanced {
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
-  }
-
-  .advantage-bar.is-loading .advantage-bar__track::after {
-    animation: indicator-slide 1.1s ease-in-out infinite;
-  }
-
-  @keyframes indicator-slide {
-    0% { opacity: 0.4; }
-    50% { opacity: 1; }
-    100% { opacity: 0.4; }
-  }
-
-  button {
-    appearance: none;
-    border: none;
-    background: none;
-    padding: 0;
+    padding: 4px;
     cursor: pointer;
-  }
-
-  #controls {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 16px;
-    width: 100%;
-  }
-
-  .control-button {
+    overflow: hidden;
     position: relative;
-    width: 100%;
-    min-height: 48px;
-    border-radius: 16px;
-    background: rgba(255, 255, 255, 0.08);
-    color: #eef1ff;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 12px 16px;
-    text-align: center;
-    font-size: 0.95rem;
-    font-weight: 600;
-    line-height: 1.2;
-    transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+    -webkit-tap-highlight-color: transparent;
   }
 
-  .control-button:hover:not(:disabled) {
-    transform: translateY(-2px);
-    background: rgba(122, 140, 255, 0.28);
-    box-shadow: 0 10px 24px rgba(70, 90, 200, 0.35);
-  }
-
-  .control-button:disabled {
-    cursor: not-allowed;
-    opacity: 0.35;
-    transform: none;
-  }
-
-  .control-button.is-active {
-    background: rgba(122, 140, 255, 0.35);
-    box-shadow: 0 12px 28px rgba(88, 120, 255, 0.38);
-  }
-
-  .control-button__label {
-    display: block;
-    width: 100%;
-    pointer-events: none;
-  }
-
-  .probability-panel {
-    width: 100%;
-    max-width: 480px;
-    background: rgba(10, 14, 26, 0.85);
-    border-radius: 20px;
-    padding: 18px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(8px);
-  }
-
-  .probability-panel[hidden] {
-    display: none !important;
-  }
-
-  .probability-panel__graph {
-    width: 100%;
-    height: 140px;
-    position: relative;
-  }
-
-  .engine-settings {
-    width: 100%;
-    background: rgba(10, 14, 26, 0.85);
-    border-radius: 22px;
-    padding: 20px 22px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(8px);
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-  }
-
-  .engine-settings[hidden] {
-    display: none !important;
-  }
-
-  .engine-settings__header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  .engine-settings__title {
-    margin: 0;
-    font-size: 1rem;
-    font-weight: 600;
-    color: #eef1ff;
-  }
-
-  .engine-settings__status {
-    font-size: 0.85rem;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: #9ca6cf;
-  }
-
-  .engine-settings__status[data-state="ready"] {
-    color: #7fe7c4;
-  }
-
-  .engine-settings__status[data-state="loading"] {
-    color: #f7d58b;
-  }
-
-  .engine-settings__status[data-state="error"] {
-    color: #ff9aad;
-  }
-
-  .engine-settings__form {
-    display: grid;
-    gap: 14px;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  }
-
-  .engine-autostart-toggle {
-    margin-top: 10px;
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 0.85rem;
-    color: #c9cfef;
-    cursor: pointer;
-  }
-
-  .engine-autostart-toggle__input {
-    width: 18px;
-    height: 18px;
-    accent-color: #7a8cff;
-  }
-
-  .engine-autostart-toggle__label {
-    line-height: 1.4;
-  }
-
-  .engine-field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    font-size: 0.85rem;
-    color: #c9cfef;
-  }
-
-  .engine-field__input {
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(17, 21, 32, 0.9);
-    color: #eef1ff;
-    padding: 10px 12px;
-    font-size: 1rem;
-    transition: border 0.2s ease, box-shadow 0.2s ease;
-  }
-
-  .engine-field__input:focus {
-    outline: none;
-    border-color: rgba(130, 148, 255, 0.6);
-    box-shadow: 0 0 0 2px rgba(130, 148, 255, 0.25);
-  }
-
-  .engine-settings__actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-
-  .engine-action-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    border-radius: 14px;
-    padding: 10px 18px;
-    font-size: 0.92rem;
-    font-weight: 600;
-    line-height: 1.1;
-    background: rgba(255, 255, 255, 0.08);
-    color: #eef1ff;
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-    transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
-    min-height: 44px;
-  }
-
-  .engine-action-button:hover:not(:disabled) {
-    transform: translateY(-2px);
-    background: rgba(122, 140, 255, 0.28);
-    box-shadow: 0 10px 24px rgba(70, 90, 200, 0.35);
-  }
-
-  .engine-action-button:disabled {
-    cursor: not-allowed;
-    opacity: 0.35;
-    transform: none;
-  }
-
-  .engine-action-button--primary {
-    background: linear-gradient(135deg, rgba(102, 126, 255, 0.85), rgba(136, 98, 255, 0.85));
-    box-shadow: 0 14px 28px rgba(88, 120, 255, 0.38);
-  }
-
-  .engine-action-button__label {
-    pointer-events: none;
-  }
-
-  .engine-settings__error {
-    font-size: 0.85rem;
-    color: #ff9aad;
-  }
-
-  .engine-settings__help {
-    margin: -6px 0 0;
-    font-size: 0.78rem;
-    color: #9ca6cf;
-    line-height: 1.5;
-  }
-
-  #input-modal {
-    position: fixed;
-    inset: 0;
-    display: grid;
-    place-items: center;
-    background: rgba(7, 9, 16, 0.72);
-    backdrop-filter: blur(8px);
-    z-index: 1000;
-  }
-
-  #input-modal[hidden] {
-    display: none !important;
-  }
-
-  .input-modal__dialog {
-    width: min(92vw, 420px);
-    background: rgba(12, 16, 30, 0.96);
-    border-radius: 20px;
-    padding: 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
-  }
-
-  .input-modal__title {
-    margin: 0;
-    font-size: 1.05rem;
-    font-weight: 600;
-    color: #eef1ff;
-  }
-
-  .input-modal__description {
-    margin: 0;
-    font-size: 0.85rem;
-    color: #a9b3df;
-    line-height: 1.5;
-  }
-
-  .input-modal__textarea {
-    width: 100%;
-    min-height: 140px;
-    border-radius: 14px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(17, 21, 32, 0.92);
-    color: #eef1ff;
-    padding: 12px 14px;
-    font-size: 0.95rem;
-    line-height: 1.5;
-    resize: vertical;
-  }
-
-  .input-modal__actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-  }
-
-  .input-modal__button {
-    border: none;
-    border-radius: 12px;
-    padding: 10px 18px;
-    font-size: 0.92rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
-  }
-
-  .input-modal__button:focus-visible {
-    outline: 2px solid rgba(122, 140, 255, 0.7);
-    outline-offset: 2px;
-  }
-
-  .input-modal__button--cancel {
-    background: rgba(255, 255, 255, 0.08);
-    color: #d2d9ff;
-  }
-
-  .input-modal__button--submit {
-    background: linear-gradient(135deg, rgba(102, 126, 255, 0.85), rgba(136, 98, 255, 0.85));
-    color: #f6f8ff;
-    box-shadow: 0 14px 28px rgba(88, 120, 255, 0.32);
-  }
-
-  .input-modal__button:hover {
-    transform: translateY(-1px);
-  }
-
-  .input-modal__error {
-    margin: -6px 0 0;
-    font-size: 0.82rem;
-    color: #ff9aad;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
-      scroll-behavior: auto !important;
-    }
-
-    .indicator-slide {
-      animation: none !important;
-    }
-
-    .control-button,
-    .engine-action-button,
-    .input-modal__button {
-      transition: none !important;
-    }
-
-    .control-button:hover:not(:disabled),
-    .engine-action-button:hover:not(:disabled),
-    .input-modal__button:hover {
-      transform: none !important;
-      box-shadow: none !important;
-    }
-  }
-
-  .evaluation-nav__graph {
+  .evaluation-nav__track {
     width: 100%;
     height: 100%;
-  }
-
-  .evaluation-nav__area {
-    fill: rgba(130, 148, 255, 0.2);
-  }
-
-  .evaluation-nav__line {
-    stroke: rgba(214, 222, 255, 0.85);
-    stroke-width: 2;
-  }
-
-  .evaluation-nav__baseline {
-    stroke: rgba(255, 255, 255, 0.14);
-    stroke-width: 1;
-    stroke-dasharray: 6 6;
-  }
-
-  .evaluation-nav__overlay {
-    position: absolute;
-    inset: 0;
-    display: grid;
+    border-radius: 6px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    position: relative;
   }
 
   .evaluation-nav__segment {
-    border: none;
-    background: transparent;
-    padding: 0;
-    margin: 0;
-    cursor: pointer;
+    height: 100%;
+    flex-shrink: 0;
   }
 
-  .evaluation-nav__segment:hover,
-  .evaluation-nav__segment.is-current {
-    background: rgba(122, 140, 255, 0.18);
+  .evaluation-nav__segment_white {
+    background: #e1e1e1;
   }
 
-  .evaluation-nav__marker {
-    fill: #f5f7ff;
-    stroke: rgba(122, 140, 255, 0.9);
-    stroke-width: 2;
+  .evaluation-nav__segment_black {
+    background: #434343;
   }
 
-  .highlight-selection {
-    box-shadow: inset 0 0 0 3px #f2ff5f !important;
+  .evaluation-nav__segment_advantage-white {
+    background: #9bd8ff;
   }
 
-  .highlight-move-from,
-  .highlight-move-to {
-    background: rgba(255, 255, 0, 0.38) !important;
+  .evaluation-nav__segment_advantage-black {
+    background: #737373;
   }
 
-  .highlight-piece-move-target {
-    background: rgba(118, 142, 255, 0.32) !important;
-    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.22);
+  .evaluation-nav__segment_white.current {
+    box-shadow: inset 0 0 0 2px #338cff;
   }
 
-  .selected-spare-piece {
-    box-shadow: 0 0 0 3px #f2ff5f inset;
-    border-radius: 8px;
+  .evaluation-nav__segment_black.current {
+    box-shadow: inset 0 0 0 2px #338cff;
   }
 
-  .move-rating {
+  .evaluation-nav__progress-bar {
     position: absolute;
-    bottom: 6px;
-    right: 6px;
-    background: rgba(9, 12, 24, 0.82);
-    color: #f6f9ff;
-    font-size: 12px;
-    padding: 3px 5px;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: #338cff;
     border-radius: 6px;
-    pointer-events: none;
-    z-index: 5;
+    opacity: 0.8;
+    mix-blend-mode: screen;
   }
 
-  .board-container .chessboard-7492f {
+  .notation {
+    width: 100%;
+    background: #0d111c;
+    border-radius: 12px;
+    padding: 12px 18px;
+    font-size: 15px;
+    color: #a4a8bb;
     display: flex;
-    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    font-family: monospace;
+  }
+
+  .status {
+    white-space: nowrap;
+  }
+
+  .fen-pgn {
+    display: flex;
+    gap: 16px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .fen, .pgn {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .fen {
+    flex-shrink: 1;
+  }
+  
+  .pgn {
+    flex-shrink: 9999;
+  }
+
+  .controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .controls button {
+    border: none;
+    background: #2a3044;
+    color: #eef1ff;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font: inherit;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.1s ease;
+  }
+
+  .controls button:hover {
+    background: #343b51;
+  }
+  
+  .controls button:active {
+    background: #3c445c;
+  }
+
+  .controls button.toggled {
+    background: #338cff;
+  }
+
+  .edit-controls {
+    background: #0d111c;
+    border-radius: 12px;
+    padding: 10px;
+    display: none;
+  }
+
+  .edit-controls.visible {
+    display: flex;
     gap: 10px;
     align-items: center;
   }
 
-  .board-container .board-b72b1 {
-    order: 1;
-  }
-
-  .board-container .spare-pieces-top,
-  .board-container .spare-pieces-bottom {
-    order: 2;
-    margin-top: 6px;
-    display: none;
-  }
-
-  .board-container.editing .spare-pieces-top,
-  .board-container.editing .spare-pieces-bottom {
+  .pieces {
     display: flex;
+    gap: 4px;
   }
 
-  .board-container .spare-pieces-7492f {
-    justify-content: center;
-    gap: 6px;
+  .pieces img {
+    width: 32px;
+    height: 32px;
+    padding: 2px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  
+  .pieces img.selected {
+    background: rgba(255, 255, 255, 0.2);
   }
 
-  .board-container.editing .spare-pieces-7492f {
-    display: flex;
+  body.piece-move-mode #board {
+    cursor: pointer;
   }
 
-  .board-container.editing .spare-pieces-7492f .piece-417db[data-piece^='b'] {
-    background: rgba(255, 255, 255, 0.18);
-    border-radius: 10px;
-    padding: 4px;
-  }
-
-  @media (max-width: 640px) {
-    .board-shell {
-      padding: 18px 22px;
-      border-radius: 24px;
-    }
-
-    .container {
-      gap: 22px;
-    }
-
-    #board {
-      max-width: 100%;
-    }
-
-    .evaluation-indicator {
-      width: 110px;
-    }
-  }
-
-  @media (max-width: 480px) {
-    .container {
-      width: min(98vw, 460px);
-      gap: 18px;
-    }
-
-    .board-shell {
-      padding: 14px 16px;
-      border-radius: 22px;
-    }
-
-    #controls {
-      gap: 12px;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    }
-
-    .control-button {
-      border-radius: 14px;
-      padding: 10px 12px;
-      font-size: 0.88rem;
-    }
-
-    .engine-settings {
-      padding: 16px 18px;
-      border-radius: 18px;
-    }
-
-    .engine-settings__form {
-      grid-template-columns: 1fr;
-      gap: 12px;
-    }
+  .divider {
+    width: 1px;
+    height: 24px;
+    background: #2a3044;
   }
 </style>
 
-  <script src="libs/jquery.min.js" defer></script>
-  <link href="libs/chessboard-1.0.0.min.css" rel="stylesheet">
-  <script src="libs/chessboard-1.0.0.min.js" defer></script>
-  <script src="libs/chess.min.js" defer></script>
 </head>
 <body>
-  <div class="container">
-    <div class="board-shell">
-      <div class="board-area">
-        <div class="board-container">
-          <div id="board"></div>
-        </div>
-        <div class="advantage-bar is-balanced advantage-bar--minimal" id="advantage-bar" aria-live="polite" aria-busy="false" aria-atomic="true" aria-hidden="true" hidden>
-          <div class="advantage-bar__header" aria-hidden="true">
-            <span class="visually-hidden">Advantage</span>
-            <span class="advantage-bar__status visually-hidden" id="advantage-status">Awaiting evaluation</span>
-          </div>
-          <div class="advantage-bar__track" id="advantage-track"></div>
-          <div class="advantage-bar__footer" aria-hidden="true">
-            <span class="advantage-bar__side advantage-bar__side--white">
-              <span class="advantage-bar__side-label visually-hidden">White</span>
-              <span class="advantage-bar__percent visually-hidden" id="advantage-white-percent">50%</span>
-            </span>
-            <span class="advantage-bar__side advantage-bar__side--black">
-              <span class="advantage-bar__percent visually-hidden" id="advantage-black-percent">50%</span>
-              <span class="advantage-bar__side-label visually-hidden">Black</span>
-            </span>
-          </div>
-        </div>
-      </div>
 
-      <div id="info-line">
-        <span id="status" class="status-text" role="status" aria-live="polite" aria-atomic="true" data-turn="white" data-state="normal" aria-label="White to move">
-          <span class="status-text__label">White to move</span>
-        </span>
-        <span class="info-line-item" id="evaluation-container" aria-hidden="true" hidden>
-          <span id="evaluation" class="evaluation-indicator" role="img" aria-label="Eval: --" data-probability="0.5" aria-live="off" aria-atomic="true">
-            <span class="visually-hidden">Eval: --</span>
-          </span>
-        </span>
-      </div>
-      <div class="probability-panel" id="probability-panel" hidden>
-        <div class="probability-panel__graph" id="evaluation-nav" role="group" aria-label="Evaluation timeline"></div>
-      </div>
+<div class="container">
+  <div class="board-shell">
+    <div id="board"></div>
+    <div class="evaluation-nav" tabindex="0">
+      <div class="evaluation-nav__track"></div>
+      <div class="evaluation-nav__progress-bar"></div>
     </div>
-    <div id="controls">
-      <button id="prev-button" class="control-button" type="button" disabled aria-label="Previous move">
-        <span class="control-button__label" aria-hidden="true">Prev</span>
-        <span class="visually-hidden">Previous move</span>
-      </button>
-      <button id="next-button" class="control-button" type="button" disabled aria-label="Next move">
-        <span class="control-button__label" aria-hidden="true">Next</span>
-        <span class="visually-hidden">Next move</span>
-      </button>
-      <button id="best-move-button" class="control-button" type="button" disabled aria-pressed="false" aria-label="Show best move">
-        <span class="control-button__label" aria-hidden="true">Best</span>
-        <span class="visually-hidden">Show best move</span>
-      </button>
-      <button id="advantage-toggle-button" class="control-button" type="button" aria-pressed="false" aria-label="Show advantage bar">
-        <span class="control-button__label" aria-hidden="true">Gauge</span>
-        <span class="visually-hidden">Show advantage bar</span>
-      </button>
-      <button id="probability-button" class="control-button" type="button" aria-pressed="false" aria-label="Show evaluation graph">
-        <span class="control-button__label" aria-hidden="true">Graph</span>
-        <span class="visually-hidden">Show evaluation graph</span>
-      </button>
-      <button id="piece-moves-button" class="control-button" type="button" aria-pressed="false" aria-label="Show piece moves">
-        <span class="control-button__label" aria-hidden="true">Piece</span>
-        <span class="visually-hidden">Show piece moves</span>
-      </button>
-      <button id="flip-button" class="control-button" type="button" aria-label="Flip board">
-        <span class="control-button__label" aria-hidden="true">Flip</span>
-        <span class="visually-hidden">Flip board</span>
-      </button>
-      <button id="edit-button" class="control-button" type="button" aria-pressed="false" aria-label="Enter edit mode">
-        <span class="control-button__label" aria-hidden="true">Edit</span>
-        <span class="visually-hidden">Enter edit mode</span>
-      </button>
-      <button id="fen-button" class="control-button" type="button" aria-label="Load FEN or PGN">
-        <span class="control-button__label" aria-hidden="true">Input</span>
-        <span class="visually-hidden">Load FEN or PGN</span>
-      </button>
-      <button id="engine-button" class="control-button" type="button" aria-pressed="false" aria-label="Show engine settings">
-        <span class="control-button__label" aria-hidden="true">Engine</span>
-        <span class="visually-hidden">Show engine settings</span>
-      </button>
-    </div>
-    <section id="engine-settings" class="engine-settings" hidden aria-hidden="true">
-      <div class="engine-settings__header">
-        <h2 class="engine-settings__title">Engine</h2>
-        <span id="engine-status" class="engine-settings__status" data-state="idle" aria-live="polite">Not started</span>
-      </div>
-      <form class="engine-settings__form" aria-label="Engine configuration">
-        <label class="engine-field" for="engine-threads">
-          <span class="engine-field__label">Threads</span>
-          <input id="engine-threads" class="engine-field__input" name="threads" type="number" min="1" max="64" step="1" inputmode="numeric" value="4">
-        </label>
-        <label class="engine-field" for="engine-hash">
-          <span class="engine-field__label">Hash (MB)</span>
-          <input id="engine-hash" class="engine-field__input" name="hash" type="number" min="1" max="256" step="1" inputmode="numeric" value="16">
-        </label>
-        <label class="engine-field" for="engine-depth">
-          <span class="engine-field__label">Depth</span>
-          <input id="engine-depth" class="engine-field__input" name="depth" type="number" min="1" max="99" step="1" inputmode="numeric" value="24">
-        </label>
-      </form>
-      <label class="engine-autostart-toggle" for="engine-autostart-toggle">
-        <input id="engine-autostart-toggle" class="engine-autostart-toggle__input" type="checkbox" checked>
-        <span class="engine-autostart-toggle__label">Start Stockfish automatically</span>
-      </label>
-      <p class="engine-settings__help" id="engine-settings-help"></p>
-      <div id="engine-error" class="engine-settings__error" role="alert" hidden></div>
-      <div class="engine-settings__actions">
-        <button type="button" id="engine-start-button" class="engine-action-button engine-action-button--primary">
-          <span class="engine-action-button__label">Start</span>
-        </button>
-        <button type="button" id="engine-stop-button" class="engine-action-button" disabled>
-          <span class="engine-action-button__label">Cease</span>
-        </button>
-      </div>
-    </section>
-    <div id="input-modal" role="dialog" aria-modal="true" aria-labelledby="input-modal-title" aria-describedby="input-modal-description" aria-hidden="true" hidden>
-      <div class="input-modal__dialog">
-        <h2 id="input-modal-title" class="input-modal__title">Load FEN or PGN</h2>
-        <p id="input-modal-description" class="input-modal__description">Paste a FEN position or PGN moves. Press Ctrl+Enter (or Cmd+Enter) to apply.</p>
-        <textarea id="input-modal-text" class="input-modal__textarea" aria-describedby="input-modal-description input-modal-error"></textarea>
-        <p id="input-modal-error" class="input-modal__error" role="alert" hidden></p>
-        <div class="input-modal__actions">
-          <button type="button" id="input-modal-cancel" class="input-modal__button input-modal__button--cancel">Cancel</button>
-          <button type="button" id="input-modal-apply" class="input-modal__button input-modal__button--submit">Apply</button>
-        </div>
+    <div class="notation">
+      <div class="status"></div>
+      <div class="fen-pgn">
+        <div class="fen"></div>
+        <div class="pgn"></div>
       </div>
     </div>
   </div>
-  <script defer>
-    $(function() {
-      let board, engine;
-      let lastBoardConfig = { editMode: null, orientation: null };
-      const game = new Chess();
-      const boardEl = $('#board');
-      const advantageBarElement = document.getElementById('advantage-bar');
-      const advantageTrackElement = document.getElementById('advantage-track');
-      const advantageStatusElement = document.getElementById('advantage-status');
-      const advantageWhiteElement = document.getElementById('advantage-white-percent');
-      const advantageBlackElement = document.getElementById('advantage-black-percent');
-      const advantageToggleButton = document.getElementById('advantage-toggle-button');
-      const probabilityPanel = document.getElementById('probability-panel');
-      const evaluationContainer = document.getElementById('evaluation-container');
-      const evaluationElement = document.getElementById('evaluation');
-      const bestMoveButtonElement = document.getElementById('best-move-button');
-      const probabilityButtonElement = document.getElementById('probability-button');
-      const pieceMovesButtonElement = document.getElementById('piece-moves-button');
-      const editButtonElement = document.getElementById('edit-button');
-      const engineButtonElement = document.getElementById('engine-button');
-      const engineSettingsElement = document.getElementById('engine-settings');
-      const engineStatusElement = document.getElementById('engine-status');
-      const engineErrorElement = document.getElementById('engine-error');
-      const engineHelpElement = document.getElementById('engine-settings-help');
-      const engineStartButtonElement = document.getElementById('engine-start-button');
-      const engineStopButtonElement = document.getElementById('engine-stop-button');
-      const engineThreadsInput = document.getElementById('engine-threads');
-      const engineHashInput = document.getElementById('engine-hash');
-      const engineDepthInput = document.getElementById('engine-depth');
-      const engineAutostartToggle = document.getElementById('engine-autostart-toggle');
-      const inputModalElement = document.getElementById('input-modal');
-      const inputModalTextarea = document.getElementById('input-modal-text');
-      const inputModalApplyButton = document.getElementById('input-modal-apply');
-      const inputModalCancelButton = document.getElementById('input-modal-cancel');
-      const inputModalErrorElement = document.getElementById('input-modal-error');
-      const statusElement = document.getElementById('status');
-      const CHESSBOARD_SELECTORS = Object.freeze({
-        square: 'div.square-55d63',
-        spareWrapper: '.spare-pieces-7492f',
-        piece: '.piece-417db'
-      });
-      const sparePiecesContainerSelector = `.board-container ${CHESSBOARD_SELECTORS.spareWrapper}`;
-      const sparePieceSelector = CHESSBOARD_SELECTORS.piece;
-      const ENGINE_AUTOSTART_STORAGE_KEY = 'stockfish-ui:engine-autostart-disabled';
-      let baseFen = game.fen();
-      let selectedSquare = null;
-      let moveSourceSquare = null;
-      let isPieceAnalysis = false;
-      let freezeMode = false;
-      let editMode = false;
-      let pieceMovesMode = false;
-      let orientation = 'white';
-      let latestAnalysisFen = null;
-      let shouldHighlightBest = false;
-      let engineReady = false;
-      let engineCommandQueue = [];
-      let engineAwaitingReadyAfterStop = false;
-      let editSelectedPiece = null;
-      let editSelectedSquare = null;
-      let editSelectionSource = null;
-      let bestMoveVisible = false;
-      let moveHistory = [];
-      let navigationIndex = 0;
-      let enginePanelVisible = false;
-      const STOCKFISH_WORKER_VARIANTS = [
-        { filename: 'stockfish-17.1-lite-single-03e3232.js', requiresThreadSupport: false }
-      ];
-      const threadSupportAvailable = supportsThreadedWorkers();
-      const selectedStockfishVariant = (() => {
-        for (const variant of STOCKFISH_WORKER_VARIANTS) {
-          if (!variant) continue;
-          if (variant.requiresThreadSupport && !threadSupportAvailable) {
-            continue;
-          }
-          return variant;
-        }
-        return null;
-      })();
-      const defaultWorkerLocation = selectedStockfishVariant
-        ? `/engine/${selectedStockfishVariant.filename}`
-        : null;
-      const ENGINE_THREADS_MIN = 1;
-      const ENGINE_THREADS_MAX = selectedStockfishVariant && selectedStockfishVariant.requiresThreadSupport === false
-        ? 1
-        : 64;
-      const DEFAULT_ANALYSIS_DEPTH = 16;
-      const PGN_REPLAY_DEPTH = 12;
-      const BACKGROUND_EVAL_DEPTH = 16;
-      const PROBABILITY_GRAPH_DEPTH = 14;
-      const AUTO_NEXT_MOVE_DEPTH = 16;
-      const DEFAULT_THREADS = Math.min(4, ENGINE_THREADS_MAX);
-      const DEFAULT_HASH_MB = 16;
-      const MAX_USER_HASH_MB = 256;
-      const MIN_HASH_CEILING_MB = 32;
-      const BACKGROUND_HASH_MAX_MB = 64;
-      const BACKGROUND_HASH_MIN_MB = 16;
-      const engineConfig = {
-        threads: DEFAULT_THREADS,
-        hash: DEFAULT_HASH_MB,
-        depth: DEFAULT_ANALYSIS_DEPTH
-      };
-      const ENGINE_AUTOSTART_DELAY_MS = 400;
-      const ENGINE_AUTOSTART_MAX_ATTEMPTS = 3;
-      const AUTO_PLAY_MIN_WAIT_MS = 4000;
-      const REPLAY_STEP_DELAY_MS = 900;
-      const PIECE_ANALYSIS_MODE_SEQUENTIAL = 'sequential';
-      let autoPlayPending = false;
-      let autoPlayTargetDepth = engineConfig.depth;
-      let autoPlayFen = null;
-      let currentBestMove = null;
-      let currentDepth = 0;
-      let pieceMoveRatings = new Map();
-      let pieceAnalysisMode = null;
-      let pieceAnalysisTurn = null;
-      let pieceAnalysisQueue = [];
-      let pieceAnalysisCurrentMove = null;
-      let pieceAnalysisActiveRequestId = 0;
-      let pieceAnalysisFen = null;
-      let pieceAnalysisTargetDepth = 0;
-      let pieceAnalysisWaitingForResult = false;
-      let waitingForAutoBestMove = false;
-      let autoMoveCandidate = null;
-      let autoPlayRequestedAt = 0;
-      let autoPlayDelayTimer = null;
-      let autoPlayDepthSatisfied = false;
-      const evaluationNavElement = document.getElementById('evaluation-nav');
-      let evaluationNavNeedsVisibleRender = false;
-      let advantageBarVisible = false;
-      let probabilityPanelVisible = false;
-      let evaluationTimeline = [];
-      let engineStarting = false;
-      let engineAutostartTimer = null;
-      let engineAutostartScheduled = false;
-      let engineAutostartAttempts = 0;
-      let engineLastStartWasAutostart = false;
-      let engineAutostartDisabled = false;
-      let lastFocusedElementBeforeModal = null;
-      const storedAutostartPreference = readStoredAutostartPreference();
-      if (storedAutostartPreference !== null) {
-        engineAutostartDisabled = storedAutostartPreference;
-      }
-      if (engineAutostartToggle) {
-        engineAutostartToggle.checked = !engineAutostartDisabled;
-      }
-      preloadPieceSprites();
-      function preloadPieceSprites() {
-        if (typeof Image !== 'function') {
-          return;
-        }
-        const pieces = ['king', 'queen', 'rook', 'bishop', 'knight', 'pawn'];
-        const colors = ['white', 'black'];
-        colors.forEach(color => {
-          pieces.forEach(piece => {
-            const img = new Image();
-            img.src = `pieces/${color}-${piece}.png`;
-          });
-        });
-      }
-
-      function readStoredAutostartPreference() {
-        if (typeof window === 'undefined') {
-          return null;
-        }
-        try {
-          const storage = window.localStorage;
-          if (!storage) return null;
-          const value = storage.getItem(ENGINE_AUTOSTART_STORAGE_KEY);
-          if (value === 'true') return true;
-          if (value === 'false') return false;
-        } catch (error) {
-          return null;
-        }
-        return null;
-      }
-
-      function persistAutostartPreference() {
-        if (typeof window === 'undefined') {
-          return;
-        }
-        try {
-          const storage = window.localStorage;
-          if (!storage) return;
-          storage.setItem(ENGINE_AUTOSTART_STORAGE_KEY, engineAutostartDisabled ? 'true' : 'false');
-        } catch (error) {
-          // Ignore storage errors (e.g., blocked cookies).
-        }
-      }
-
-      function buildWorkerInitializationErrorMessage(error) {
-        const detail = error && error.message ? String(error.message) : 'Unable to initialize Stockfish worker.';
-        const trimmedDetail = detail.trim();
-        const normalizedDetail = trimmedDetail.length
-          ? (trimmedDetail.endsWith('.') ? trimmedDetail : `${trimmedDetail}.`)
-          : '';
-        const guidance = defaultWorkerLocation
-          ? `Place the worker at ${defaultWorkerLocation} or set window.STOCKFISH_WORKER_PATH.`
-          : 'Set window.STOCKFISH_WORKER_PATH to the Stockfish worker file.';
-        return normalizedDetail ? `${normalizedDetail} ${guidance}` : guidance;
-      }
-
-      function setButtonLabel(element, label) {
-        if (!element || typeof label !== 'string') return;
-        element.setAttribute('aria-label', label);
-        const hidden = element.querySelector('.visually-hidden');
-        if (hidden) {
-          hidden.textContent = label;
-        }
-      }
-
-      function setButtonActive(element, isActive, activeLabel, inactiveLabel) {
-        if (!element) return;
-        element.classList.toggle('is-active', !!isActive);
-        if (element.hasAttribute('aria-pressed')) {
-          element.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-        }
-        if (isActive && activeLabel) {
-          setButtonLabel(element, activeLabel);
-        } else if (!isActive && inactiveLabel) {
-          setButtonLabel(element, inactiveLabel);
-        }
-      }
-
-      function syncBestMoveButton() {
-        setButtonActive(bestMoveButtonElement, bestMoveVisible, 'Hide best move', 'Show best move');
-      }
-
-      function syncAdvantageButton() {
-        setButtonActive(advantageToggleButton, advantageBarVisible, 'Hide advantage bar', 'Show advantage bar');
-      }
-
-      function syncProbabilityButton() {
-        setButtonActive(probabilityButtonElement, probabilityPanelVisible, 'Hide evaluation graph', 'Show evaluation graph');
-      }
-
-      function syncPieceMovesButton() {
-        setButtonActive(pieceMovesButtonElement, pieceMovesMode, 'Return to play mode', 'Show piece moves');
-      }
-
-      function syncEditButton() {
-        setButtonActive(editButtonElement, editMode, 'Exit edit mode', 'Enter edit mode');
-      }
-
-      function syncEngineButton() {
-        setButtonActive(engineButtonElement, enginePanelVisible, 'Hide engine settings', 'Show engine settings');
-      }
-
-      function syncEnginePanelVisibility() {
-        if (!engineSettingsElement) return;
-        if (enginePanelVisible) {
-          engineSettingsElement.hidden = false;
-          engineSettingsElement.setAttribute('aria-hidden', 'false');
-        } else {
-          engineSettingsElement.hidden = true;
-          engineSettingsElement.setAttribute('aria-hidden', 'true');
-        }
-        syncEngineButton();
-      }
-
-      function setEngineStatusDisplay(state, label) {
-        if (!engineStatusElement) return;
-        const normalizedState = state || 'idle';
-        engineStatusElement.dataset.state = normalizedState;
-        engineStatusElement.textContent = label || '';
-      }
-
-      function setEngineErrorMessage(message, options = {}) {
-        if (!engineErrorElement) return;
-        const { source = '', force = false } = options || {};
-        const currentSource = engineErrorElement.dataset.source || '';
-        if (!message && !force && currentSource === 'engine-error') {
-          return;
-        }
-        if (message) {
-          engineErrorElement.hidden = false;
-          engineErrorElement.textContent = message;
-          engineErrorElement.setAttribute('aria-hidden', 'false');
-        } else {
-          engineErrorElement.hidden = true;
-          engineErrorElement.textContent = '';
-          engineErrorElement.setAttribute('aria-hidden', 'true');
-        }
-        engineErrorElement.dataset.source = source;
-      }
-
-      function resetEngineCommandQueue() {
-        engineCommandQueue = [];
-        engineAwaitingReadyAfterStop = false;
-      }
-
-      function postEngineCommand(command, options = {}) {
-        if (!engine) return;
-        const text = typeof command === 'string' ? command.trim() : '';
-        if (!text) return;
-        const { queueIfPending = true } = options;
-        if (queueIfPending && engineAwaitingReadyAfterStop) {
-          engineCommandQueue.push(text);
-          return;
-        }
-        try {
-          engine.postMessage(text);
-        } catch (error) {
-          console.warn(`Failed to send command to engine: ${text}`, error);
-        }
-      }
-
-      function beginEngineReadyWait() {
-        if (!engine || engineAwaitingReadyAfterStop) {
-          return;
-        }
-        engineAwaitingReadyAfterStop = true;
-        try {
-          engine.postMessage('isready');
-        } catch (error) {
-          engineAwaitingReadyAfterStop = false;
-          engineCommandQueue = [];
-          console.warn('Failed to send isready command to engine', error);
-        }
-      }
-
-      function queueEngineCommands(commands) {
-        if (Array.isArray(commands)) {
-          commands.forEach(cmd => postEngineCommand(cmd));
-          return;
-        }
-        postEngineCommand(commands);
-      }
-
-      function resolveEngineReadyWait() {
-        if (!engineAwaitingReadyAfterStop) {
-          return;
-        }
-        const queued = engineCommandQueue.slice();
-        engineCommandQueue = [];
-        engineAwaitingReadyAfterStop = false;
-        if (!engine || !queued.length) {
-          return;
-        }
-        queued.forEach(cmd => postEngineCommand(cmd, { queueIfPending: false }));
-      }
-
-      function displayEngineConfigWarnings(result) {
-        if (result && Array.isArray(result.warnings) && result.warnings.length) {
-          setEngineErrorMessage(result.warnings.join(' '), { source: 'config-warning' });
-        } else if (engineErrorElement && engineErrorElement.dataset.source === 'config-warning') {
-          setEngineErrorMessage('', { source: '' });
-        }
-      }
-
-      function clampInteger(value, min, max, fallback) {
-        const numeric = Number(value);
-        if (!Number.isFinite(numeric)) {
-          return fallback;
-        }
-        const truncated = Math.floor(numeric);
-        if (!Number.isFinite(truncated)) {
-          return fallback;
-        }
-        const clamped = Math.max(min, Math.min(max, truncated));
-        return clamped;
-      }
-
-      function getDeviceMemoryInGb() {
-        if (typeof navigator !== 'undefined' && navigator) {
-          const { deviceMemory } = navigator;
-          const numeric = Number(deviceMemory);
-          if (Number.isFinite(numeric) && numeric > 0) {
-            return numeric;
-          }
-        }
-        return null;
-      }
-
-      function formatDeviceMemoryGb(value) {
-        if (!Number.isFinite(value) || value <= 0) {
-          return null;
-        }
-        if (value >= 4) {
-          return Math.round(value);
-        }
-        return Math.round(value * 10) / 10;
-      }
-
-      function resolveHashConstraints() {
-        const deviceMemoryGb = getDeviceMemoryInGb();
-        let ceiling = MAX_USER_HASH_MB;
-        if (deviceMemoryGb !== null) {
-          const derived = Math.floor(deviceMemoryGb * 64);
-          if (derived > 0) {
-            ceiling = Math.min(ceiling, Math.max(MIN_HASH_CEILING_MB, derived));
-          }
-        }
-        ceiling = Math.max(MIN_HASH_CEILING_MB, ceiling);
-        return { ceiling, deviceMemoryGb };
-      }
-
-      function computeBackgroundHashBudget(mainHash) {
-        const { ceiling } = resolveHashConstraints();
-        const quarter = Math.floor(ceiling / 4);
-        const base = Math.max(BACKGROUND_HASH_MIN_MB, quarter || 0);
-        const budget = Math.min(BACKGROUND_HASH_MAX_MB, base);
-        if (mainHash >= ceiling && budget <= BACKGROUND_HASH_MIN_MB) {
-          return null;
-        }
-        return Math.max(1, Math.min(mainHash, budget));
-      }
-
-      function applyEngineConfig(config = {}) {
-        const previousThreads = engineConfig.threads;
-        const previousHash = engineConfig.hash;
-        const previousDepth = engineConfig.depth;
-        const warnings = [];
-        const fallbackThreads = Math.max(ENGINE_THREADS_MIN, Math.min(ENGINE_THREADS_MAX, previousThreads));
-        const threads = clampInteger(config.threads, ENGINE_THREADS_MIN, ENGINE_THREADS_MAX, fallbackThreads);
-        const requestedThreads = Number(config.threads);
-        if (Number.isFinite(requestedThreads) && requestedThreads > ENGINE_THREADS_MAX) {
-          warnings.push(`Threads limited to ${ENGINE_THREADS_MAX} for this engine build.`);
-        }
-        const requestedHash = clampInteger(config.hash, 1, MAX_USER_HASH_MB, previousHash);
-        const hashConstraints = resolveHashConstraints();
-        let hash = requestedHash;
-        if (hash > hashConstraints.ceiling) {
-          hash = hashConstraints.ceiling;
-        }
-        if (hash !== requestedHash) {
-          const formattedMemory = formatDeviceMemoryGb(hashConstraints.deviceMemoryGb);
-          const memoryHint = formattedMemory ? ` (device reports ~${formattedMemory} GB RAM)` : '';
-          warnings.push(`Requested hash reduced to ${hash} MB (max ${hashConstraints.ceiling} MB${memoryHint}) to avoid exhausting memory.`);
-        }
-        const depth = clampInteger(config.depth, 1, 99, previousDepth);
-        engineConfig.threads = threads;
-        engineConfig.hash = hash;
-        engineConfig.depth = depth;
-        autoPlayTargetDepth = depth;
-        replayTargetDepth = depth;
-        syncEngineInputs(hashConstraints);
-        const changed = threads !== previousThreads || hash !== previousHash || depth !== previousDepth;
-        return { threads, hash, depth, changed, warnings };
-      }
-
-      function syncEngineInputs(constraints = null) {
-        const resolvedConstraints = constraints || resolveHashConstraints();
-        if (engineThreadsInput) {
-          engineThreadsInput.max = String(ENGINE_THREADS_MAX);
-          engineThreadsInput.value = engineConfig.threads;
-        }
-        if (engineHashInput) {
-          engineHashInput.max = String(resolvedConstraints.ceiling);
-          engineHashInput.value = engineConfig.hash;
-        }
-        if (engineDepthInput) {
-          engineDepthInput.value = engineConfig.depth;
-        }
-        updateEngineHashHelp(resolvedConstraints);
-      }
-
-      function updateEngineHashHelp() {
-        if (!engineHelpElement) return;
-        engineHelpElement.textContent = '';
-      }
-
-      function updateEngineControls(options = {}) {
-        const { loading = false } = options;
-        const hasWorker = !!engine;
-        if (engineStartButtonElement) {
-          engineStartButtonElement.disabled = loading;
-          if (loading) {
-            engineStartButtonElement.setAttribute('aria-busy', 'true');
-          } else {
-            engineStartButtonElement.removeAttribute('aria-busy');
-          }
-          const labelElement = engineStartButtonElement.querySelector('.engine-action-button__label') || engineStartButtonElement;
-          if (labelElement) {
-            if (loading) {
-              labelElement.textContent = 'Starting…';
-            } else if (hasWorker) {
-              labelElement.textContent = 'Restart engine';
-            } else {
-              labelElement.textContent = 'Start engine';
-            }
-          }
-        }
-        if (engineStopButtonElement) {
-          engineStopButtonElement.disabled = !hasWorker || loading;
-          const stopLabel = engineStopButtonElement.querySelector('.engine-action-button__label') || engineStopButtonElement;
-          if (stopLabel) {
-            stopLabel.textContent = 'Stop engine';
-          }
-        }
-      }
-
-      function cancelEngineAutostart() {
-        if (engineAutostartTimer) {
-          clearTimeout(engineAutostartTimer);
-          engineAutostartTimer = null;
-        }
-        engineAutostartScheduled = false;
-      }
-
-      function scheduleEngineAutostart(options = {}) {
-        const { immediate = false, resetAttempts = false, delay = ENGINE_AUTOSTART_DELAY_MS } = options || {};
-        if (engineAutostartDisabled) {
-          return;
-        }
-        if (resetAttempts) {
-          engineAutostartAttempts = 0;
-        }
-        if (engineReady || engineStarting || engineAutostartScheduled) {
-          return;
-        }
-        if (engineAutostartAttempts >= ENGINE_AUTOSTART_MAX_ATTEMPTS) {
-          return;
-        }
-        engineAutostartScheduled = true;
-        const triggerStart = () => {
-          engineAutostartScheduled = false;
-          if (engineReady || engineStarting) {
-            return;
-          }
-          if (engineAutostartAttempts >= ENGINE_AUTOSTART_MAX_ATTEMPTS) {
-            return;
-          }
-          engineAutostartAttempts += 1;
-          startEngine({ autostart: true });
-        };
-        if (immediate) {
-          triggerStart();
-        } else {
-          const timeout = Math.max(0, Number(delay) || 0);
-          const scheduleFn = (typeof window !== 'undefined' && typeof window.setTimeout === 'function') ? window.setTimeout : setTimeout;
-          engineAutostartTimer = scheduleFn(triggerStart, timeout);
-        }
-      }
-      const stockfishOverridePath = typeof window !== 'undefined'
-        ? (window.STOCKFISH_WORKER_PATH || (window.STOCKFISH && window.STOCKFISH.workerPath) || null)
-        : null;
-
-      function supportsThreadedWorkers() {
-        if (typeof window === 'undefined') {
-          return true;
-        }
-        if (window.crossOriginIsolated !== true) {
-          return false;
-        }
-        return typeof SharedArrayBuffer === 'function' && typeof Atomics === 'object';
-      }
-
-      function buildWorkerCandidatePaths(filename) {
-        return [
-          `./engine/${filename}`,
-          `engine/${filename}`,
-          `./engine2/${filename}`,
-          `engine2/${filename}`,
-          `./${filename}`,
-          filename
-        ];
-      }
-
-      const engineWorkerCandidates = (() => {
-        const seen = new Set();
-        const candidates = [];
-        const addCandidate = value => {
-          if (!value || seen.has(value)) {
-            return;
-          }
-          seen.add(value);
-          candidates.push(value);
-        };
-
-        if (stockfishOverridePath) {
-          addCandidate(stockfishOverridePath);
-        }
-
-        const variantsToConsider = selectedStockfishVariant
-          ? [selectedStockfishVariant]
-          : [];
-        for (const { filename, requiresThreadSupport } of variantsToConsider) {
-          if (requiresThreadSupport && !threadSupportAvailable) {
-            continue;
-          }
-          for (const candidate of buildWorkerCandidatePaths(filename)) {
-            addCandidate(candidate);
-          }
-        }
-
-        if (!candidates.length && stockfishOverridePath) {
-          addCandidate(stockfishOverridePath);
-        }
-
-        return candidates;
-      })();
-
-      function resolveWorkerCandidate(path) {
-        try {
-          return new URL(path, window.location.href).toString();
-        } catch (error) {
-          return path;
-        }
-      }
-
-      function createStockfishWorker() {
-        if (typeof Worker !== 'function') {
-          throw new Error('Web Workers are not supported in this environment.');
-        }
-        let lastError = null;
-        for (const candidate of engineWorkerCandidates) {
-          const absoluteCandidate = resolveWorkerCandidate(candidate);
-          try {
-            const worker = new Worker(absoluteCandidate);
-            worker.addEventListener('error', event => {
-              console.error(`Stockfish worker error (${absoluteCandidate})`, event?.message || event);
-            });
-            return worker;
-          } catch (error) {
-            console.error(`Failed to start Stockfish worker from ${absoluteCandidate}`, error);
-            lastError = error;
-          }
-        }
-        throw lastError || new Error('Unable to initialize Stockfish worker.');
-      }
-      if (advantageBarElement) {
-        advantageBarElement.hidden = true;
-        advantageBarElement.style.display = 'none';
-        advantageBarElement.setAttribute('aria-hidden', 'true');
-      }
-      if (evaluationContainer) {
-        evaluationContainer.hidden = true;
-        evaluationContainer.style.display = 'none';
-        evaluationContainer.setAttribute('aria-hidden', 'true');
-      }
-      if (evaluationElement) {
-        const defaultLabel = 'Eval: --';
-        const hiddenLabel = evaluationElement.querySelector('.visually-hidden');
-        if (hiddenLabel) hiddenLabel.textContent = defaultLabel;
-        evaluationElement.setAttribute('aria-label', defaultLabel);
-        evaluationElement.dataset.probability = '0.5';
-        evaluationElement.style.setProperty('--eval-scale', '0.5');
-        setEvaluationLiveMode(false);
-      }
-      syncBestMoveButton();
-      syncAdvantageButton();
-      syncProbabilityButton();
-      syncPieceMovesButton();
-      syncEditButton();
-      if (probabilityPanel) {
-        probabilityPanel.hidden = true;
-        probabilityPanel.setAttribute('aria-hidden', 'true');
-      }
-      let lastAdvantageRatio = 0.5;
-      function setEvaluationText(text, probability = null) {
-        if (!evaluationElement) return;
-        const label = typeof text === 'string' ? text : '';
-        const hiddenLabel = evaluationElement.querySelector('.visually-hidden');
-        if (hiddenLabel) {
-          hiddenLabel.textContent = label;
-        } else {
-          evaluationElement.textContent = label;
-        }
-        evaluationElement.setAttribute('aria-label', label);
-        if (probability !== null) {
-          const clamped = Math.max(0, Math.min(1, Number(probability) || 0));
-          evaluationElement.dataset.probability = clamped.toString();
-          evaluationElement.style.setProperty('--eval-scale', clamped.toString());
-        }
-      }
-
-      function setEvaluationLiveMode(isVisible) {
-        if (!evaluationElement) return;
-        evaluationElement.setAttribute('aria-live', isVisible ? 'polite' : 'off');
-      }
-
-      function clearInputModalError() {
-        if (!inputModalErrorElement) return;
-        inputModalErrorElement.hidden = true;
-        inputModalErrorElement.textContent = '';
-      }
-
-      function showInputModalError(message) {
-        if (!inputModalErrorElement) return;
-        const text = typeof message === 'string' && message.trim().length
-          ? message.trim()
-          : 'Invalid FEN or PGN.';
-        inputModalErrorElement.hidden = false;
-        inputModalErrorElement.textContent = text;
-      }
-
-      function trapInputModalFocus(event) {
-        if (event.key !== 'Tab') {
-          return;
-        }
-        const focusable = [inputModalTextarea, inputModalCancelButton, inputModalApplyButton]
-          .filter(element => element && typeof element.focus === 'function' && !element.disabled);
-        if (!focusable.length) {
-          return;
-        }
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        if (event.shiftKey) {
-          if (document.activeElement === first || !focusable.includes(document.activeElement)) {
-            event.preventDefault();
-            last.focus();
-          }
-        } else if (document.activeElement === last) {
-          event.preventDefault();
-          first.focus();
-        }
-      }
-
-      function openInputModal(presetText = '') {
-        if (!inputModalElement) return;
-        lastFocusedElementBeforeModal = document.activeElement && typeof document.activeElement.focus === 'function'
-          ? document.activeElement
-          : null;
-        inputModalElement.hidden = false;
-        inputModalElement.setAttribute('aria-hidden', 'false');
-        clearInputModalError();
-        if (inputModalTextarea) {
-          inputModalTextarea.value = typeof presetText === 'string' ? presetText : '';
-          requestAnimationFrame(() => {
-            inputModalTextarea.focus();
-            inputModalTextarea.select();
-          });
-        }
-      }
-
-      function closeInputModal(options = {}) {
-        if (!inputModalElement) return;
-        const { restoreFocus = true } = options || {};
-        inputModalElement.hidden = true;
-        inputModalElement.setAttribute('aria-hidden', 'true');
-        if (inputModalTextarea) {
-          inputModalTextarea.value = '';
-        }
-        clearInputModalError();
-        if (restoreFocus && lastFocusedElementBeforeModal && typeof lastFocusedElementBeforeModal.focus === 'function') {
-          lastFocusedElementBeforeModal.focus();
-        }
-        lastFocusedElementBeforeModal = null;
-      }
-
-      function handleInputModalSubmit() {
-        if (!inputModalTextarea) return;
-        const rawInput = inputModalTextarea.value;
-        const result = importPositionFromText(rawInput);
-        if (!result || result.success !== true) {
-          const message = result && typeof result.error === 'string' ? result.error : 'Invalid FEN or PGN.';
-          showInputModalError(message);
-          return;
-        }
-        closeInputModal();
-      }
-
-      function formatEvaluationLabel(probability) {
-        return `Eval: ${formatWinProbability(probability)}`;
-      }
-
-      function deriveWhiteWinProbability(entry) {
-        if (!entry) {
-          return 0.5;
-        }
-        if (typeof entry.whiteWinProbability === 'number' && !Number.isNaN(entry.whiteWinProbability)) {
-          return clampProbability(entry.whiteWinProbability);
-        }
-        if (entry.type === 'mate' && entry.winningSide) {
-          return entry.winningSide === 'white' ? 1 : 0;
-        }
-        if (typeof entry.cp === 'number' && !Number.isNaN(entry.cp)) {
-          return calculateWhiteWinProbabilityFromCp(entry.cp);
-        }
-        if (typeof entry.value === 'number' && !Number.isNaN(entry.value)) {
-          return calculateWhiteWinProbabilityFromCp(entry.value);
-        }
-        return 0.5;
-      }
-
-      function updateEvaluationDisplay(entry) {
-        if (!entry) {
-          setEvaluationText('Eval: --', 0.5);
-          return;
-        }
-        const probability = deriveWhiteWinProbability(entry);
-        setEvaluationText(formatEvaluationLabel(probability), probability);
-      }
-      let backgroundEngine = null;
-      let backgroundEngineReady = false;
-      let backgroundEvaluationQueue = [];
-      let backgroundCurrentTask = null;
-      let backgroundPendingStart = false;
-      let backgroundLastScore = null;
-      let backgroundEvaluationToken = 0;
-      let backgroundEvaluationCompleted = 0;
-      let backgroundEvaluationTotal = 0;
-      let replayMode = false;
-      let replayTargetDepth = engineConfig.depth;
-      let replayPendingIndex = null;
-      let replayAdvanceScheduled = false;
-      let replayTimer = null;
-      let pendingReplayStart = null;
-      let lastImportWasPgn = false;
-      function ensureTimelineCapacity(size) {
-        const target = Math.max(0, Math.floor(size));
-        let extended = false;
-        while (evaluationTimeline.length < target) {
-          evaluationTimeline.push(null);
-          extended = true;
-        }
-        return extended;
-      }
-
-      function clearEvaluationTimeline(initialSize = 1) {
-        const size = Math.max(1, Math.floor(initialSize));
-        evaluationTimeline = new Array(size).fill(null);
-        scheduleEvaluationNavigationRender();
-      }
-
-      function resetBackgroundEvaluationProgress() {
-        backgroundEvaluationCompleted = 0;
-        backgroundEvaluationTotal = 0;
-        updateEvaluationProgressLabel();
-      }
-
-      function updateEvaluationProgressLabel() {
-        // Intentionally left blank – the probability graph no longer shows textual status updates.
-      }
-
-      // Logistic scale matching the Lichess win probability model for centipawn scores.
-      const LICHESS_WIN_PROBABILITY_SCALE = 0.00368208;
-
-      function capitalizeWord(word) {
-        if (typeof word !== 'string' || !word.length) return '';
-        return word.charAt(0).toUpperCase() + word.slice(1);
-      }
-
-      function clampProbability(probability) {
-        if (typeof probability !== 'number' || Number.isNaN(probability)) {
-          return 0.5;
-        }
-        return Math.max(0, Math.min(1, probability));
-      }
-
-      function calculateWhiteWinProbabilityFromCp(cp) {
-        if (typeof cp !== 'number' || Number.isNaN(cp)) {
-          return 0.5;
-        }
-        const limited = Math.max(-2000, Math.min(2000, cp));
-        const exponent = -LICHESS_WIN_PROBABILITY_SCALE * limited;
-        const probability = 1 / (1 + Math.exp(exponent));
-        return clampProbability(probability);
-      }
-
-      function formatWinProbability(probability) {
-        const clamped = clampProbability(probability);
-        const percentValue = Math.round(clamped * 1000) / 10;
-        const hasFraction = Math.abs(percentValue - Math.round(percentValue)) > 0.001;
-        const formatted = hasFraction ? percentValue.toFixed(1) : Math.round(percentValue).toString();
-        return `${formatted}%`;
-      }
-
-      function computeAdvantageRatio(entry) {
-        if (!entry) {
-          return Math.max(0, Math.min(1, lastAdvantageRatio));
-        }
-
-        if (typeof entry.whiteWinProbability === 'number' && !Number.isNaN(entry.whiteWinProbability)) {
-          return clampProbability(entry.whiteWinProbability);
-        }
-
-        if (entry.type === 'mate') {
-          if (entry.winningSide === 'white') return 1;
-          if (entry.winningSide === 'black') return 0;
-          return 0.5;
-        }
-
-        if (typeof entry.value === 'number' && !Number.isNaN(entry.value)) {
-          const bounded = Math.max(-2000, Math.min(2000, entry.value));
-          return (bounded + 2000) / 4000;
-        }
-
-        return Math.max(0, Math.min(1, lastAdvantageRatio));
-      }
-
-      function updateAdvantageBar(entry, { neutral = false, message = null } = {}) {
-        if (!advantageBarElement || !advantageTrackElement) return;
-
-        let ratio = neutral ? 0.5 : Math.max(0, Math.min(1, lastAdvantageRatio));
-        let summary = message || (neutral ? 'Awaiting evaluation' : (advantageStatusElement ? advantageStatusElement.textContent || '' : ''));
-
-        if (entry) {
-          ratio = computeAdvantageRatio(entry);
-          const fallback = entry.winningSide ? `${capitalizeWord(entry.winningSide)} edge` : 'Balanced';
-          summary = entry.shortText || entry.text || fallback;
-        } else if (!entry && !message && neutral) {
-          summary = 'Awaiting evaluation';
-        }
-
-        ratio = Math.max(0, Math.min(1, ratio));
-        lastAdvantageRatio = ratio;
-
-        const whitePercentLabel = formatWinProbability(ratio);
-        const blackPercentLabel = formatWinProbability(1 - ratio);
-
-        advantageTrackElement.style.setProperty('--white-ratio', `${(ratio * 100).toFixed(2)}%`);
-        if (advantageWhiteElement) {
-          advantageWhiteElement.textContent = whitePercentLabel;
-        }
-        if (advantageBlackElement) {
-          advantageBlackElement.textContent = blackPercentLabel;
-        }
-        if (advantageStatusElement) {
-          advantageStatusElement.textContent = summary || '';
-        }
-        if (advantageBarElement) {
-          const isWhiteFavored = ratio >= 0.53;
-          const isBlackFavored = ratio <= 0.47;
-          advantageBarElement.classList.toggle('is-white-favored', isWhiteFavored);
-          advantageBarElement.classList.toggle('is-black-favored', isBlackFavored);
-          advantageBarElement.classList.toggle('is-balanced', !isWhiteFavored && !isBlackFavored);
-        }
-      }
-
-      function setAdvantageBarLoading(isLoading, { reset = true } = {}) {
-        if (!advantageBarElement) return;
-        advantageBarElement.classList.toggle('is-loading', !!isLoading);
-        advantageBarElement.setAttribute('aria-busy', isLoading ? 'true' : 'false');
-        if (isLoading) {
-          updateAdvantageBar(null, { neutral: !!reset, message: 'Analyzing...' });
-        }
-      }
-
-      function describeCentipawnAdvantage(cp) {
-        const abs = Math.abs(cp);
-        if (abs < 15) {
-          return { leadingSide: null, summary: 'Level position', category: 'level' };
-        }
-        const side = cp > 0 ? 'white' : 'black';
-        if (abs < 50) {
-          return { leadingSide: side, summary: 'has a microscopic edge', category: 'tiny' };
-        }
-        if (abs < 120) {
-          return { leadingSide: side, summary: 'has a small advantage', category: 'small' };
-        }
-        if (abs < 250) {
-          return { leadingSide: side, summary: 'is better', category: 'better' };
-        }
-        if (abs < 400) {
-          return { leadingSide: side, summary: 'is winning', category: 'winning' };
-        }
-        return { leadingSide: side, summary: 'is completely winning', category: 'crushing' };
-      }
-
-      function buildEvaluationEntryFromScore({ cp = null, mate = null, turn = 'w' }) {
-        const activeTurn = turn === 'b' ? 'b' : 'w';
-
-        if (typeof mate === 'number' && !Number.isNaN(mate)) {
-          const mateValueRaw = mate;
-          const isNegativeZero = Object.is(mateValueRaw, -0);
-          const rawSign = mateValueRaw > 0 ? 1 : mateValueRaw < 0 ? -1 : (isNegativeZero ? -1 : 1);
-          let mateValue = mateValueRaw;
-          if (activeTurn === 'b') {
-            mateValue = -mateValue;
-          }
-
-          if (mateValue === 0) {
-            const winningSide = activeTurn === 'w' ? 'black' : 'white';
-            const gaugeSign = winningSide === 'white' ? 1 : -1;
-            const label = `${capitalizeWord(winningSide)} has delivered checkmate · 100% win chance`;
-            const whiteWinProbability = winningSide === 'white' ? 1 : 0;
-            return {
-              value: gaugeSign >= 0 ? 2000 : -2000,
-              text: label,
-              shortText: 'Mate',
-              type: 'mate',
-              matePly: 0,
-              winningSide,
-              whiteWinProbability,
-              raw: { mate: mateValueRaw, turn: activeTurn }
-            };
-          }
-
-          const winningSide = mateValue > 0 ? 'white' : 'black';
-          const absMoves = Math.abs(mateValue);
-          const label = `${capitalizeWord(winningSide)} mates in ${absMoves} · 100% win chance`;
-          const shortText = mateValue > 0 ? `M${absMoves}` : `M-${absMoves}`;
-          const whiteWinProbability = winningSide === 'white' ? 1 : 0;
-          return {
-            value: mateValue > 0 ? 2000 : -2000,
-            text: label,
-            shortText,
-            type: 'mate',
-            matePly: absMoves,
-            winningSide,
-            whiteWinProbability,
-            raw: { mate: mateValueRaw, turn: activeTurn }
-          };
-        }
-
-        if (typeof cp === 'number' && !Number.isNaN(cp)) {
-          let cpValue = cp;
-          if (activeTurn === 'b') {
-            cpValue = -cpValue;
-          }
-          const normalized = Math.max(-2000, Math.min(2000, cpValue));
-          const descriptor = describeCentipawnAdvantage(cpValue);
-          const prefix = cpValue > 0 ? '+' : cpValue < 0 ? '' : '';
-          const cpDisplay = `${prefix}${(cpValue / 100).toFixed(2)}`;
-          const cpLabel = `${cpDisplay} pawns`;
-          const whiteWinProbability = calculateWhiteWinProbabilityFromCp(cpValue);
-          const blackWinProbability = 1 - whiteWinProbability;
-          const favoredSide = descriptor.leadingSide;
-          const favoredProbability = favoredSide === 'white'
-            ? whiteWinProbability
-            : favoredSide === 'black'
-              ? blackWinProbability
-              : whiteWinProbability;
-          const probabilitySummary = favoredSide
-            ? `${formatWinProbability(favoredProbability)} win chance`
-            : `Win chances W ${formatWinProbability(whiteWinProbability)} · B ${formatWinProbability(blackWinProbability)}`;
-          const summary = descriptor.leadingSide
-            ? `${capitalizeWord(descriptor.leadingSide)} ${descriptor.summary}`
-            : descriptor.summary;
-          return {
-            value: normalized,
-            text: `${summary} · ${probabilitySummary} (${cpLabel})`,
-            shortText: `W ${formatWinProbability(whiteWinProbability)} · ${cpDisplay}`,
-            type: 'cp',
-            cp: cpValue,
-            winningSide: descriptor.leadingSide,
-            advantageCategory: descriptor.category,
-            whiteWinProbability,
-            raw: { cp, turn: activeTurn }
-          };
-        }
-
-        return null;
-      }
-
-      function cancelBackgroundEvaluation() {
-        backgroundEvaluationToken += 1;
-        const hadActiveTask = !!backgroundCurrentTask;
-        backgroundEvaluationQueue = [];
-        backgroundCurrentTask = null;
-        backgroundLastScore = null;
-        resetBackgroundEvaluationProgress();
-        if (backgroundEngine && hadActiveTask) {
-          backgroundPendingStart = true;
-          backgroundEngine.postMessage('stop');
-        } else {
-          backgroundPendingStart = false;
-        }
-      }
-
-      function processBackgroundQueue() {
-        if (!backgroundEngine || !backgroundEngineReady || backgroundPendingStart || backgroundCurrentTask) return;
-        const nextTask = backgroundEvaluationQueue.shift();
-        if (!nextTask || nextTask.token !== backgroundEvaluationToken) {
-          if (!backgroundEvaluationQueue.length && backgroundEvaluationCompleted >= backgroundEvaluationTotal && backgroundEvaluationTotal > 0) {
-            updateEvaluationProgressLabel();
-          }
-          return;
-        }
-        backgroundCurrentTask = nextTask;
-        backgroundLastScore = null;
-        const normalizedFen = normalizeFenTurn(nextTask.fen, nextTask.turn);
-        backgroundEngine.postMessage('setoption name MultiPV value 1');
-        backgroundEngine.postMessage(`position fen ${normalizedFen}`);
-        const depth = typeof nextTask.depth === 'number' ? nextTask.depth : BACKGROUND_EVAL_DEPTH;
-        backgroundEngine.postMessage(`go depth ${depth}`);
-      }
-
-      function queueBackgroundEvaluationTasks(tasks) {
-        if (!Array.isArray(tasks) || !tasks.length) {
-          cancelBackgroundEvaluation();
-          return;
-        }
-        if (!engineReady) {
-          cancelBackgroundEvaluation();
-          scheduleEngineAutostart();
-          return;
-        }
-        backgroundEvaluationToken += 1;
-        const token = backgroundEvaluationToken;
-        backgroundEvaluationQueue = tasks.map(task => ({ ...task, token }));
-        backgroundCurrentTask = null;
-        backgroundLastScore = null;
-        backgroundEvaluationCompleted = 0;
-        backgroundEvaluationTotal = tasks.length;
-        updateEvaluationProgressLabel();
-        if (!backgroundEngine) {
-          initBackgroundEngine();
-        }
-        if (backgroundEngineReady && !backgroundPendingStart) {
-          processBackgroundQueue();
-        }
-      }
-
-      function shutdownBackgroundEngine() {
-        cancelBackgroundEvaluation();
-        backgroundPendingStart = false;
-        backgroundEngineReady = false;
-        backgroundCurrentTask = null;
-        backgroundLastScore = null;
-        if (backgroundEngine) {
-          try {
-            backgroundEngine.postMessage('stop');
-          } catch (error) {
-            console.warn('Failed to stop background engine', error);
-          }
-          try {
-            backgroundEngine.terminate();
-          } catch (terminateError) {
-            console.warn('Failed to terminate background engine', terminateError);
-          }
-        }
-        backgroundEngine = null;
-      }
-
-      function restartBackgroundEngine() {
-        shutdownBackgroundEngine();
-        if (!engine) {
-          return;
-        }
-        initBackgroundEngine();
-      }
-
-      function initBackgroundEngine() {
-        if (backgroundEngine) return;
-        backgroundEngineReady = false;
-        backgroundPendingStart = false;
-        backgroundCurrentTask = null;
-        backgroundLastScore = null;
-        try {
-          backgroundEngine = createStockfishWorker();
-        } catch (error) {
-          console.error('Failed to initialize background Stockfish worker', error);
-          backgroundEngine = null;
-          return;
-        }
-        backgroundEngine.addEventListener('error', event => {
-          console.error('Background Stockfish worker error', event?.message || event);
-        });
-        backgroundEngine.onmessage = e => {
-          const line = String(e.data).trim();
-
-          if (line === 'uciok') {
-            backgroundEngine.postMessage(`setoption name Threads value ${engineConfig.threads}`);
-            const backgroundHash = computeBackgroundHashBudget(engineConfig.hash);
-            if (backgroundHash !== null) {
-              backgroundEngine.postMessage(`setoption name Hash value ${backgroundHash}`);
-            }
-            backgroundEngine.postMessage('isready');
-            return;
-          }
-
-          if (line === 'readyok') {
-            backgroundEngineReady = true;
-            processBackgroundQueue();
-            return;
-          }
-
-          if (!line.length) return;
-
-          if (backgroundPendingStart) {
-            if (line.startsWith('bestmove')) {
-              backgroundPendingStart = false;
-              backgroundLastScore = null;
-              processBackgroundQueue();
-            }
-            return;
-          }
-
-          if (line.startsWith('info')) {
-            if (!backgroundCurrentTask || backgroundCurrentTask.token !== backgroundEvaluationToken) {
-              return;
-            }
-            if (!line.includes('score')) return;
-
-            const cpMatch = line.match(/score cp (-?\d+)/);
-            const mateMatch = line.match(/score mate (-?\d+)/);
-            if (mateMatch) {
-              backgroundLastScore = { mate: parseInt(mateMatch[1], 10), turn: backgroundCurrentTask.turn };
-            } else if (cpMatch) {
-              backgroundLastScore = { cp: parseInt(cpMatch[1], 10), turn: backgroundCurrentTask.turn };
-            }
-            return;
-          }
-
-          if (!line.startsWith('bestmove')) return;
-
-          if (!backgroundCurrentTask) {
-            processBackgroundQueue();
-            return;
-          }
-
-          if (backgroundCurrentTask.token !== backgroundEvaluationToken) {
-            backgroundCurrentTask = null;
-            backgroundLastScore = null;
-            processBackgroundQueue();
-            return;
-          }
-
-          const currentTask = backgroundCurrentTask;
-          backgroundCurrentTask = null;
-          let entry = null;
-          if (backgroundLastScore) {
-            entry = buildEvaluationEntryFromScore({ cp: backgroundLastScore.cp ?? null, mate: backgroundLastScore.mate ?? null, turn: backgroundLastScore.turn || currentTask.turn });
-          }
-          if (!entry) {
-            entry = { value: 0, text: 'N/A' };
-          }
-          setTimelineEntry(currentTask.index, entry);
-          backgroundEvaluationCompleted = Math.min(backgroundEvaluationCompleted + 1, backgroundEvaluationTotal);
-          if (currentTask.index === navigationIndex) {
-            applyStoredEvaluationIfAvailable();
-          }
-          updateEvaluationProgressLabel();
-          backgroundLastScore = null;
-          processBackgroundQueue();
-        };
-        backgroundEngine.postMessage('uci');
-      }
-
-      function buildBackgroundTasksForGame(depthOverride = BACKGROUND_EVAL_DEPTH) {
-        const tasks = [];
-        const evaluationGame = new Chess();
-        if (!evaluationGame.load(baseFen)) {
-          evaluationGame.reset();
-        }
-        const evaluationDepth = typeof depthOverride === 'number' && depthOverride > 0
-          ? depthOverride
-          : BACKGROUND_EVAL_DEPTH;
-        tasks.push({ index: 0, fen: evaluationGame.fen(), turn: evaluationGame.turn(), depth: evaluationDepth });
-        for (let i = 0; i < moveHistory.length; i += 1) {
-          const entry = moveHistory[i];
-          if (!entry) continue;
-          const moveConfig = { from: entry.from, to: entry.to };
-          if (entry.promotion) {
-            moveConfig.promotion = entry.promotion;
-          }
-          const applied = evaluationGame.move(moveConfig);
-          if (!applied) break;
-          tasks.push({ index: i + 1, fen: evaluationGame.fen(), turn: evaluationGame.turn(), depth: evaluationDepth });
-        }
-        return tasks;
-      }
-
-      function scheduleFullGameEvaluation() {
-        const tasks = buildBackgroundTasksForGame();
-        queueBackgroundEvaluationTasks(tasks);
-      }
-
-      function scheduleProbabilityEvaluation(depth = PROBABILITY_GRAPH_DEPTH) {
-        const tasks = buildBackgroundTasksForGame(depth);
-        queueBackgroundEvaluationTasks(tasks);
-      }
-
-      function setTimelineEntry(index, entry) {
-        if (typeof index !== 'number' || index < 0) return;
-        const extended = ensureTimelineCapacity(index + 1);
-        if (entry && typeof entry === 'object') {
-          const normalizedValue = typeof entry.value === 'number' ? clampEvaluationValue(entry.value) : null;
-          evaluationTimeline[index] = { ...entry, value: normalizedValue };
-        } else {
-          evaluationTimeline[index] = entry;
-        }
-        if (extended || entry !== undefined) {
-          scheduleEvaluationNavigationRender();
-        }
-      }
-
-      function getTimelineEntry(index) {
-        if (typeof index !== 'number' || index < 0 || index >= evaluationTimeline.length) {
-          return null;
-        }
-        return evaluationTimeline[index];
-      }
-
-      function clampEvaluationValue(cp) {
-        if (typeof cp !== 'number' || Number.isNaN(cp)) return 0;
-        return Math.max(-2000, Math.min(2000, cp));
-      }
-
-      function renderEvaluationNavigation() {
-        if (!evaluationNavElement) return;
-        const totalSegments = Math.max(1, evaluationTimeline.length);
-        const bounds = evaluationNavElement.getBoundingClientRect();
-        let width = Math.round(evaluationNavElement.clientWidth || bounds.width);
-        let height = Math.round(evaluationNavElement.clientHeight || bounds.height);
-        if (!width || !height) {
-          evaluationNavNeedsVisibleRender = true;
-          return;
-        }
-        evaluationNavNeedsVisibleRender = false;
-        evaluationNavElement.innerHTML = '';
-
-        const segmentWidth = totalSegments > 0 ? width / totalSegments : width;
-        const halfSegment = segmentWidth / 2;
-        const rawPoints = [];
-
-        for (let i = 0; i < totalSegments; i += 1) {
-          const entry = i < evaluationTimeline.length ? evaluationTimeline[i] : null;
-          let probability = 0.5;
-          if (entry && typeof entry.whiteWinProbability === 'number' && !Number.isNaN(entry.whiteWinProbability)) {
-            probability = Math.max(0, Math.min(1, entry.whiteWinProbability));
-          } else if (entry) {
-            probability = Math.max(0, Math.min(1, computeAdvantageRatio(entry)));
-          }
-          const centerX = totalSegments > 0 ? (i + 0.5) * segmentWidth : width / 2;
-          const x = Math.max(halfSegment, Math.min(width - halfSegment, centerX));
-          const y = height - probability * height;
-          rawPoints.push({ x, y, probability, entry });
-        }
-
-        const pathPoints = rawPoints.length === 1
-          ? [{ x: 0, y: rawPoints[0].y }, { x: width, y: rawPoints[0].y }]
-          : rawPoints;
-        const areaPoints = rawPoints.length
-          ? [{ x: 0, y: rawPoints[0].y }, ...rawPoints, { x: width, y: rawPoints[rawPoints.length - 1].y }]
-          : [];
-
-        const toCommandString = pts => pts.map((pt, idx) => {
-          const command = idx === 0 ? 'M' : 'L';
-          return `${command}${pt.x.toFixed(2)},${pt.y.toFixed(2)}`;
-        }).join(' ');
-
-        const toAreaCommand = pts => {
-          if (!pts.length) return '';
-          const commands = [`M${pts[0].x.toFixed(2)},${height.toFixed(2)}`, `L${pts[0].x.toFixed(2)},${pts[0].y.toFixed(2)}`];
-          for (let i = 1; i < pts.length; i += 1) {
-            commands.push(`L${pts[i].x.toFixed(2)},${pts[i].y.toFixed(2)}`);
-          }
-          commands.push(`L${pts[pts.length - 1].x.toFixed(2)},${height.toFixed(2)}`);
-          commands.push('Z');
-          return commands.join(' ');
-        };
-
-        const lineCommands = pathPoints.length ? toCommandString(pathPoints) : '';
-        const areaCommand = areaPoints.length ? toAreaCommand(areaPoints) : '';
-        const baselineY = height - 0.5 * height;
-
-        const svgNS = 'http://www.w3.org/2000/svg';
-        const svg = document.createElementNS(svgNS, 'svg');
-        svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-        svg.setAttribute('preserveAspectRatio', 'none');
-        svg.setAttribute('width', width.toString());
-        svg.setAttribute('height', height.toString());
-        svg.classList.add('evaluation-nav__graph');
-
-        if (areaCommand) {
-          const area = document.createElementNS(svgNS, 'path');
-          area.setAttribute('d', areaCommand);
-          area.setAttribute('class', 'evaluation-nav__area');
-          svg.appendChild(area);
-        }
-
-        const baseline = document.createElementNS(svgNS, 'line');
-        baseline.setAttribute('x1', '0');
-        baseline.setAttribute('y1', baselineY.toFixed(2));
-        baseline.setAttribute('x2', width.toFixed(2));
-        baseline.setAttribute('y2', baselineY.toFixed(2));
-        baseline.setAttribute('class', 'evaluation-nav__baseline');
-        svg.appendChild(baseline);
-
-        if (lineCommands) {
-          const linePath = document.createElementNS(svgNS, 'path');
-          linePath.setAttribute('d', lineCommands);
-          linePath.setAttribute('class', 'evaluation-nav__line');
-          svg.appendChild(linePath);
-
-          const currentPoint = rawPoints[Math.min(navigationIndex, rawPoints.length - 1)];
-          if (currentPoint) {
-            const marker = document.createElementNS(svgNS, 'circle');
-            marker.setAttribute('cx', currentPoint.x.toFixed(2));
-            marker.setAttribute('cy', currentPoint.y.toFixed(2));
-            marker.setAttribute('r', '4');
-            marker.setAttribute('class', 'evaluation-nav__marker');
-            svg.appendChild(marker);
-          }
-        }
-
-        const overlay = document.createElement('div');
-        overlay.className = 'evaluation-nav__overlay';
-        overlay.style.display = 'grid';
-        overlay.style.gridTemplateColumns = `repeat(${totalSegments}, 1fr)`;
-        overlay.style.alignItems = 'stretch';
-
-        for (let i = 0; i < totalSegments; i += 1) {
-          const entry = i < evaluationTimeline.length ? evaluationTimeline[i] : null;
-          const segment = document.createElement('button');
-          segment.type = 'button';
-          segment.className = 'evaluation-nav__segment';
-          segment.tabIndex = 0;
-          segment.setAttribute('role', 'button');
-          segment.dataset.index = String(i);
-          segment.classList.toggle('is-current', i === navigationIndex);
-          if (i === navigationIndex) {
-            segment.setAttribute('aria-current', 'true');
-          } else {
-            segment.removeAttribute('aria-current');
-          }
-          const probability = entry && typeof entry.whiteWinProbability === 'number'
-            ? Math.max(0, Math.min(1, entry.whiteWinProbability))
-            : rawPoints[i] && typeof rawPoints[i].probability === 'number'
-              ? Math.max(0, Math.min(1, rawPoints[i].probability))
-              : 0.5;
-          const probabilityPercent = formatWinProbability(probability);
-          segment.title = `Ply ${i}: White win probability ${probabilityPercent}`;
-          segment.setAttribute('aria-label', `Ply ${i} white win probability ${probabilityPercent}`);
-          segment.dataset.probability = probability.toFixed(4);
-          overlay.appendChild(segment);
-        }
-
-        evaluationNavElement.appendChild(svg);
-        evaluationNavElement.appendChild(overlay);
-      }
-
-      function scheduleEvaluationNavigationRender() {
-        if (!evaluationNavElement) return;
-        requestAnimationFrame(() => {
-          renderEvaluationNavigation();
-          if (evaluationNavNeedsVisibleRender) {
-            requestAnimationFrame(() => {
-              renderEvaluationNavigation();
-            });
-          }
-        });
-      }
-
-      const evaluationNavResizeObserver = typeof ResizeObserver === 'function' && evaluationNavElement
-        ? new ResizeObserver(entries => {
-            for (const entry of entries) {
-              if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
-                renderEvaluationNavigation();
-                evaluationNavNeedsVisibleRender = false;
-                break;
-              }
-            }
-          })
-        : null;
-      if (evaluationNavResizeObserver && evaluationNavElement) {
-        evaluationNavResizeObserver.observe(evaluationNavElement);
-      }
-
-      function applyEvaluationEntry(entry) {
-        if (!entry) return;
-        updateEvaluationDisplay(entry);
-        setTimelineEntry(navigationIndex, entry);
-        setAdvantageBarLoading(false);
-        updateAdvantageBar(entry);
-      }
-
-      function applyStoredEvaluationIfAvailable() {
-        const entry = getTimelineEntry(navigationIndex);
-        if (entry) {
-          updateEvaluationDisplay(entry);
-          setAdvantageBarLoading(false);
-          updateAdvantageBar(entry);
-        } else {
-          setEvaluationText('Eval: --', 0.5);
-          setAdvantageBarLoading(false);
-          updateAdvantageBar(null, { neutral: true, message: 'Awaiting evaluation' });
-        }
-      }
-
-      function syncEvalBarWidth() {
-        if (!advantageBarElement) return;
-        const container = boardEl && typeof boardEl.closest === 'function'
-          ? boardEl.closest('.board-container')
-          : null;
-        const refEl = container && container.length ? container.get(0) : null;
-        if (!refEl) return;
-        const bounds = refEl.getBoundingClientRect();
-        if (!bounds || !bounds.width) return;
-        advantageBarElement.style.maxWidth = `${Math.round(bounds.width)}px`;
-      }
-
-      function getFenTurn(fen) {
-        if (typeof fen !== 'string') return null;
-        const trimmed = fen.trim();
-        if (!trimmed.length) return null;
-        const parts = trimmed.split(/\s+/);
-        if (parts.length < 2) return null;
-        return parts[1] === 'b' ? 'b' : 'w';
-      }
-
-      function normalizeFenTurn(fen, turn) {
-        if (typeof fen !== 'string') return fen;
-        const trimmed = fen.trim();
-        if (!trimmed.length) return fen;
-        const parts = trimmed.split(/\s+/);
-        if (parts.length < 2) return trimmed;
-        parts[1] = turn === 'b' ? 'b' : 'w';
-        return parts.join(' ');
-      }
-
-      function updateBestMoveDisplay() {
-        if (!bestMoveVisible) {
-          if (!pieceMovesMode) {
-            clearHighlights();
-          }
-          return;
-        }
-
-        if (pieceMovesMode) {
-          return;
-        }
-
-        if (currentBestMove && shouldHighlightBest) {
-          visualize(currentBestMove);
-        } else if (!currentBestMove) {
-          clearHighlights();
-        }
-      }
-
-      function updateNavigationButtons() {
-        const hasFutureMove = navigationIndex < moveHistory.length;
-        const prevDisabled = navigationIndex === 0 || pieceMovesMode || editMode || waitingForAutoBestMove;
-        const nextDisabled = autoPlayPending || waitingForAutoBestMove || pieceMovesMode || editMode || (!hasFutureMove && !engineReady);
-        $('#prev-button').prop('disabled', prevDisabled);
-        $('#next-button').prop('disabled', nextDisabled);
-      }
-
-      function cancelReplayTimer() {
-        if (replayTimer) {
-          clearTimeout(replayTimer);
-          replayTimer = null;
-        }
-      }
-
-      function stopReplay() {
-        replayMode = false;
-        replayPendingIndex = null;
-        replayAdvanceScheduled = false;
-        cancelReplayTimer();
-        pendingReplayStart = null;
-        updateEvaluationProgressLabel();
-      }
-
-      function scheduleReplayAdvance() {
-        if (!replayMode) return;
-        if (replayAdvanceScheduled) return;
-        replayAdvanceScheduled = true;
-        cancelReplayTimer();
-        replayTimer = setTimeout(() => {
-          replayTimer = null;
-          replayAdvanceScheduled = false;
-          if (!replayMode) return;
-          const nextIndex = navigationIndex + 1;
-          if (nextIndex > moveHistory.length) {
-            stopReplay();
-            return;
-          }
-          rebuildPosition(nextIndex, {
-            highlight: shouldHighlightBest && bestMoveVisible,
-            revealBest: bestMoveVisible,
-            depth: replayTargetDepth,
-            replay: true
-          });
-        }, REPLAY_STEP_DELAY_MS);
-      }
-
-      function startReplayFromIndex(index = 0, depth = engineConfig.depth) {
-        const clampedIndex = Math.max(0, Math.min(index, moveHistory.length));
-        const resolvedDepth = typeof depth === 'number' && depth > 0 ? depth : engineConfig.depth;
-        if (!engineReady || !engine) {
-          replayMode = true;
-          replayTargetDepth = Math.max(PGN_REPLAY_DEPTH, resolvedDepth);
-          replayPendingIndex = clampedIndex;
-          replayAdvanceScheduled = false;
-          cancelReplayTimer();
-          updateEvaluationProgressLabel();
-          pendingReplayStart = { index: clampedIndex, depth: Math.max(PGN_REPLAY_DEPTH, resolvedDepth) };
-          scheduleEngineAutostart();
-          return;
-        }
-        pendingReplayStart = null;
-        stopReplay();
-        replayTargetDepth = Math.max(PGN_REPLAY_DEPTH, resolvedDepth);
-        cancelReplayTimer();
-        replayAdvanceScheduled = false;
-        rebuildPosition(clampedIndex, {
-          highlight: shouldHighlightBest && bestMoveVisible,
-          revealBest: bestMoveVisible,
-          depth: replayTargetDepth,
-          replay: true
-        });
-      }
-
-      function recordMove(move) {
-        if (!move) return;
-        lastImportWasPgn = false;
-        if (navigationIndex < moveHistory.length) {
-          moveHistory = moveHistory.slice(0, navigationIndex);
-          evaluationTimeline = evaluationTimeline.slice(0, navigationIndex + 1);
-        }
-      moveHistory.push({ from: move.from, to: move.to, promotion: move.promotion });
-      navigationIndex = moveHistory.length;
-      ensureTimelineCapacity(navigationIndex + 1);
-      updateNavigationButtons();
-      scheduleEvaluationNavigationRender();
-      if (probabilityPanelVisible) {
-        scheduleProbabilityEvaluation(PROBABILITY_GRAPH_DEPTH);
-      }
-    }
-
-      function resetHistory(newBaseFen = null) {
-        moveHistory = [];
-        navigationIndex = 0;
-        autoPlayPending = false;
-        waitingForAutoBestMove = false;
-        autoMoveCandidate = null;
-        autoPlayFen = null;
-        autoPlayDepthSatisfied = false;
-        stopReplay();
-        cancelBackgroundEvaluation();
-        if (autoPlayDelayTimer) {
-          clearTimeout(autoPlayDelayTimer);
-          autoPlayDelayTimer = null;
-        }
-        if (typeof newBaseFen === 'string' && newBaseFen.length) {
-          baseFen = newBaseFen;
-        }
-        clearEvaluationTimeline(1);
-        setEvaluationText('Eval: --', 0.5);
-        currentBestMove = null;
-        latestAnalysisFen = null;
-        setAdvantageBarLoading(false);
-        updateAdvantageBar(null, { neutral: true, message: 'Awaiting evaluation' });
-        updateBestMoveDisplay();
-        updateNavigationButtons();
-        scheduleEvaluationNavigationRender();
-        if (probabilityPanelVisible) {
-          scheduleProbabilityEvaluation(PROBABILITY_GRAPH_DEPTH);
-        }
-      }
-
-      function rebuildPosition(targetIndex, analysisOptions = null) {
-        const clamped = Math.max(0, Math.min(targetIndex, moveHistory.length));
-        const loaded = game.load(baseFen);
-        if (!loaded) {
-          game.reset();
-          baseFen = game.fen();
-        }
-        for (let i = 0; i < clamped; i += 1) {
-          const entry = moveHistory[i];
-          if (!entry) continue;
-          const move = game.move({ from: entry.from, to: entry.to, promotion: entry.promotion || 'q' });
-          if (!move) break;
-        }
-        navigationIndex = clamped;
-        if (pieceMovesMode) {
-          pieceMovesMode = false;
-          freezeMode = false;
-          syncPieceMovesButton();
-        }
-        moveSourceSquare = null;
-        selectedSquare = null;
-        updateNavigationButtons();
-        renderBoard();
-        updateStatus();
-        applyStoredEvaluationIfAvailable();
-        scheduleEvaluationNavigationRender();
-        const requestOptions = analysisOptions || {
-          highlight: shouldHighlightBest && bestMoveVisible,
-          revealBest: bestMoveVisible
-        };
-        requestAnalysis(requestOptions);
-        updateEvaluationProgressLabel();
-      }
-
-      function applyAutoMove(uciMove) {
-        if (!uciMove || uciMove === '(none)') {
-          return;
-        }
-        const from = uciMove.slice(0, 2);
-        const to = uciMove.slice(2, 4);
-        const promotion = uciMove.length > 4 ? uciMove.slice(4, 5) : undefined;
-        const move = game.move({ from, to, promotion });
-        if (move) {
-          moveSourceSquare = null;
-          selectedSquare = null;
-          recordMove(move);
-          renderBoard();
-          updateStatus();
-          requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
-        }
-      }
-
-  function clearSelectionHighlight() {
-    boardEl.find('.highlight-selection').removeClass('highlight-selection');
-  }
-
-  function highlightSelection(square) {
-    if (!square) return;
-    boardEl.find(`.square-${square}`).addClass('highlight-selection');
-  }
-
-  function applySelectionHighlights() {
-    clearSelectionHighlight();
-    if (editMode) {
-      if (editSelectionSource === 'board' && editSelectedSquare) {
-        highlightSelection(editSelectedSquare);
-      }
-      return;
-    }
-    if (pieceMovesMode && selectedSquare) {
-      highlightSelection(selectedSquare);
-    } else if (!pieceMovesMode && moveSourceSquare) {
-      highlightSelection(moveSourceSquare);
-    }
-  }
-
-  function clearSpareSelectionHighlight() {
-    $('.board-container .selected-spare-piece').removeClass('selected-spare-piece');
-  }
-
-  function applySpareSelection() {
-    clearSpareSelectionHighlight();
-    if (!editMode || editSelectionSource !== 'spare' || !editSelectedPiece) return;
-    const pieceCode = `${editSelectedPiece.color}${editSelectedPiece.type.toUpperCase()}`;
-    $(sparePiecesContainerSelector).find(sparePieceSelector).filter(`[data-piece='${pieceCode}']`).first().addClass('selected-spare-piece');
-  }
-
-  function clearEditSelection() {
-    editSelectedPiece = null;
-    editSelectedSquare = null;
-    editSelectionSource = null;
-    applySelectionHighlights();
-    applySpareSelection();
-  }
-
-  function commitEditedBoardState() {
-    lastImportWasPgn = false;
-    resetHistory(game.fen());
-    renderBoard();
-    updateStatus();
-    requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
-  }
-
-  function toggleEditingTurn() {
-    if (!editMode) return;
-    const fen = game.fen();
-    if (typeof fen !== 'string' || !fen.length) return;
-    const parts = fen.trim().split(/\s+/);
-    if (parts.length < 2) return;
-    parts[1] = parts[1] === 'w' ? 'b' : 'w';
-    const updatedFen = parts.join(' ');
-    const loaded = game.load(updatedFen);
-    if (!loaded) return;
-    commitEditedBoardState();
-  }
-
-  function clonePiece(piece) {
-    if (!piece) return null;
-    return { type: piece.type, color: piece.color };
-  }
-
-  function attemptPlacePiece(square, piece) {
-    if (!square || !piece) {
-      return { success: false, changed: false };
-    }
-    const existing = game.get(square);
-    if (existing && existing.type === piece.type && existing.color === piece.color) {
-      return { success: true, changed: false };
-    }
-    const backup = clonePiece(existing);
-    if (existing) {
-      game.remove(square);
-    }
-    const placed = game.put({ type: piece.type, color: piece.color }, square);
-    if (!placed) {
-      if (backup) {
-        game.put(backup, square);
-      }
-      return { success: false, changed: false };
-    }
-    return { success: true, changed: true };
-  }
-
-  function removePieceAtSquare(square) {
-    if (!square) return false;
-    const existing = game.get(square);
-    if (!existing) return false;
-    const removed = game.remove(square);
-    if (!removed) return false;
-    commitEditedBoardState();
-    return true;
-  }
-
-  function handleSparePieceClick(pieceCode) {
-    if (!editMode || !pieceCode || pieceCode.length < 2) return;
-    editSelectedPiece = { color: pieceCode[0], type: pieceCode[1].toLowerCase() };
-    editSelectedSquare = null;
-    editSelectionSource = 'spare';
-    applySelectionHighlights();
-    applySpareSelection();
-  }
-
-  function handleEditSquareClick(square) {
-    if (!editMode) return;
-    if (!square) return;
-
-    const piece = game.get(square);
-
-    if (!editSelectedPiece) {
-      if (piece) {
-        editSelectedPiece = { type: piece.type, color: piece.color };
-        editSelectedSquare = square;
-        editSelectionSource = 'board';
-        applySelectionHighlights();
-      }
-      return;
-    }
-
-    if (editSelectionSource === 'spare') {
-      const result = attemptPlacePiece(square, editSelectedPiece);
-      if (!result.success) {
-        applySelectionHighlights();
-        applySpareSelection();
-        return;
-      }
-      if (result.changed) {
-        commitEditedBoardState();
-      }
-      return;
-    }
-
-    if (editSelectionSource === 'board') {
-      const sourceSquare = editSelectedSquare;
-      if (!sourceSquare) {
-        clearEditSelection();
-        return;
-      }
-      if (sourceSquare === square) {
-        clearEditSelection();
-        return;
-      }
-
-      const destinationBackup = clonePiece(piece);
-      const removedSource = game.remove(sourceSquare);
-      if (!removedSource) {
-        applySelectionHighlights();
-        return;
-      }
-      if (destinationBackup) {
-        game.remove(square);
-      }
-      const movingPiece = { type: removedSource.type, color: removedSource.color };
-      const placed = game.put(movingPiece, square);
-      if (!placed) {
-        game.put({ type: removedSource.type, color: removedSource.color }, sourceSquare);
-        if (destinationBackup) {
-          game.put(destinationBackup, square);
-        }
-        applySelectionHighlights();
-        return;
-      }
-      clearEditSelection();
-      commitEditedBoardState();
-    }
-  }
-
-  function handleOutsideBoardClick(event) {
-    if (!editMode) return;
-    const $target = $(event.target);
-    if ($target.closest('.board-container').length) return;
-    if (editSelectionSource) {
-      clearEditSelection();
-    }
-  }
-
-  function handleSquareClick(square) {
-    if (!square) return;
-    if (editMode) {
-      handleEditSquareClick(square);
-      return;
-    }
-
-    if (pieceMovesMode) {
-      selectedSquare = square;
-      applySelectionHighlights();
-      analyzeMoves();
-      return;
-    }
-
-    if (freezeMode || game.game_over()) return;
-
-    const piece = game.get(square);
-    const turn = game.turn();
-
-    if (!moveSourceSquare) {
-      if (!piece || piece.color !== turn) return;
-      moveSourceSquare = square;
-      applySelectionHighlights();
-      return;
-    }
-
-    if (moveSourceSquare === square) {
-      moveSourceSquare = null;
-      applySelectionHighlights();
-      return;
-    }
-
-    clearHighlights();
-    clearRatings();
-
-    const move = game.move({ from: moveSourceSquare, to: square, promotion: 'q' });
-
-    if (move) {
-      recordMove(move);
-      moveSourceSquare = null;
-      renderBoard();
-      updateStatus();
-      requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
-    } else {
-      if (piece && piece.color === turn) {
-        moveSourceSquare = square;
-      }
-      applySelectionHighlights();
-    }
-  }
-
-  function handleSquareDoubleClick(square) {
-    if (!square) return;
-    if (!editMode) return;
-    const removed = removePieceAtSquare(square);
-    if (removed) {
-      clearEditSelection();
-    }
-  }
-
-  function renderBoard() {
-    const fen = game.fen();
-    const needsRecreate = !board
-      || lastBoardConfig.editMode !== editMode
-      || lastBoardConfig.orientation !== orientation;
-
-    if (needsRecreate) {
-      lastBoardConfig = { editMode, orientation };
-      if (board) {
-        board.destroy();
-      }
-      board = Chessboard('board', {
-        position: fen,
-        draggable: editMode,
-        sparePieces: editMode,
-        orientation,
-        onDragStart,
-        onDrop,
-        onSnapEnd,
-        pieceTheme: p => {
-          if (!p) return '';
-          const color = p[0] === 'w' ? 'white' : 'black';
-          const map = { K: 'king', Q: 'queen', R: 'rook', B: 'bishop', N: 'knight', P: 'pawn' };
-          return `pieces/${color}-${map[p[1]]}.png`;
-        }
-      });
-      $('.board-container').toggleClass('editing', editMode);
-      rebindBoardHandlers();
-    } else if (board) {
-      board.position(fen);
-    }
-
-    if (!board) return;
-
-    board.resize();
-    syncEvalBarWidth();
-    requestAnimationFrame(() => {
-      if (!board) return;
-      board.resize();
-      syncEvalBarWidth();
-    });
-    applySelectionHighlights();
-    applySpareSelection();
-    if (!editMode && !pieceMovesMode && shouldHighlightBest && currentBestMove) {
-      visualize(currentBestMove);
-    }
-    updateNavigationButtons();
-    updateBestMoveDisplay();
-  }
-
-  function rebindBoardHandlers() {
-    boardEl.off('click.square').on('click.square', CHESSBOARD_SELECTORS.square, function() {
-      const cls = $(this).attr('class').split(/\s+/);
-      const sq = cls.find(c => /^square-[a-h][1-8]$/.test(c));
-      if (!sq) return;
-      handleSquareClick(sq.replace('square-', ''));
-    });
-    boardEl.off('dblclick.square').on('dblclick.square', CHESSBOARD_SELECTORS.square, function() {
-      const cls = $(this).attr('class').split(/\s+/);
-      const sq = cls.find(c => /^square-[a-h][1-8]$/.test(c));
-      if (!sq) return;
-      handleSquareDoubleClick(sq.replace('square-', ''));
-    });
-    $(sparePiecesContainerSelector).off('click.spare').on('click.spare', sparePieceSelector, function() {
-      const pieceCode = $(this).attr('data-piece');
-      handleSparePieceClick(pieceCode);
-    });
-  }
-
-  function updateStatus() {
-    if (!statusElement) return;
-    const turnColor = game.turn() === 'b' ? 'black' : 'white';
-    const turnLabel = turnColor === 'white' ? 'White' : 'Black';
-    let state = 'normal';
-    let label = '';
-    if (game.in_checkmate()) {
-      state = 'mate';
-      label = `Game over, ${turnLabel} is checkmated.`;
-    } else if (game.in_draw()) {
-      state = 'draw';
-      label = 'Game over, drawn position';
-    } else if (game.in_check()) {
-      state = 'check';
-      label = `${turnLabel} to move, ${turnLabel} is in check`;
-    } else {
-      label = `${turnLabel} to move`;
-    }
-    statusElement.dataset.turn = turnColor;
-    statusElement.dataset.state = state;
-    statusElement.classList.toggle('is-editing', editMode);
-    statusElement.setAttribute('aria-label', label);
-    const labelElement = statusElement.querySelector('.status-text__label');
-    if (labelElement) {
-      labelElement.textContent = label;
-    } else {
-      statusElement.textContent = label;
-    }
-    if (editMode) {
-      statusElement.setAttribute('role', 'button');
-      statusElement.setAttribute('tabindex', '0');
-      statusElement.setAttribute('aria-pressed', turnColor === 'black' ? 'true' : 'false');
-    } else {
-      statusElement.removeAttribute('role');
-      statusElement.removeAttribute('tabindex');
-      statusElement.removeAttribute('aria-pressed');
-    }
-  }
-
-  function onDragStart(src, piece) {
-    if (replayMode) stopReplay();
-    if (editMode) return false;
-    if (freezeMode) return false;
-    return !game.game_over() && ((game.turn() === 'w' && piece[0] === 'w') || (game.turn() === 'b' && piece[0] === 'b'));
-  }
-
-  function onDrop(src, tgt, piece, newPos) {
-    if (replayMode) stopReplay();
-    clearHighlights(); clearRatings();
-    if (editMode) {
-      game.clear();
-      Object.entries(newPos).forEach(([sq,p]) => { if (p) game.put({type:p[1].toLowerCase(), color:p[0]}, sq); });
-      lastImportWasPgn = false;
-      resetHistory(game.fen());
-      renderBoard(); updateStatus(); requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
-      return;
-    }
-    if (freezeMode && !editMode) return 'snapback';
-    const m = game.move({from:src,to:tgt,promotion:'q'});
-    if (!m) return 'snapback';
-    recordMove(m);
-    renderBoard(); updateStatus(); requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
-  }
-
-  function onSnapEnd() { if (!editMode) board.position(game.fen()); }
-  function clearHighlights() {
-    boardEl
-      .find('.highlight-move-from, .highlight-move-to, .highlight-piece-move-target')
-      .removeClass('highlight-move-from highlight-move-to highlight-piece-move-target');
-  }
-  function clearRatings() {
-    boardEl.find('.move-rating').remove();
-    pieceMoveRatings.clear();
-  }
-
-  function resetPieceAnalysisState() {
-    pieceAnalysisMode = null;
-    pieceAnalysisQueue = [];
-    pieceAnalysisCurrentMove = null;
-    pieceAnalysisFen = null;
-    pieceAnalysisTargetDepth = 0;
-    pieceAnalysisWaitingForResult = false;
-    pieceAnalysisTurn = null;
-  }
-
-  function ensurePieceMoveRatingElement(moveKey) {
-    if (!moveKey) return null;
-    let ratingEl = pieceMoveRatings.get(moveKey);
-    if (ratingEl) return ratingEl;
-    const destination = moveKey.slice(2, 4);
-    if (!destination) return null;
-    const squareEl = boardEl.find(`.square-${destination}`);
-    if (!squareEl.length) return null;
-    ratingEl = $('<div class="move-rating"></div>').appendTo(squareEl);
-    pieceMoveRatings.set(moveKey, ratingEl);
-    return ratingEl;
-  }
-
-  function setPieceMoveRating(moveKey, label) {
-    if (!moveKey) return;
-    const ratingEl = ensurePieceMoveRatingElement(moveKey);
-    if (!ratingEl) return;
-    ratingEl.text(label);
-  }
-
-  function applyPieceMoveEvaluation(moveKey, entry) {
-    if (!moveKey || !entry) return;
-    const displayScore = entry.shortText || entry.text || '';
-    if (!displayScore) return;
-    setPieceMoveRating(moveKey, displayScore);
-  }
-
-  function beginPieceAnalysisSearch({ fen, moves = [], depth = engineConfig.depth }) {
-    resetPieceAnalysisState();
-    pieceAnalysisMode = PIECE_ANALYSIS_MODE_SEQUENTIAL;
-    pieceAnalysisFen = typeof fen === 'string' ? fen : normalizeFenTurn(game.fen(), game.turn());
-    pieceAnalysisTargetDepth = Math.max(1, Math.floor(typeof depth === 'number' ? depth : engineConfig.depth));
-    pieceAnalysisQueue = Array.isArray(moves) ? moves.filter(Boolean) : [];
-    pieceAnalysisActiveRequestId += 1;
-    if (!pieceAnalysisQueue.length) {
-      pieceAnalysisWaitingForResult = false;
-      return;
-    }
-    if (engine) {
-      postEngineCommand('setoption name MultiPV value 1');
-    }
-    processNextPieceAnalysis(pieceAnalysisActiveRequestId);
-  }
-
-  function processNextPieceAnalysis(requestId) {
-    if (!engineReady || !engine) {
-      pieceAnalysisWaitingForResult = false;
-      return;
-    }
-    if (requestId !== pieceAnalysisActiveRequestId) return;
-    if (!pieceAnalysisQueue.length) {
-      finalizePieceAnalysis(requestId);
-      return;
-    }
-    const nextMove = pieceAnalysisQueue.shift();
-    if (!nextMove) {
-      processNextPieceAnalysis(requestId);
-      return;
-    }
-    pieceAnalysisCurrentMove = nextMove;
-    pieceAnalysisWaitingForResult = true;
-    setPieceMoveRating(nextMove, '…');
-    const targetFen = pieceAnalysisFen || normalizeFenTurn(game.fen(), game.turn());
-    postEngineCommand(`position fen ${targetFen}`);
-    const depthLimit = Math.max(1, pieceAnalysisTargetDepth || engineConfig.depth);
-    postEngineCommand(`go searchmoves ${nextMove} depth ${depthLimit}`);
-  }
-
-  function finalizePieceAnalysis(requestId) {
-    if (requestId !== pieceAnalysisActiveRequestId) return;
-    pieceAnalysisCurrentMove = null;
-    pieceAnalysisQueue = [];
-    pieceAnalysisMode = null;
-    pieceAnalysisFen = null;
-    pieceAnalysisTargetDepth = 0;
-    pieceAnalysisWaitingForResult = false;
-    pieceAnalysisTurn = null;
-    isPieceAnalysis = false;
-    if (engine) {
-      postEngineCommand('setoption name MultiPV value 1');
-    }
-    if (!pieceMovesMode) {
-      requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible, depth: engineConfig.depth });
-    }
-  }
-
-  function handleSequentialPieceAnalysisInfo(line) {
-    if (pieceAnalysisMode !== PIECE_ANALYSIS_MODE_SEQUENTIAL) return false;
-    if (!pieceAnalysisWaitingForResult || !pieceAnalysisCurrentMove) return true;
-    if (!line.startsWith('info')) return false;
-    const pvIndex = line.indexOf(' pv ');
-    if (pvIndex !== -1) {
-      const pvMoves = line.slice(pvIndex + 4).trim().split(' ');
-      if (pvMoves[0] && pvMoves[0] !== pieceAnalysisCurrentMove) {
-        return true;
-      }
-    }
-    const cp = line.match(/score cp (-?\d+)/);
-    const mate = line.match(/score mate (-?\d+)/);
-    if (!cp && !mate) {
-      return true;
-    }
-    const entry = buildEvaluationEntryFromScore({
-      cp: cp ? parseInt(cp[1], 10) : null,
-      mate: mate ? parseInt(mate[1], 10) : null,
-      turn: pieceAnalysisTurn || game.turn()
-    });
-    applyPieceMoveEvaluation(pieceAnalysisCurrentMove, entry);
-    return true;
-  }
-
-  function stopEngine(options = {}) {
-    const { silent = false, preserveAutostartAttempts = false } = options || {};
-    cancelEngineAutostart();
-    engineStarting = false;
-    engineLastStartWasAutostart = false;
-    resetEngineCommandQueue();
-    if (!preserveAutostartAttempts) {
-      engineAutostartAttempts = 0;
-    }
-    if (engine) {
-      postEngineCommand('stop', { queueIfPending: false });
-      try {
-        engine.terminate();
-      } catch (terminateError) {
-        console.warn('Failed to terminate engine worker', terminateError);
-      }
-    }
-    engine = null;
-    engineReady = false;
-    waitingForAutoBestMove = false;
-    autoMoveCandidate = null;
-    autoPlayPending = false;
-    autoPlayDepthSatisfied = false;
-    resetPieceAnalysisState();
-    $('#best-move-button').prop('disabled', true);
-    updateNavigationButtons();
-    if (!silent) {
-      setEngineStatusDisplay('idle', 'Stopped');
-      setEngineErrorMessage('', { source: '' });
-    }
-    updateEngineControls({ loading: false });
-    currentBestMove = null;
-    updateBestMoveDisplay();
-    if (!pieceMovesMode) {
-      setEvaluationText('Eval: --', 0.5);
-      setAdvantageBarLoading(false);
-      updateAdvantageBar(null, { neutral: true, message: silent ? 'Awaiting evaluation' : 'Engine stopped' });
-    }
-    shutdownBackgroundEngine();
-  }
-
-  function startEngine(options = {}) {
-    const { autostart = false } = options || {};
-    if (engineStarting) {
-      return;
-    }
-    cancelEngineAutostart();
-    const sanitizedConfig = applyEngineConfig(engineConfig);
-    displayEngineConfigWarnings(sanitizedConfig);
-    stopEngine({ silent: true, preserveAutostartAttempts: autostart });
-    engineStarting = true;
-    engineLastStartWasAutostart = !!autostart;
-    setEngineStatusDisplay('loading', 'Starting…');
-    const hasConfigWarnings = sanitizedConfig && Array.isArray(sanitizedConfig.warnings) && sanitizedConfig.warnings.length > 0;
-    if (!hasConfigWarnings) {
-      setEngineErrorMessage('', { source: '' });
-    }
-    updateEngineControls({ loading: true });
-    let worker;
-    try {
-      worker = createStockfishWorker();
-    } catch (error) {
-      console.error('Unable to initialize Stockfish worker', error);
-      engineStarting = false;
-      const errorMessage = buildWorkerInitializationErrorMessage(error);
-      setEngineErrorMessage(errorMessage, { source: 'engine-error' });
-      if (autostart && engineAutostartAttempts < ENGINE_AUTOSTART_MAX_ATTEMPTS) {
-        setEngineStatusDisplay('loading', 'Retrying…');
-        scheduleEngineAutostart();
-      } else {
-        setEngineStatusDisplay('error', 'Failed to start');
-        updateEngineControls({ loading: false });
-      }
-      engineLastStartWasAutostart = false;
-      return;
-    }
-    engine = worker;
-    engineReady = false;
-    resetEngineCommandQueue();
-    $('#best-move-button').prop('disabled', true);
-    updateNavigationButtons();
-    worker.addEventListener('error', event => {
-      const message = event && event.message ? event.message : 'Unknown error';
-      console.error('Stockfish worker error', message, event);
-      if (engine === worker) {
-        engineReady = false;
-        engineStarting = false;
-        const shouldRetry = engineLastStartWasAutostart && engineAutostartAttempts < ENGINE_AUTOSTART_MAX_ATTEMPTS;
-        try {
-          worker.terminate();
-        } catch (terminateError) {
-          console.warn('Failed to terminate errored Stockfish worker', terminateError);
-        }
-        engine = null;
-        resetEngineCommandQueue();
-        $('#best-move-button').prop('disabled', true);
-        updateNavigationButtons();
-        setAdvantageBarLoading(false);
-        setEvaluationText('Eval: --', 0.5);
-        const statusMessage = shouldRetry ? 'Retrying…' : 'Engine error';
-        updateAdvantageBar(null, { neutral: true, message: statusMessage });
-        const errorForMessage = event && event.error instanceof Error
-          ? event.error
-          : new Error(message || 'Unknown Stockfish worker error');
-        const friendlyMessage = buildWorkerInitializationErrorMessage(errorForMessage);
-        setEngineErrorMessage(friendlyMessage, { source: 'engine-error' });
-        if (shouldRetry) {
-          setEngineStatusDisplay('loading', 'Retrying…');
-          updateEngineControls({ loading: true });
-          scheduleEngineAutostart();
-        } else {
-          setEngineStatusDisplay('error', 'Engine error');
-          updateEngineControls({ loading: false });
-        }
-        engineLastStartWasAutostart = false;
-      }
-    });
-    worker.onmessage = e => {
-      const line = String(e.data).trim();
-
-      if (line === 'uciok') {
-        worker.postMessage(`setoption name Threads value ${engineConfig.threads}`);
-        worker.postMessage(`setoption name Hash value ${engineConfig.hash}`);
-        worker.postMessage('isready');
-        return;
-      }
-
-      if (line === 'readyok') {
-        if (engine !== worker) return;
-        const hadPendingCommands = engineAwaitingReadyAfterStop;
-        const wasStarting = engineStarting;
-        engineReady = true;
-        engineStarting = false;
-        if (wasStarting) {
-          engineLastStartWasAutostart = false;
-          engineAutostartAttempts = 0;
-          setEngineStatusDisplay('ready', 'Ready');
-          setEngineErrorMessage('', { source: '', force: true });
-          updateEngineControls({ loading: false });
-          $('#best-move-button').prop('disabled', false);
-          updateNavigationButtons();
-          restartBackgroundEngine();
-          if (pendingReplayStart) {
-            const pending = pendingReplayStart;
-            pendingReplayStart = null;
-            startReplayFromIndex(pending.index, pending.depth);
-          } else {
-            requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible, depth: engineConfig.depth });
-          }
-        }
-        if (hadPendingCommands) {
-          resolveEngineReadyWait();
-        }
-        return;
-      }
-
-      if (!line.length) return;
-
-      if (isPieceAnalysis) {
-        if (pieceAnalysisMode === PIECE_ANALYSIS_MODE_SEQUENTIAL) {
-          if (handleSequentialPieceAnalysisInfo(line)) {
-            return;
-          }
-        } else if (line.startsWith('info') && line.includes('multipv')) {
-          const pvIndex = line.indexOf(' pv ');
-          if (pvIndex === -1) return;
-          const pvMoves = line.slice(pvIndex + 4).trim().split(' ');
-          const moveKey = pvMoves[0];
-          if (!moveKey) return;
-
-          const cp = line.match(/score cp (-?\d+)/);
-          const mate = line.match(/score mate (-?\d+)/);
-          const entry = buildEvaluationEntryFromScore({
-            cp: cp ? parseInt(cp[1], 10) : null,
-            mate: mate ? parseInt(mate[1], 10) : null,
-            turn: pieceAnalysisTurn || game.turn()
-          });
-          applyPieceMoveEvaluation(moveKey, entry);
-          return;
-        }
-      }
-
-      if (line.startsWith('bestmove')) {
-        if (isPieceAnalysis) {
-          if (pieceAnalysisMode === PIECE_ANALYSIS_MODE_SEQUENTIAL) {
-            if (!pieceAnalysisWaitingForResult) {
-              return;
-            }
-            const parts = line.split(' ');
-            const reportedMove = parts.length > 1 ? parts[1] : '';
-            const activeMove = pieceAnalysisCurrentMove;
-            if (!reportedMove || reportedMove === '(none)') {
-              return;
-            }
-            if (activeMove && reportedMove !== activeMove) {
-              return;
-            }
-            pieceAnalysisWaitingForResult = false;
-            pieceAnalysisCurrentMove = null;
-            if (pieceAnalysisQueue.length) {
-              processNextPieceAnalysis(pieceAnalysisActiveRequestId);
-            } else {
-              finalizePieceAnalysis(pieceAnalysisActiveRequestId);
-            }
-            return;
-          }
-
-          isPieceAnalysis = false;
-          postEngineCommand('setoption name MultiPV value 1');
-          if (!pieceMovesMode) {
-            requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible, depth: engineConfig.depth });
-          }
-          return;
-        }
-
-        if (!latestAnalysisFen || latestAnalysisFen !== game.fen()) {
-          return;
-        }
-
-        const parts = line.split(' ');
-        const move = parts[1];
-
-        if (waitingForAutoBestMove) {
-          const fallback = autoMoveCandidate && autoMoveCandidate !== '(none)' ? autoMoveCandidate : null;
-          const moveToPlay = move && move !== '(none)' ? move : fallback;
-
-          const finalizeAutoMove = () => {
-            if (autoPlayDelayTimer) {
-              clearTimeout(autoPlayDelayTimer);
-              autoPlayDelayTimer = null;
-            }
-            waitingForAutoBestMove = false;
-            autoMoveCandidate = null;
-            autoPlayDepthSatisfied = false;
-            if (moveToPlay) {
-              applyAutoMove(moveToPlay);
-            }
-            updateNavigationButtons();
-          };
-
-          if (!moveToPlay) {
-            finalizeAutoMove();
-            return;
-          }
-
-          const elapsed = Date.now() - autoPlayRequestedAt;
-          const remaining = Math.max(0, AUTO_PLAY_MIN_WAIT_MS - elapsed);
-
-          if (!autoPlayDepthSatisfied || remaining <= 0) {
-            finalizeAutoMove();
-          } else {
-            if (autoPlayDelayTimer) {
-              clearTimeout(autoPlayDelayTimer);
-            }
-            autoPlayDelayTimer = setTimeout(() => {
-              autoPlayDelayTimer = null;
-              finalizeAutoMove();
-            }, remaining);
-          }
-          return;
-        }
-
-        if (move && move !== '(none)') {
-          currentBestMove = move;
-          updateBestMoveDisplay();
-        }
-        return;
-      }
-
-      if (!line.startsWith('info') || !line.includes('score')) {
-        return;
-      }
-
-      if (!latestAnalysisFen || latestAnalysisFen !== game.fen()) return;
-      if (isPieceAnalysis) return;
-
-      const depthMatch = line.match(/depth (\d+)/);
-      if (depthMatch) {
-        currentDepth = parseInt(depthMatch[1], 10);
-      }
-
-      const cpMatch = line.match(/score cp (-?\d+)/);
-      const mateMatch = line.match(/score mate (-?\d+)/);
-      const turn = game.turn();
-
-      if (cpMatch || mateMatch) {
-        const cpValue = cpMatch ? parseInt(cpMatch[1], 10) : null;
-        const mateValue = mateMatch ? parseInt(mateMatch[1], 10) : null;
-        const entry = buildEvaluationEntryFromScore({ cp: cpValue, mate: mateValue, turn });
-        if (entry) {
-          applyEvaluationEntry(entry);
-        }
-      }
-
-      const pvIndex = line.indexOf(' pv ');
-      if (pvIndex !== -1) {
-        const pvMoves = line.slice(pvIndex + 4).trim().split(' ');
-        if (pvMoves.length) {
-          currentBestMove = pvMoves[0];
-          updateBestMoveDisplay();
-        }
-      }
-
-      if (replayMode && replayPendingIndex === navigationIndex && currentDepth >= replayTargetDepth) {
-        scheduleReplayAdvance();
-      }
-
-      if (autoPlayPending && autoPlayFen === latestAnalysisFen && currentDepth >= autoPlayTargetDepth && currentBestMove && !game.game_over()) {
-        autoPlayPending = false;
-        autoPlayFen = null;
-        autoPlayDepthSatisfied = true;
-        waitingForAutoBestMove = true;
-        autoMoveCandidate = currentBestMove;
-        worker.postMessage('stop');
-        updateNavigationButtons();
-      }
-    };
-    worker.postMessage('uci');
-  }
-
-
-  function visualize(u) {
-    clearHighlights();
-    if (!u || u.length < 4) return;
-    const from = u.slice(0, 2);
-    const to = u.slice(2, 4);
-    boardEl.find(`.square-${from}`).addClass('highlight-move-from');
-    boardEl.find(`.square-${to}`).addClass('highlight-move-to');
-  }
-
-  function requestAnalysis(options = {}) {
-    if (!engineReady || !engine) {
-      scheduleEngineAutostart();
-      return;
-    }
-    const {
-      highlight = false,
-      revealBest = false,
-      depth = engineConfig.depth,
-      autoPlay = false,
-      searchMoves = null,
-      multiPv = 1,
-      pieceAnalysis = false,
-      replay = false,
-      analysisFen = null
-    } = options;
-
-    latestAnalysisFen = game.fen();
-    shouldHighlightBest = highlight && revealBest;
-    isPieceAnalysis = pieceAnalysis;
-    if (!pieceAnalysis) {
-      resetPieceAnalysisState();
-    }
-    currentBestMove = null;
-    currentDepth = 0;
-    waitingForAutoBestMove = false;
-    autoMoveCandidate = null;
-
-    if (!pieceAnalysis && !pieceMovesMode) {
-      clearHighlights();
-    }
-    if (!pieceAnalysis) {
-      clearRatings();
-    }
-
-    if (replay) {
-      replayMode = true;
-      replayTargetDepth = Math.max(PGN_REPLAY_DEPTH, depth);
-      replayPendingIndex = navigationIndex;
-      replayAdvanceScheduled = false;
-      cancelReplayTimer();
-      updateEvaluationProgressLabel();
-    } else if (!pieceAnalysis) {
-      if (replayMode) {
-        stopReplay();
-      }
-    }
-
-    if (autoPlay) {
-      autoPlayPending = true;
-      const depthFloor = Math.max(1, Math.floor(depth));
-      autoPlayTargetDepth = Math.max(PGN_REPLAY_DEPTH, depthFloor);
-      autoPlayFen = latestAnalysisFen;
-      autoPlayRequestedAt = Date.now();
-      autoPlayDepthSatisfied = false;
-      if (autoPlayDelayTimer) {
-        clearTimeout(autoPlayDelayTimer);
-        autoPlayDelayTimer = null;
-      }
-    } else if (!pieceAnalysis) {
-      autoPlayPending = false;
-      autoPlayFen = null;
-      autoPlayDepthSatisfied = false;
-      if (autoPlayDelayTimer) {
-        clearTimeout(autoPlayDelayTimer);
-        autoPlayDelayTimer = null;
-      }
-    }
-
-    if (revealBest) {
-      bestMoveVisible = true;
-    } else if (!bestMoveVisible) {
-      shouldHighlightBest = false;
-    }
-    syncBestMoveButton();
-
-    if (pieceAnalysis) {
-      setEvaluationText('Eval: --', 0.5);
-    } else {
-      const stored = getTimelineEntry(navigationIndex);
-      if (!stored || typeof stored.value !== 'number') {
-        setEvaluationText('Eval: --', 0.5);
-      }
-    }
-    setAdvantageBarLoading(true, { reset: !pieceAnalysis });
-    updateBestMoveDisplay();
-    if (replay) {
-      updateEvaluationProgressLabel();
-    }
-
-    const fenOverride = typeof analysisFen === 'string' ? analysisFen : null;
-    const normalizedFen = normalizeFenTurn(latestAnalysisFen, game.turn());
-
-    postEngineCommand('stop', { queueIfPending: false });
-    engineCommandQueue = [];
-    beginEngineReadyWait();
-    if (pieceAnalysis) {
-      const moveList = Array.isArray(searchMoves) ? searchMoves.slice() : [];
-      const fenTurn = getFenTurn(fenOverride) || game.turn();
-      const targetFen = normalizeFenTurn(fenOverride || latestAnalysisFen, fenTurn);
-      beginPieceAnalysisSearch({ fen: targetFen, moves: moveList, depth });
-      pieceAnalysisTurn = fenTurn;
-      updateNavigationButtons();
-      return;
-    }
-    const queuedCommands = [`setoption name MultiPV value ${multiPv}`, `position fen ${normalizedFen}`];
-    if (autoPlay) {
-      const depthLimit = Math.max(PGN_REPLAY_DEPTH, Math.floor(depth));
-      queuedCommands.push(`go depth ${depthLimit}`);
-    } else if (searchMoves && searchMoves.length) {
-      queuedCommands.push(`go searchmoves ${searchMoves.join(' ')} infinite`);
-    } else {
-      queuedCommands.push('go infinite');
-    }
-    queueEngineCommands(queuedCommands);
-    updateNavigationButtons();
-  }
-
-  function analyzeMoves() {
-    clearRatings();
-    let analysisGame = game;
-    let analysisFenOverride = null;
-    let moves = [];
-
-    if (selectedSquare) {
-      const piece = game.get(selectedSquare);
-      if (!piece) return;
-
-      if (piece.color !== game.turn()) {
-        const candidateFen = normalizeFenTurn(game.fen(), piece.color);
-        const tempGame = new Chess();
-        if (tempGame.load(candidateFen)) {
-          analysisGame = tempGame;
-          analysisFenOverride = candidateFen;
-        }
-      }
-
-      moves = analysisGame.moves({ verbose: true, square: selectedSquare });
-    } else {
-      moves = analysisGame.moves({ verbose: true });
-    }
-
-    if (!moves.length) return;
-    clearHighlights();
-    const destinationSquares = new Set();
-    const pendingLabel = engineReady ? '…' : '—';
-    moves.forEach(move => {
-      const destination = move.to;
-      if (destination && !destinationSquares.has(destination)) {
-        destinationSquares.add(destination);
-        boardEl.find(`.square-${destination}`).addClass('highlight-piece-move-target');
-      }
-      const moveKey = move.from + move.to + (move.promotion ? move.promotion : '');
-      setPieceMoveRating(moveKey, pendingLabel);
-    });
-    applySelectionHighlights();
-    const searchMoves = moves.map(m => m.from + m.to + (m.promotion ? m.promotion : ''));
-    requestAnalysis({
-      depth: engineConfig.depth,
-      searchMoves,
-      multiPv: moves.length,
-      pieceAnalysis: true,
-      analysisFen: analysisFenOverride
-    });
-  }
-
-  // UI hooks
-  function goToPreviousMove() {
-    if (replayMode) stopReplay();
-    if (navigationIndex === 0) return;
-    rebuildPosition(navigationIndex - 1);
-  }
-
-  function goToNextMove() {
-    if (replayMode) stopReplay();
-    if (autoPlayPending) return;
-    if (game.game_over()) return;
-    if (navigationIndex < moveHistory.length) {
-      rebuildPosition(navigationIndex + 1);
-      return;
-    }
-    if (!engineReady) {
-      scheduleEngineAutostart();
-      return;
-    }
-    requestAnalysis({
-      highlight: shouldHighlightBest && bestMoveVisible,
-      revealBest: bestMoveVisible,
-      depth: AUTO_NEXT_MOVE_DEPTH,
-      autoPlay: true
-    });
-  }
-
-  function importPositionFromText(rawInput) {
-    if (typeof rawInput !== 'string') {
-      return { success: false, error: 'Please enter a FEN or PGN.' };
-    }
-    const trimmed = rawInput.trim();
-    if (!trimmed.length) {
-      return { success: false, error: 'Please enter a FEN or PGN.' };
-    }
-
-    const looksLikePgn = /\d+\./.test(trimmed) || /\[\w+\s+".*"\]/.test(trimmed) || trimmed.includes('\n');
-
-    const loadFen = () => {
-      const fenTest = new Chess();
-      if (!fenTest.load(trimmed)) {
-        return false;
-      }
-      const canonicalFen = fenTest.fen();
-      if (!game.load(canonicalFen)) {
-        return false;
-      }
-      resetHistory(game.fen());
-      lastImportWasPgn = false;
-      return true;
-    };
-
-    const loadPgn = () => {
-      let importGame = new Chess();
-      let loaded = false;
-      if (typeof importGame.load_pgn === 'function') {
-        loaded = importGame.load_pgn(trimmed, { sloppy: true });
-        if (!loaded) {
-          importGame = new Chess();
-          loaded = importGame.load_pgn(trimmed);
-        }
-      }
-      if (!loaded) return false;
-
-      const header = typeof importGame.header === 'function' ? importGame.header() : {};
-      const history = importGame.history({ verbose: true }) || [];
-      let initialFen = null;
-      if (header && header.SetUp === '1' && header.FEN) {
-        initialFen = header.FEN;
-      }
-
-      const baseCandidate = new Chess();
-      if (initialFen) {
-        if (!baseCandidate.load(initialFen)) {
-          return false;
-        }
-      }
-      const basePositionFen = baseCandidate.fen();
-      const moves = history.map(m => ({ from: m.from, to: m.to, promotion: m.promotion }));
-
-      const verificationGame = new Chess();
-      if (!verificationGame.load(basePositionFen)) {
-        return false;
-      }
-      for (const mv of moves) {
-        const moveConfig = { from: mv.from, to: mv.to };
-        if (mv.promotion) {
-          moveConfig.promotion = mv.promotion;
-        }
-        const applied = verificationGame.move(moveConfig);
-        if (!applied) {
-          return false;
-        }
-      }
-
-      resetHistory(basePositionFen);
-      moveHistory = moves;
-      navigationIndex = 0;
-      clearEvaluationTimeline(moveHistory.length + 1);
-      if (!game.load(basePositionFen)) {
-        return false;
-      }
-      updateNavigationButtons();
-      scheduleEvaluationNavigationRender();
-      lastImportWasPgn = true;
-      return true;
-    };
-
-    lastImportWasPgn = false;
-    const loaders = looksLikePgn ? [loadPgn, loadFen] : [loadFen, loadPgn];
-    let loaded = false;
-    for (const loader of loaders) {
-      if (loader()) {
-        loaded = true;
-        break;
-      }
-    }
-
-    if (!loaded) {
-      return { success: false, error: 'Invalid FEN or PGN.' };
-    }
-
-    moveSourceSquare = null;
-    selectedSquare = null;
-    editSelectedPiece = null;
-    editSelectedSquare = null;
-    editSelectionSource = null;
-    applySelectionHighlights();
-    applySpareSelection();
-    renderBoard();
-    updateStatus();
-    updateNavigationButtons();
-    if (lastImportWasPgn) {
-      startReplayFromIndex(0, PGN_REPLAY_DEPTH);
-      probabilityPanelVisible = true;
-      if (probabilityPanel) {
-        probabilityPanel.hidden = false;
-        probabilityPanel.setAttribute('aria-hidden', 'false');
-      }
-      syncProbabilityButton();
-      scheduleEvaluationNavigationRender();
-      scheduleProbabilityEvaluation(PROBABILITY_GRAPH_DEPTH);
-    } else {
-      requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
-    }
-
-    return { success: true };
-  }
-
-  $('#best-move-button').on('click', () => {
-    if (replayMode) stopReplay();
-    bestMoveVisible = !bestMoveVisible;
-    shouldHighlightBest = bestMoveVisible;
-    syncBestMoveButton();
-    updateBestMoveDisplay();
-    if (bestMoveVisible) {
-      requestAnalysis({ highlight: shouldHighlightBest, revealBest: true });
-    }
-  });
-  $('#advantage-toggle-button').on('click', () => {
-    advantageBarVisible = !advantageBarVisible;
-    if (advantageBarElement) {
-      advantageBarElement.hidden = !advantageBarVisible;
-      if (advantageBarVisible) {
-        advantageBarElement.style.removeProperty('display');
-      } else {
-        advantageBarElement.style.display = 'none';
-      }
-      advantageBarElement.setAttribute('aria-hidden', advantageBarVisible ? 'false' : 'true');
-      if (advantageBarVisible) {
-        syncEvalBarWidth();
-      }
-    }
-    if (evaluationContainer) {
-      evaluationContainer.hidden = !advantageBarVisible;
-      if (advantageBarVisible) {
-        evaluationContainer.style.removeProperty('display');
-      } else {
-        evaluationContainer.style.display = 'none';
-      }
-      evaluationContainer.setAttribute('aria-hidden', advantageBarVisible ? 'false' : 'true');
-    }
-    setEvaluationLiveMode(advantageBarVisible);
-    syncAdvantageButton();
-  });
-  $('#probability-button').on('click', () => {
-    probabilityPanelVisible = !probabilityPanelVisible;
-    if (probabilityPanel) {
-      probabilityPanel.hidden = !probabilityPanelVisible;
-      probabilityPanel.setAttribute('aria-hidden', probabilityPanelVisible ? 'false' : 'true');
-    }
-    if (probabilityPanelVisible) {
-      scheduleEvaluationNavigationRender();
-      scheduleProbabilityEvaluation(PROBABILITY_GRAPH_DEPTH);
-    }
-    syncProbabilityButton();
-  });
-  $('#engine-button').on('click', () => {
-    enginePanelVisible = !enginePanelVisible;
-    syncEnginePanelVisibility();
-  });
-
-  const collectEngineFormValues = () => ({
-    threads: engineThreadsInput ? engineThreadsInput.value : engineConfig.threads,
-    hash: engineHashInput ? engineHashInput.value : engineConfig.hash,
-    depth: engineDepthInput ? engineDepthInput.value : engineConfig.depth
-  });
-
-  $('#engine-start-button').on('click', () => {
-    cancelEngineAutostart();
-    engineAutostartAttempts = 0;
-    const result = applyEngineConfig(collectEngineFormValues());
-    displayEngineConfigWarnings(result);
-    startEngine({ autostart: false });
-  });
-
-  $('#engine-stop-button').on('click', () => {
-    cancelEngineAutostart();
-    stopEngine();
-  });
-
-  if (engineAutostartToggle) {
-    engineAutostartToggle.addEventListener('change', () => {
-      engineAutostartDisabled = !engineAutostartToggle.checked;
-      persistAutostartPreference();
-      if (engineAutostartDisabled) {
-        cancelEngineAutostart();
-      } else {
-        engineAutostartAttempts = 0;
-        if (!engineReady && !engineStarting) {
-          scheduleEngineAutostart({ resetAttempts: true });
-        }
-      }
-    });
-  }
-
-  const engineFormInputs = [engineThreadsInput, engineHashInput, engineDepthInput].filter(Boolean);
-  const handleEngineInputUpdate = () => {
-    const result = applyEngineConfig(collectEngineFormValues());
-    displayEngineConfigWarnings(result);
-    if (engineReady && result && result.changed) {
-      setEngineStatusDisplay('ready', 'Ready (restart to apply)');
+  <div class="controls">
+    <button id="start-button">Start</button>
+    <button id="prev-button">&lt;</button>
+    <button id="replay-button">Replay</button>
+    <button id="next-button">&gt;</button>
+    <button id="end-button">End</button>
+    <button id="flip-button">Flip</button>
+    <button id="edit-button">Edit</button>
+  </div>
+  <div class="edit-controls">
+    <div class="pieces">
+      <img src="https://lichess1.org/assets/piece/alpha/wP.svg" data-piece="wP" alt="White Pawn">
+      <img src="https://lichess1.org/assets/piece/alpha/wN.svg" data-piece="wN" alt="White Knight">
+      <img src="https://lichess1.org/assets/piece/alpha/wB.svg" data-piece="wB" alt="White Bishop">
+      <img src="https://lichess1.org/assets/piece/alpha/wR.svg" data-piece="wR" alt="White Rook">
+      <img src="https://lichess1.org/assets/piece/alpha/wQ.svg" data-piece="wQ" alt="White Queen">
+      <img src="https://lichess1.org/assets/piece/alpha/wK.svg" data-piece="wK" alt="White King">
+    </div>
+    <div class="divider"></div>
+    <div class="pieces">
+      <img src="https://lichess1.org/assets/piece/alpha/bP.svg" data-piece="bP" alt="Black Pawn">
+      <img src="https://lichess1.org/assets/piece/alpha/bN.svg" data-piece="bN" alt="Black Knight">
+      <img src="https://lichess1.org/assets/piece/alpha/bB.svg" data-piece="bB" alt="Black Bishop">
+      <img src="https://lichess1.org/assets/piece/alpha/bR.svg" data-piece="bR" alt="Black Rook">
+      <img src="https://lichess1.org/assets/piece/alpha/bQ.svg" data-piece="bQ" alt="Black Queen">
+      <img src="https://lichess1.org/assets/piece/alpha/bK.svg" data-piece="bK" alt="Black King">
+    </div>
+    <div class="divider"></div>
+    <button id="clear-board-button">Clear</button>
+    <button id="start-pos-button">Start Pos</button>
+  </div>
+</div>
+
+<script>
+$(function() {
+  let board = null;
+  let game = new Chess();
+  const moveHistory = [];
+  let navigationIndex = 0;
+  let replayInterval = null;
+  let replayMode = false;
+  let editMode = false;
+  let pieceMovesMode = false;
+  let selectedPiece = null;
+
+  const audioMove = new Audio('https://sound.peal.io/lichess/move.ogg');
+  const audioCapture = new Audio('https://sound.peal.io/lichess/capture.ogg');
+  const boardElement = document.getElementById('board');
+  const evaluationNavElement = document.querySelector('.evaluation-nav');
+  const evalTrackElement = evaluationNavElement.querySelector('.evaluation-nav__track');
+  const evalProgressBar = evaluationNavElement.querySelector('.evaluation-nav__progress-bar');
+  const editControlsElement = document.querySelector('.edit-controls');
+  const pieceElements = document.querySelectorAll('.pieces img');
+
+  const onDragStart = (source, piece, position, orientation) => {
+    if (game.game_over() || replayMode || editMode) {
+      return false;
+    }
+    if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
+        (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
+      return false;
     }
-    updateEngineControls({ loading: false });
   };
-  engineFormInputs.forEach(input => {
-    input.addEventListener('change', handleEngineInputUpdate);
-    input.addEventListener('blur', handleEngineInputUpdate);
-  });
-  $('#prev-button').on('click', goToPreviousMove);
-  $('#next-button').on('click', goToNextMove);
-  $('#status').on('click', () => {
-    if (!editMode) return;
-    toggleEditingTurn();
-  });
-  $('#status').on('keydown', event => {
-    if (!editMode) return;
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      toggleEditingTurn();
-    }
-  });
 
-  $(document).on('keydown', event => {
-    const activeElement = document.activeElement;
-    if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.isContentEditable)) {
-      return;
+  const onDrop = (source, target) => {
+    const move = game.move({
+      from: source,
+      to: target,
+      promotion: 'q'
+    });
+
+    if (move === null) {
+      return 'snapback';
     }
 
-    if (editMode && (event.key === 'Delete' || event.key === 'Backspace')) {
-      if (editSelectionSource === 'board' && editSelectedSquare) {
-        event.preventDefault();
-        const targetSquare = editSelectedSquare;
-        if (removePieceAtSquare(targetSquare)) {
-          clearEditSelection();
-        }
-      }
-      return;
+    if (moveHistory.length > navigationIndex) {
+      moveHistory.splice(navigationIndex);
     }
-
-    if (event.key === 'ArrowLeft') {
-      event.preventDefault();
-      goToPreviousMove();
-    } else if (event.key === 'ArrowRight') {
-      event.preventDefault();
-      goToNextMove();
-    }
-  });
-  $('#piece-moves-button').on('click', () => {
-    if (replayMode) stopReplay();
-    pieceMovesMode = !pieceMovesMode;
-    freezeMode = pieceMovesMode;
-    if (!pieceMovesMode) {
-      requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
-    }
-    selectedSquare = null;
-    moveSourceSquare = null;
-    syncPieceMovesButton();
-    clearHighlights();
-    clearRatings();
-    renderBoard();
-    updateStatus();
-    if (pieceMovesMode) {
-      analyzeMoves();
-    }
-  });
-  $('#flip-button').on('click', () => {
-    orientation = orientation === 'white' ? 'black' : 'white';
-    renderBoard();
-    updateStatus();
-  });
-  $('#edit-button').on('click', () => {
-    if (replayMode) stopReplay();
-    editMode = !editMode;
-    moveSourceSquare = null;
-    selectedSquare = null;
-    if (editMode) {
-      if (engine) {
-        postEngineCommand('stop', { queueIfPending: false });
-        resetEngineCommandQueue();
-      }
-      $(document).on('click.editOutside', handleOutsideBoardClick);
-      clearEditSelection();
-      clearHighlights();
-      clearRatings();
-      latestAnalysisFen = null;
-      currentBestMove = null;
-      setEvaluationText('Eval: --', 0.5);
-      updateBestMoveDisplay();
-      setAdvantageBarLoading(false);
-      updateAdvantageBar(null, { neutral: true, message: 'Editing' });
+    
+    const moveTime = 1 + Math.random() * 4;
+    move.time = moveTime;
+    moveHistory.push(move);
+    navigationIndex++;
+    if (move.captured) {
+      audioCapture.play();
     } else {
-      $(document).off('click.editOutside');
-      clearEditSelection();
-      currentBestMove = null;
-      updateBestMoveDisplay();
-      requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
+      audioMove.play();
     }
-    syncEditButton();
-    renderBoard();
     updateStatus();
-  });
-  $('#fen-button').on('click', () => {
+    scheduleEvaluationNavigationRender();
+  };
+
+  const onSnapEnd = () => {
+    board.position(game.fen());
+  };
+  
+  const updateStatus = () => {
+    let status = '';
+    let moveColor = 'White';
+    if (game.turn() === 'b') {
+      moveColor = 'Black';
+    }
+
+    if (game.in_checkmate()) {
+      status = `Game over, ${moveColor} is in checkmate.`;
+    } else if (game.in_draw()) {
+      status = 'Game over, drawn position.';
+    } else {
+      status = `${moveColor} to move`;
+      if (game.in_check()) {
+        status += `, ${moveColor} is in check.`;
+      }
+    }
+
+    $('.status').html(status);
+    $('.fen').html(game.fen());
+    const pgn = game.pgn();
+    $('.pgn').html(pgn.replace(/(\d+\.\s)/g, ' $1').trim());
+    
+    const isStart = navigationIndex === 0;
+    const isEnd = navigationIndex === moveHistory.length;
+    $('#start-button').prop('disabled', isStart);
+    $('#prev-button').prop('disabled', isStart);
+    $('#next-button').prop('disabled', isEnd);
+    $('#end-button').prop('disabled', isEnd);
+    $('#replay-button').prop('disabled', isEnd);
+  };
+  
+  const rebuildPosition = index => {
     if (replayMode) stopReplay();
-    const presetValue = lastImportWasPgn ? '' : game.fen();
-    openInputModal(presetValue);
+    const targetFen = index === 0 ? 'start' : moveHistory[index - 1].after;
+    board.position(targetFen, false);
+    navigationIndex = index;
+    const tempGame = new Chess();
+    if (index > 0) {
+      const pgn = moveHistory.slice(0, index).map(m => m.san);
+      const result = tempGame.load_pgn(pgn.join(' '));
+    }
+    game = tempGame;
+    updateStatus();
+    scheduleEvaluationNavigationRender();
+  };
+  
+  let evalNavRenderQueued = false;
+  const scheduleEvaluationNavigationRender = () => {
+    if (evalNavRenderQueued) return;
+    evalNavRenderQueued = true;
+    requestAnimationFrame(() => {
+      renderEvaluationNavigation();
+      evalNavRenderQueued = false;
+    });
+  };
+
+  const renderEvaluationNavigation = () => {
+    const totalTime = moveHistory.reduce((acc, move) => acc + move.time, 0);
+    const avgTime = totalTime / moveHistory.length;
+    let html = '';
+    const segmentWidths = [];
+    for (let i = 0; i < moveHistory.length; i++) {
+      const move = moveHistory[i];
+      const isWhiteMove = i % 2 === 0;
+      const relativeWidth = Math.max(0.25, Math.min(2.5, move.time / avgTime));
+      segmentWidths.push(relativeWidth);
+    }
+    const totalRelativeWidth = segmentWidths.reduce((acc, val) => acc + val, 0);
+    for (let i = 0; i < moveHistory.length; i++) {
+      const move = moveHistory[i];
+      const isWhiteMove = i % 2 === 0;
+      const width = segmentWidths[i] / totalRelativeWidth * 100;
+      const isCurrent = i === navigationIndex - 1;
+      html += `
+        <div
+          class="evaluation-nav__segment evaluation-nav__segment_${isWhiteMove ? 'white' : 'black'} ${isCurrent ? 'current' : ''}"
+          style="width: ${width}%"
+          data-index="${i + 1}"
+        ></div>
+      `;
+    }
+    evalTrackElement.innerHTML = html;
+    
+    let progress = 0;
+    if (moveHistory.length > 0) {
+      const currentTotalWidth = segmentWidths.slice(0, navigationIndex).reduce((acc, val) => acc + val, 0);
+      progress = currentTotalWidth / totalRelativeWidth * 100;
+    }
+    evalProgressBar.style.width = `${progress}%`;
+  };
+
+  const stepForward = () => {
+    const nextIndex = navigationIndex + 1;
+    if (nextIndex > moveHistory.length) {
+      stopReplay();
+      return;
+    }
+    rebuildPosition(nextIndex);
+  };
+
+  const startReplay = () => {
+    if (replayInterval) return;
+    replayMode = true;
+    $('#replay-button').text('Pause');
+    $('#replay-button').addClass('toggled');
+    if (navigationIndex === moveHistory.length) {
+      rebuildPosition(0);
+    }
+    replayInterval = setInterval(stepForward, 1200);
+  };
+
+  const stopReplay = () => {
+    if (!replayInterval) return;
+    replayMode = false;
+    $('#replay-button').text('Replay');
+    $('#replay-button').removeClass('toggled');
+    clearInterval(replayInterval);
+    replayInterval = null;
+  };
+
+  const onPieceSelect = (notation, piece) => {
+    if (!editMode) return;
+    
+    if (selectedPiece && selectedPiece.notation === notation) {
+      selectedPiece = null;
+      pieceMovesMode = false;
+      document.body.classList.remove('piece-move-mode');
+      piece.classList.remove('selected');
+      return;
+    }
+    
+    pieceElements.forEach(p => p.classList.remove('selected'));
+    
+    selectedPiece = { notation, element: piece };
+    pieceMovesMode = true;
+    document.body.classList.add('piece-move-mode');
+    piece.classList.add('selected');
+  };
+
+  const syncEvalBarWidth = () => {
+    const squareElement = boardElement.querySelector('.white-1a1b');
+    if (!squareElement) return;
+    const squareSize = squareElement.getBoundingClientRect().width;
+    document.body.style.setProperty('--square-size', `${squareSize}px`);
+    const totalWidth = squareSize * 8;
+    evaluationNavElement.style.width = `${totalWidth}px`;
+  };
+  
+  const evalBarResizeObserver = new ResizeObserver(syncEvalBarWidth);
+  evalBarResizeObserver.observe(boardElement);
+
+  const config = {
+    draggable: true,
+    position: 'start',
+    onDragStart: onDragStart,
+    onDrop: onDrop,
+    onSnapEnd: onSnapEnd,
+    pieceTheme: (piece) => `https://lichess1.org/assets/piece/alpha/${piece}.svg`,
+  };
+  board = Chessboard('board', config);
+  updateStatus();
+  
+  $('#start-button').on('click', () => rebuildPosition(0));
+  $('#prev-button').on('click', () => rebuildPosition(Math.max(0, navigationIndex - 1)));
+  $('#next-button').on('click', () => rebuildPosition(Math.min(moveHistory.length, navigationIndex + 1)));
+  $('#end-button').on('click', () => rebuildPosition(moveHistory.length));
+  $('#flip-button').on('click', () => board.flip());
+  $('#replay-button').on('click', () => replayMode ? stopReplay() : startReplay());
+  $('#edit-button').on('click', () => {
+    editMode = !editMode;
+    $('#edit-button').toggleClass('toggled', editMode);
+    editControlsElement.classList.toggle('visible', editMode);
+    if (!editMode) {
+      pieceElements.forEach(p => p.classList.remove('selected'));
+      document.body.classList.remove('piece-move-mode');
+      selectedPiece = null;
+      pieceMovesMode = false;
+    }
   });
 
-  if (inputModalApplyButton) {
-    inputModalApplyButton.addEventListener('click', handleInputModalSubmit);
-  }
+  $('#clear-board-button').on('click', () => {
+    if (!editMode) return;
+    game.clear();
+    board.position(game.fen(), false);
+  });
+  $('#start-pos-button').on('click', () => {
+    if (!editMode) return;
+    game.reset();
+    board.position(game.fen(), false);
+  });
+  
+  pieceElements.forEach(piece => {
+    piece.addEventListener('click', () => onPieceSelect(piece.dataset.piece, piece));
+  });
 
-  if (inputModalCancelButton) {
-    inputModalCancelButton.addEventListener('click', () => closeInputModal());
-  }
+  boardElement.addEventListener('click', event => {
+    if (!editMode || !pieceMovesMode || !selectedPiece) return;
+    const square = event.target.closest('[data-square]');
+    if (!square) return;
 
-  if (inputModalTextarea) {
-    inputModalTextarea.addEventListener('input', () => {
-      if (inputModalErrorElement && !inputModalErrorElement.hidden) {
-        clearInputModalError();
-      }
-    });
-    inputModalTextarea.addEventListener('keydown', event => {
-      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-        event.preventDefault();
-        handleInputModalSubmit();
-      }
-    });
-  }
+    const currentPiece = game.get(square.dataset.square);
+    if (currentPiece && currentPiece.type === selectedPiece.notation[1].toLowerCase() && currentPiece.color === selectedPiece.notation[0]) {
+      game.remove(square.dataset.square);
+    } else {
+      game.put({ type: selectedPiece.notation[1].toLowerCase(), color: selectedPiece.notation[0] }, square.dataset.square);
+    }
+    board.position(game.fen(), false);
+  });
 
-  if (inputModalElement) {
-    inputModalElement.addEventListener('keydown', event => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        closeInputModal();
-        return;
-      }
-      if (event.key === 'Tab') {
-        trapInputModalFocus(event);
-      }
-    });
-    inputModalElement.addEventListener('mousedown', event => {
-      if (event.target === inputModalElement) {
-        event.preventDefault();
-        closeInputModal();
-      }
-    });
-  }
-
-  clearEvaluationTimeline(1);
-  updateAdvantageBar(null, { neutral: true, message: 'Awaiting evaluation' });
-  setAdvantageBarLoading(false);
-  scheduleEvaluationNavigationRender();
-  renderBoard();
-  applyEngineConfig(engineConfig);
-  syncEngineInputs();
-  setEngineStatusDisplay('idle', 'Not started');
-  setEngineErrorMessage('', { source: '' });
-  updateEngineControls({ loading: false });
-  syncEnginePanelVisibility();
-  syncEngineButton();
-  updateStatus();
-  scheduleEngineAutostart({ immediate: true, resetAttempts: true });
   $(window).off('resize.board').on('resize.board', () => {
     if (!board) return;
     board.resize();
@@ -4010,12 +584,17 @@
       }
       if (targetIndex === null || targetIndex === navigationIndex) return;
       event.preventDefault();
-      if (replayMode) stopReplay();
       rebuildPosition(targetIndex);
     });
   }
-});
 
-  </script>
+  // Initial render
+  setTimeout(() => {
+    syncEvalBarWidth();
+    scheduleEvaluationNavigationRender();
+  }, 100);
+});
+</script>
 </body>
 </html>
+
