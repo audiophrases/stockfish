@@ -362,6 +362,26 @@
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   }
 
+  .engine-autostart-toggle {
+    margin-top: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.85rem;
+    color: #c9cfef;
+    cursor: pointer;
+  }
+
+  .engine-autostart-toggle__input {
+    width: 18px;
+    height: 18px;
+    accent-color: #7a8cff;
+  }
+
+  .engine-autostart-toggle__label {
+    line-height: 1.4;
+  }
+
   .engine-field {
     display: flex;
     flex-direction: column;
@@ -440,6 +460,126 @@
     font-size: 0.78rem;
     color: #9ca6cf;
     line-height: 1.5;
+  }
+
+  #input-modal {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: rgba(7, 9, 16, 0.72);
+    backdrop-filter: blur(8px);
+    z-index: 1000;
+  }
+
+  #input-modal[hidden] {
+    display: none !important;
+  }
+
+  .input-modal__dialog {
+    width: min(92vw, 420px);
+    background: rgba(12, 16, 30, 0.96);
+    border-radius: 20px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+  }
+
+  .input-modal__title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #eef1ff;
+  }
+
+  .input-modal__description {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #a9b3df;
+    line-height: 1.5;
+  }
+
+  .input-modal__textarea {
+    width: 100%;
+    min-height: 140px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(17, 21, 32, 0.92);
+    color: #eef1ff;
+    padding: 12px 14px;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    resize: vertical;
+  }
+
+  .input-modal__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+  }
+
+  .input-modal__button {
+    border: none;
+    border-radius: 12px;
+    padding: 10px 18px;
+    font-size: 0.92rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .input-modal__button:focus-visible {
+    outline: 2px solid rgba(122, 140, 255, 0.7);
+    outline-offset: 2px;
+  }
+
+  .input-modal__button--cancel {
+    background: rgba(255, 255, 255, 0.08);
+    color: #d2d9ff;
+  }
+
+  .input-modal__button--submit {
+    background: linear-gradient(135deg, rgba(102, 126, 255, 0.85), rgba(136, 98, 255, 0.85));
+    color: #f6f8ff;
+    box-shadow: 0 14px 28px rgba(88, 120, 255, 0.32);
+  }
+
+  .input-modal__button:hover {
+    transform: translateY(-1px);
+  }
+
+  .input-modal__error {
+    margin: -6px 0 0;
+    font-size: 0.82rem;
+    color: #ff9aad;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+
+    .indicator-slide {
+      animation: none !important;
+    }
+
+    .control-button,
+    .engine-action-button,
+    .input-modal__button {
+      transition: none !important;
+    }
+
+    .control-button:hover:not(:disabled),
+    .engine-action-button:hover:not(:disabled),
+    .input-modal__button:hover {
+      transform: none !important;
+      box-shadow: none !important;
+    }
   }
 
   .evaluation-nav__graph {
@@ -610,10 +750,10 @@
   }
 </style>
 
-  <script src="libs/jquery.min.js"></script>
+  <script src="libs/jquery.min.js" defer></script>
   <link href="libs/chessboard-1.0.0.min.css" rel="stylesheet">
-  <script src="libs/chessboard-1.0.0.min.js"></script>
-  <script src="libs/chess.min.js"></script>
+  <script src="libs/chessboard-1.0.0.min.js" defer></script>
+  <script src="libs/chess.min.js" defer></script>
 </head>
 <body>
   <div class="container">
@@ -622,7 +762,7 @@
         <div class="board-container">
           <div id="board"></div>
         </div>
-        <div class="advantage-bar is-balanced advantage-bar--minimal" id="advantage-bar" aria-live="polite" aria-busy="false" aria-hidden="true" hidden>
+        <div class="advantage-bar is-balanced advantage-bar--minimal" id="advantage-bar" aria-live="polite" aria-busy="false" aria-atomic="true" aria-hidden="true" hidden>
           <div class="advantage-bar__header" aria-hidden="true">
             <span class="visually-hidden">Advantage</span>
             <span class="advantage-bar__status visually-hidden" id="advantage-status">Awaiting evaluation</span>
@@ -642,11 +782,11 @@
       </div>
 
       <div id="info-line">
-        <span id="status" class="status-text" role="status" aria-live="polite" data-turn="white" data-state="normal" aria-label="White to move">
+        <span id="status" class="status-text" role="status" aria-live="polite" aria-atomic="true" data-turn="white" data-state="normal" aria-label="White to move">
           <span class="status-text__label">White to move</span>
         </span>
         <span class="info-line-item" id="evaluation-container" aria-hidden="true" hidden>
-          <span id="evaluation" class="evaluation-indicator" role="img" aria-label="Eval: --" data-probability="0.5">
+          <span id="evaluation" class="evaluation-indicator" role="img" aria-label="Eval: --" data-probability="0.5" aria-live="off" aria-atomic="true">
             <span class="visually-hidden">Eval: --</span>
           </span>
         </span>
@@ -716,6 +856,10 @@
           <input id="engine-depth" class="engine-field__input" name="depth" type="number" min="1" max="99" step="1" inputmode="numeric" value="24">
         </label>
       </form>
+      <label class="engine-autostart-toggle" for="engine-autostart-toggle">
+        <input id="engine-autostart-toggle" class="engine-autostart-toggle__input" type="checkbox" checked>
+        <span class="engine-autostart-toggle__label">Start Stockfish automatically</span>
+      </label>
       <p class="engine-settings__help" id="engine-settings-help"></p>
       <div id="engine-error" class="engine-settings__error" role="alert" hidden></div>
       <div class="engine-settings__actions">
@@ -727,8 +871,20 @@
         </button>
       </div>
     </section>
+    <div id="input-modal" role="dialog" aria-modal="true" aria-labelledby="input-modal-title" aria-describedby="input-modal-description" aria-hidden="true" hidden>
+      <div class="input-modal__dialog">
+        <h2 id="input-modal-title" class="input-modal__title">Load FEN or PGN</h2>
+        <p id="input-modal-description" class="input-modal__description">Paste a FEN position or PGN moves. Press Ctrl+Enter (or Cmd+Enter) to apply.</p>
+        <textarea id="input-modal-text" class="input-modal__textarea" aria-describedby="input-modal-description input-modal-error"></textarea>
+        <p id="input-modal-error" class="input-modal__error" role="alert" hidden></p>
+        <div class="input-modal__actions">
+          <button type="button" id="input-modal-cancel" class="input-modal__button input-modal__button--cancel">Cancel</button>
+          <button type="button" id="input-modal-apply" class="input-modal__button input-modal__button--submit">Apply</button>
+        </div>
+      </div>
+    </div>
   </div>
-  <script>
+  <script defer>
     $(function() {
       let board, engine;
       let lastBoardConfig = { editMode: null, orientation: null };
@@ -757,7 +913,21 @@
       const engineThreadsInput = document.getElementById('engine-threads');
       const engineHashInput = document.getElementById('engine-hash');
       const engineDepthInput = document.getElementById('engine-depth');
+      const engineAutostartToggle = document.getElementById('engine-autostart-toggle');
+      const inputModalElement = document.getElementById('input-modal');
+      const inputModalTextarea = document.getElementById('input-modal-text');
+      const inputModalApplyButton = document.getElementById('input-modal-apply');
+      const inputModalCancelButton = document.getElementById('input-modal-cancel');
+      const inputModalErrorElement = document.getElementById('input-modal-error');
       const statusElement = document.getElementById('status');
+      const CHESSBOARD_SELECTORS = Object.freeze({
+        square: 'div.square-55d63',
+        spareWrapper: '.spare-pieces-7492f',
+        piece: '.piece-417db'
+      });
+      const sparePiecesContainerSelector = `.board-container ${CHESSBOARD_SELECTORS.spareWrapper}`;
+      const sparePieceSelector = CHESSBOARD_SELECTORS.piece;
+      const ENGINE_AUTOSTART_STORAGE_KEY = 'stockfish-ui:engine-autostart-disabled';
       let baseFen = game.fen();
       let selectedSquare = null;
       let moveSourceSquare = null;
@@ -792,6 +962,9 @@
         }
         return null;
       })();
+      const defaultWorkerLocation = selectedStockfishVariant
+        ? `/engine/${selectedStockfishVariant.filename}`
+        : null;
       const ENGINE_THREADS_MIN = 1;
       const ENGINE_THREADS_MAX = selectedStockfishVariant && selectedStockfishVariant.requiresThreadSupport === false
         ? 1
@@ -837,6 +1010,7 @@
       let autoPlayDelayTimer = null;
       let autoPlayDepthSatisfied = false;
       const evaluationNavElement = document.getElementById('evaluation-nav');
+      let evaluationNavNeedsVisibleRender = false;
       let advantageBarVisible = false;
       let probabilityPanelVisible = false;
       let evaluationTimeline = [];
@@ -846,6 +1020,70 @@
       let engineAutostartAttempts = 0;
       let engineLastStartWasAutostart = false;
       let engineAutostartDisabled = false;
+      let lastFocusedElementBeforeModal = null;
+      const storedAutostartPreference = readStoredAutostartPreference();
+      if (storedAutostartPreference !== null) {
+        engineAutostartDisabled = storedAutostartPreference;
+      }
+      if (engineAutostartToggle) {
+        engineAutostartToggle.checked = !engineAutostartDisabled;
+      }
+      preloadPieceSprites();
+      function preloadPieceSprites() {
+        if (typeof Image !== 'function') {
+          return;
+        }
+        const pieces = ['king', 'queen', 'rook', 'bishop', 'knight', 'pawn'];
+        const colors = ['white', 'black'];
+        colors.forEach(color => {
+          pieces.forEach(piece => {
+            const img = new Image();
+            img.src = `pieces/${color}-${piece}.png`;
+          });
+        });
+      }
+
+      function readStoredAutostartPreference() {
+        if (typeof window === 'undefined') {
+          return null;
+        }
+        try {
+          const storage = window.localStorage;
+          if (!storage) return null;
+          const value = storage.getItem(ENGINE_AUTOSTART_STORAGE_KEY);
+          if (value === 'true') return true;
+          if (value === 'false') return false;
+        } catch (error) {
+          return null;
+        }
+        return null;
+      }
+
+      function persistAutostartPreference() {
+        if (typeof window === 'undefined') {
+          return;
+        }
+        try {
+          const storage = window.localStorage;
+          if (!storage) return;
+          storage.setItem(ENGINE_AUTOSTART_STORAGE_KEY, engineAutostartDisabled ? 'true' : 'false');
+        } catch (error) {
+          // Ignore storage errors (e.g., blocked cookies).
+        }
+      }
+
+      function buildWorkerInitializationErrorMessage(error) {
+        const detail = error && error.message ? String(error.message) : 'Unable to initialize Stockfish worker.';
+        const trimmedDetail = detail.trim();
+        const normalizedDetail = trimmedDetail.length
+          ? (trimmedDetail.endsWith('.') ? trimmedDetail : `${trimmedDetail}.`)
+          : '';
+        const guidance = defaultWorkerLocation
+          ? `Place the worker at ${defaultWorkerLocation} or set window.STOCKFISH_WORKER_PATH.`
+          : 'Set window.STOCKFISH_WORKER_PATH to the Stockfish worker file.';
+        return normalizedDetail ? `${normalizedDetail} ${guidance}` : guidance;
+      }
+
       function setButtonLabel(element, label) {
         if (!element || typeof label !== 'string') return;
         element.setAttribute('aria-label', label);
@@ -911,16 +1149,23 @@
         engineStatusElement.textContent = label || '';
       }
 
-      function setEngineErrorMessage(message) {
+      function setEngineErrorMessage(message, options = {}) {
         if (!engineErrorElement) return;
+        const { source = '', force = false } = options || {};
+        const currentSource = engineErrorElement.dataset.source || '';
+        if (!message && !force && currentSource === 'engine-error') {
+          return;
+        }
         if (message) {
           engineErrorElement.hidden = false;
           engineErrorElement.textContent = message;
+          engineErrorElement.setAttribute('aria-hidden', 'false');
         } else {
           engineErrorElement.hidden = true;
           engineErrorElement.textContent = '';
+          engineErrorElement.setAttribute('aria-hidden', 'true');
         }
-        engineErrorElement.dataset.source = '';
+        engineErrorElement.dataset.source = source;
       }
 
       function resetEngineCommandQueue() {
@@ -981,12 +1226,9 @@
 
       function displayEngineConfigWarnings(result) {
         if (result && Array.isArray(result.warnings) && result.warnings.length) {
-          setEngineErrorMessage(result.warnings.join(' '));
+          setEngineErrorMessage(result.warnings.join(' '), { source: 'config-warning' });
         } else if (engineErrorElement && engineErrorElement.dataset.source === 'config-warning') {
-          setEngineErrorMessage('');
-        }
-        if (engineErrorElement) {
-          engineErrorElement.dataset.source = result && result.warnings && result.warnings.length ? 'config-warning' : '';
+          setEngineErrorMessage('', { source: '' });
         }
       }
 
@@ -1055,6 +1297,10 @@
         const warnings = [];
         const fallbackThreads = Math.max(ENGINE_THREADS_MIN, Math.min(ENGINE_THREADS_MAX, previousThreads));
         const threads = clampInteger(config.threads, ENGINE_THREADS_MIN, ENGINE_THREADS_MAX, fallbackThreads);
+        const requestedThreads = Number(config.threads);
+        if (Number.isFinite(requestedThreads) && requestedThreads > ENGINE_THREADS_MAX) {
+          warnings.push(`Threads limited to ${ENGINE_THREADS_MAX} for this engine build.`);
+        }
         const requestedHash = clampInteger(config.hash, 1, MAX_USER_HASH_MB, previousHash);
         const hashConstraints = resolveHashConstraints();
         let hash = requestedHash;
@@ -1274,6 +1520,7 @@
         evaluationElement.setAttribute('aria-label', defaultLabel);
         evaluationElement.dataset.probability = '0.5';
         evaluationElement.style.setProperty('--eval-scale', '0.5');
+        setEvaluationLiveMode(false);
       }
       syncBestMoveButton();
       syncAdvantageButton();
@@ -1300,6 +1547,92 @@
           evaluationElement.dataset.probability = clamped.toString();
           evaluationElement.style.setProperty('--eval-scale', clamped.toString());
         }
+      }
+
+      function setEvaluationLiveMode(isVisible) {
+        if (!evaluationElement) return;
+        evaluationElement.setAttribute('aria-live', isVisible ? 'polite' : 'off');
+      }
+
+      function clearInputModalError() {
+        if (!inputModalErrorElement) return;
+        inputModalErrorElement.hidden = true;
+        inputModalErrorElement.textContent = '';
+      }
+
+      function showInputModalError(message) {
+        if (!inputModalErrorElement) return;
+        const text = typeof message === 'string' && message.trim().length
+          ? message.trim()
+          : 'Invalid FEN or PGN.';
+        inputModalErrorElement.hidden = false;
+        inputModalErrorElement.textContent = text;
+      }
+
+      function trapInputModalFocus(event) {
+        if (event.key !== 'Tab') {
+          return;
+        }
+        const focusable = [inputModalTextarea, inputModalCancelButton, inputModalApplyButton]
+          .filter(element => element && typeof element.focus === 'function' && !element.disabled);
+        if (!focusable.length) {
+          return;
+        }
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey) {
+          if (document.activeElement === first || !focusable.includes(document.activeElement)) {
+            event.preventDefault();
+            last.focus();
+          }
+        } else if (document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+
+      function openInputModal(presetText = '') {
+        if (!inputModalElement) return;
+        lastFocusedElementBeforeModal = document.activeElement && typeof document.activeElement.focus === 'function'
+          ? document.activeElement
+          : null;
+        inputModalElement.hidden = false;
+        inputModalElement.setAttribute('aria-hidden', 'false');
+        clearInputModalError();
+        if (inputModalTextarea) {
+          inputModalTextarea.value = typeof presetText === 'string' ? presetText : '';
+          requestAnimationFrame(() => {
+            inputModalTextarea.focus();
+            inputModalTextarea.select();
+          });
+        }
+      }
+
+      function closeInputModal(options = {}) {
+        if (!inputModalElement) return;
+        const { restoreFocus = true } = options || {};
+        inputModalElement.hidden = true;
+        inputModalElement.setAttribute('aria-hidden', 'true');
+        if (inputModalTextarea) {
+          inputModalTextarea.value = '';
+        }
+        clearInputModalError();
+        if (restoreFocus && lastFocusedElementBeforeModal && typeof lastFocusedElementBeforeModal.focus === 'function') {
+          lastFocusedElementBeforeModal.focus();
+        }
+        lastFocusedElementBeforeModal = null;
+      }
+
+      function handleInputModalSubmit() {
+        if (!inputModalTextarea) return;
+        const rawInput = inputModalTextarea.value;
+        const result = importPositionFromText(rawInput);
+        if (!result || result.success !== true) {
+          const message = result && typeof result.error === 'string' ? result.error : 'Invalid FEN or PGN.';
+          showInputModalError(message);
+          return;
+        }
+        closeInputModal();
       }
 
       function formatEvaluationLabel(probability) {
@@ -1362,7 +1695,7 @@
       function clearEvaluationTimeline(initialSize = 1) {
         const size = Math.max(1, Math.floor(initialSize));
         evaluationTimeline = new Array(size).fill(null);
-        renderEvaluationNavigation();
+        scheduleEvaluationNavigationRender();
       }
 
       function resetBackgroundEvaluationProgress() {
@@ -1555,7 +1888,7 @@
           const descriptor = describeCentipawnAdvantage(cpValue);
           const prefix = cpValue > 0 ? '+' : cpValue < 0 ? '' : '';
           const cpDisplay = `${prefix}${(cpValue / 100).toFixed(2)}`;
-          const cpLabel = `${cpDisplay} cp`;
+          const cpLabel = `${cpDisplay} pawns`;
           const whiteWinProbability = calculateWhiteWinProbabilityFromCp(cpValue);
           const blackWinProbability = 1 - whiteWinProbability;
           const favoredSide = descriptor.leadingSide;
@@ -1815,7 +2148,7 @@
           evaluationTimeline[index] = entry;
         }
         if (extended || entry !== undefined) {
-          renderEvaluationNavigation();
+          scheduleEvaluationNavigationRender();
         }
       }
 
@@ -1834,17 +2167,15 @@
       function renderEvaluationNavigation() {
         if (!evaluationNavElement) return;
         const totalSegments = Math.max(1, evaluationTimeline.length);
-        evaluationNavElement.innerHTML = '';
-
         const bounds = evaluationNavElement.getBoundingClientRect();
         let width = Math.round(evaluationNavElement.clientWidth || bounds.width);
         let height = Math.round(evaluationNavElement.clientHeight || bounds.height);
-        if (!width) {
-          width = Math.max(240, totalSegments * 20);
+        if (!width || !height) {
+          evaluationNavNeedsVisibleRender = true;
+          return;
         }
-        if (!height) {
-          height = 140;
-        }
+        evaluationNavNeedsVisibleRender = false;
+        evaluationNavElement.innerHTML = '';
 
         const segmentWidth = totalSegments > 0 ? width / totalSegments : width;
         const halfSegment = segmentWidth / 2;
@@ -1965,6 +2296,33 @@
 
         evaluationNavElement.appendChild(svg);
         evaluationNavElement.appendChild(overlay);
+      }
+
+      function scheduleEvaluationNavigationRender() {
+        if (!evaluationNavElement) return;
+        requestAnimationFrame(() => {
+          renderEvaluationNavigation();
+          if (evaluationNavNeedsVisibleRender) {
+            requestAnimationFrame(() => {
+              renderEvaluationNavigation();
+            });
+          }
+        });
+      }
+
+      const evaluationNavResizeObserver = typeof ResizeObserver === 'function' && evaluationNavElement
+        ? new ResizeObserver(entries => {
+            for (const entry of entries) {
+              if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+                renderEvaluationNavigation();
+                evaluationNavNeedsVisibleRender = false;
+                break;
+              }
+            }
+          })
+        : null;
+      if (evaluationNavResizeObserver && evaluationNavElement) {
+        evaluationNavResizeObserver.observe(evaluationNavElement);
       }
 
       function applyEvaluationEntry(entry) {
@@ -2119,15 +2477,15 @@
           moveHistory = moveHistory.slice(0, navigationIndex);
           evaluationTimeline = evaluationTimeline.slice(0, navigationIndex + 1);
         }
-        moveHistory.push({ from: move.from, to: move.to, promotion: move.promotion });
-        navigationIndex = moveHistory.length;
-        ensureTimelineCapacity(navigationIndex + 1);
-        updateNavigationButtons();
-        renderEvaluationNavigation();
-        if (probabilityPanelVisible) {
-          scheduleProbabilityEvaluation(PROBABILITY_GRAPH_DEPTH);
-        }
+      moveHistory.push({ from: move.from, to: move.to, promotion: move.promotion });
+      navigationIndex = moveHistory.length;
+      ensureTimelineCapacity(navigationIndex + 1);
+      updateNavigationButtons();
+      scheduleEvaluationNavigationRender();
+      if (probabilityPanelVisible) {
+        scheduleProbabilityEvaluation(PROBABILITY_GRAPH_DEPTH);
       }
+    }
 
       function resetHistory(newBaseFen = null) {
         moveHistory = [];
@@ -2154,7 +2512,7 @@
         updateAdvantageBar(null, { neutral: true, message: 'Awaiting evaluation' });
         updateBestMoveDisplay();
         updateNavigationButtons();
-        renderEvaluationNavigation();
+        scheduleEvaluationNavigationRender();
         if (probabilityPanelVisible) {
           scheduleProbabilityEvaluation(PROBABILITY_GRAPH_DEPTH);
         }
@@ -2185,7 +2543,7 @@
         renderBoard();
         updateStatus();
         applyStoredEvaluationIfAvailable();
-        renderEvaluationNavigation();
+        scheduleEvaluationNavigationRender();
         const requestOptions = analysisOptions || {
           highlight: shouldHighlightBest && bestMoveVisible,
           revealBest: bestMoveVisible
@@ -2244,7 +2602,7 @@
     clearSpareSelectionHighlight();
     if (!editMode || editSelectionSource !== 'spare' || !editSelectedPiece) return;
     const pieceCode = `${editSelectedPiece.color}${editSelectedPiece.type.toUpperCase()}`;
-    $('.board-container .spare-pieces-7492f .piece-417db').filter(`[data-piece='${pieceCode}']`).first().addClass('selected-spare-piece');
+    $(sparePiecesContainerSelector).find(sparePieceSelector).filter(`[data-piece='${pieceCode}']`).first().addClass('selected-spare-piece');
   }
 
   function clearEditSelection() {
@@ -2506,19 +2864,19 @@
   }
 
   function rebindBoardHandlers() {
-    boardEl.off('click.square').on('click.square', 'div.square-55d63', function() {
+    boardEl.off('click.square').on('click.square', CHESSBOARD_SELECTORS.square, function() {
       const cls = $(this).attr('class').split(/\s+/);
       const sq = cls.find(c => /^square-[a-h][1-8]$/.test(c));
       if (!sq) return;
       handleSquareClick(sq.replace('square-', ''));
     });
-    boardEl.off('dblclick.square').on('dblclick.square', 'div.square-55d63', function() {
+    boardEl.off('dblclick.square').on('dblclick.square', CHESSBOARD_SELECTORS.square, function() {
       const cls = $(this).attr('class').split(/\s+/);
       const sq = cls.find(c => /^square-[a-h][1-8]$/.test(c));
       if (!sq) return;
       handleSquareDoubleClick(sq.replace('square-', ''));
     });
-    $('.board-container .spare-pieces-7492f').off('click.spare').on('click.spare', '.piece-417db', function() {
+    $(sparePiecesContainerSelector).off('click.spare').on('click.spare', sparePieceSelector, function() {
       const pieceCode = $(this).attr('data-piece');
       handleSparePieceClick(pieceCode);
     });
@@ -2748,7 +3106,7 @@
     updateNavigationButtons();
     if (!silent) {
       setEngineStatusDisplay('idle', 'Stopped');
-      setEngineErrorMessage('');
+      setEngineErrorMessage('', { source: '' });
     }
     updateEngineControls({ loading: false });
     currentBestMove = null;
@@ -2775,7 +3133,7 @@
     setEngineStatusDisplay('loading', 'Starting…');
     const hasConfigWarnings = sanitizedConfig && Array.isArray(sanitizedConfig.warnings) && sanitizedConfig.warnings.length > 0;
     if (!hasConfigWarnings) {
-      setEngineErrorMessage('');
+      setEngineErrorMessage('', { source: '' });
     }
     updateEngineControls({ loading: true });
     let worker;
@@ -2784,8 +3142,8 @@
     } catch (error) {
       console.error('Unable to initialize Stockfish worker', error);
       engineStarting = false;
-      const errorMessage = error && error.message ? error.message : 'Unable to initialize engine worker.';
-      setEngineErrorMessage(errorMessage);
+      const errorMessage = buildWorkerInitializationErrorMessage(error);
+      setEngineErrorMessage(errorMessage, { source: 'engine-error' });
       if (autostart && engineAutostartAttempts < ENGINE_AUTOSTART_MAX_ATTEMPTS) {
         setEngineStatusDisplay('loading', 'Retrying…');
         scheduleEngineAutostart();
@@ -2821,7 +3179,11 @@
         setEvaluationText('Eval: --', 0.5);
         const statusMessage = shouldRetry ? 'Retrying…' : 'Engine error';
         updateAdvantageBar(null, { neutral: true, message: statusMessage });
-        setEngineErrorMessage(message);
+        const errorForMessage = event && event.error instanceof Error
+          ? event.error
+          : new Error(message || 'Unknown Stockfish worker error');
+        const friendlyMessage = buildWorkerInitializationErrorMessage(errorForMessage);
+        setEngineErrorMessage(friendlyMessage, { source: 'engine-error' });
         if (shouldRetry) {
           setEngineStatusDisplay('loading', 'Retrying…');
           updateEngineControls({ loading: true });
@@ -2853,12 +3215,7 @@
           engineLastStartWasAutostart = false;
           engineAutostartAttempts = 0;
           setEngineStatusDisplay('ready', 'Ready');
-          if (!engineErrorElement || engineErrorElement.dataset.source === 'config-warning') {
-            setEngineErrorMessage('');
-            if (engineErrorElement) {
-              engineErrorElement.dataset.source = '';
-            }
-          }
+          setEngineErrorMessage('', { source: '', force: true });
           updateEngineControls({ loading: false });
           $('#best-move-button').prop('disabled', false);
           updateNavigationButtons();
@@ -3236,6 +3593,128 @@
     });
   }
 
+  function importPositionFromText(rawInput) {
+    if (typeof rawInput !== 'string') {
+      return { success: false, error: 'Please enter a FEN or PGN.' };
+    }
+    const trimmed = rawInput.trim();
+    if (!trimmed.length) {
+      return { success: false, error: 'Please enter a FEN or PGN.' };
+    }
+
+    const looksLikePgn = /\d+\./.test(trimmed) || /\[\w+\s+".*"\]/.test(trimmed) || trimmed.includes('\n');
+
+    const loadFen = () => {
+      const fenTest = new Chess();
+      if (!fenTest.load(trimmed)) {
+        return false;
+      }
+      const canonicalFen = fenTest.fen();
+      if (!game.load(canonicalFen)) {
+        return false;
+      }
+      resetHistory(game.fen());
+      lastImportWasPgn = false;
+      return true;
+    };
+
+    const loadPgn = () => {
+      let importGame = new Chess();
+      let loaded = false;
+      if (typeof importGame.load_pgn === 'function') {
+        loaded = importGame.load_pgn(trimmed, { sloppy: true });
+        if (!loaded) {
+          importGame = new Chess();
+          loaded = importGame.load_pgn(trimmed);
+        }
+      }
+      if (!loaded) return false;
+
+      const header = typeof importGame.header === 'function' ? importGame.header() : {};
+      const history = importGame.history({ verbose: true }) || [];
+      let initialFen = null;
+      if (header && header.SetUp === '1' && header.FEN) {
+        initialFen = header.FEN;
+      }
+
+      const baseCandidate = new Chess();
+      if (initialFen) {
+        if (!baseCandidate.load(initialFen)) {
+          return false;
+        }
+      }
+      const basePositionFen = baseCandidate.fen();
+      const moves = history.map(m => ({ from: m.from, to: m.to, promotion: m.promotion }));
+
+      const verificationGame = new Chess();
+      if (!verificationGame.load(basePositionFen)) {
+        return false;
+      }
+      for (const mv of moves) {
+        const moveConfig = { from: mv.from, to: mv.to };
+        if (mv.promotion) {
+          moveConfig.promotion = mv.promotion;
+        }
+        const applied = verificationGame.move(moveConfig);
+        if (!applied) {
+          return false;
+        }
+      }
+
+      resetHistory(basePositionFen);
+      moveHistory = moves;
+      navigationIndex = 0;
+      clearEvaluationTimeline(moveHistory.length + 1);
+      if (!game.load(basePositionFen)) {
+        return false;
+      }
+      updateNavigationButtons();
+      scheduleEvaluationNavigationRender();
+      lastImportWasPgn = true;
+      return true;
+    };
+
+    lastImportWasPgn = false;
+    const loaders = looksLikePgn ? [loadPgn, loadFen] : [loadFen, loadPgn];
+    let loaded = false;
+    for (const loader of loaders) {
+      if (loader()) {
+        loaded = true;
+        break;
+      }
+    }
+
+    if (!loaded) {
+      return { success: false, error: 'Invalid FEN or PGN.' };
+    }
+
+    moveSourceSquare = null;
+    selectedSquare = null;
+    editSelectedPiece = null;
+    editSelectedSquare = null;
+    editSelectionSource = null;
+    applySelectionHighlights();
+    applySpareSelection();
+    renderBoard();
+    updateStatus();
+    updateNavigationButtons();
+    if (lastImportWasPgn) {
+      startReplayFromIndex(0, PGN_REPLAY_DEPTH);
+      probabilityPanelVisible = true;
+      if (probabilityPanel) {
+        probabilityPanel.hidden = false;
+        probabilityPanel.setAttribute('aria-hidden', 'false');
+      }
+      syncProbabilityButton();
+      scheduleEvaluationNavigationRender();
+      scheduleProbabilityEvaluation(PROBABILITY_GRAPH_DEPTH);
+    } else {
+      requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
+    }
+
+    return { success: true };
+  }
+
   $('#best-move-button').on('click', () => {
     if (replayMode) stopReplay();
     bestMoveVisible = !bestMoveVisible;
@@ -3269,6 +3748,7 @@
       }
       evaluationContainer.setAttribute('aria-hidden', advantageBarVisible ? 'false' : 'true');
     }
+    setEvaluationLiveMode(advantageBarVisible);
     syncAdvantageButton();
   });
   $('#probability-button').on('click', () => {
@@ -3278,9 +3758,7 @@
       probabilityPanel.setAttribute('aria-hidden', probabilityPanelVisible ? 'false' : 'true');
     }
     if (probabilityPanelVisible) {
-      requestAnimationFrame(() => {
-        renderEvaluationNavigation();
-      });
+      scheduleEvaluationNavigationRender();
       scheduleProbabilityEvaluation(PROBABILITY_GRAPH_DEPTH);
     }
     syncProbabilityButton();
@@ -3299,17 +3777,30 @@
   $('#engine-start-button').on('click', () => {
     cancelEngineAutostart();
     engineAutostartAttempts = 0;
-    engineAutostartDisabled = false;
     const result = applyEngineConfig(collectEngineFormValues());
     displayEngineConfigWarnings(result);
     startEngine({ autostart: false });
   });
 
   $('#engine-stop-button').on('click', () => {
-    engineAutostartDisabled = true;
     cancelEngineAutostart();
     stopEngine();
   });
+
+  if (engineAutostartToggle) {
+    engineAutostartToggle.addEventListener('change', () => {
+      engineAutostartDisabled = !engineAutostartToggle.checked;
+      persistAutostartPreference();
+      if (engineAutostartDisabled) {
+        cancelEngineAutostart();
+      } else {
+        engineAutostartAttempts = 0;
+        if (!engineReady && !engineStarting) {
+          scheduleEngineAutostart({ resetAttempts: true });
+        }
+      }
+    });
+  }
 
   const engineFormInputs = [engineThreadsInput, engineHashInput, engineDepthInput].filter(Boolean);
   const handleEngineInputUpdate = () => {
@@ -3416,131 +3907,60 @@
   });
   $('#fen-button').on('click', () => {
     if (replayMode) stopReplay();
-    const raw = prompt('Enter FEN or PGN');
-    if (!raw) return;
-    const trimmed = raw.trim();
-    if (!trimmed.length) return;
-
-    const looksLikePgn = /\d+\./.test(trimmed) || /\[\w+\s+".*"\]/.test(trimmed) || trimmed.includes('\n');
-
-      const loadFen = () => {
-        const fenTest = new Chess();
-        if (!fenTest.load(trimmed)) {
-          return false;
-        }
-        const canonicalFen = fenTest.fen();
-        if (!game.load(canonicalFen)) {
-          return false;
-        }
-        resetHistory(game.fen());
-        lastImportWasPgn = false;
-        return true;
-      };
-
-      const loadPgn = () => {
-        let importGame = new Chess();
-      let loaded = false;
-      if (typeof importGame.load_pgn === 'function') {
-        loaded = importGame.load_pgn(trimmed, { sloppy: true });
-        if (!loaded) {
-          importGame = new Chess();
-          loaded = importGame.load_pgn(trimmed);
-        }
-      }
-      if (!loaded) return false;
-
-      const header = typeof importGame.header === 'function' ? importGame.header() : {};
-      const history = importGame.history({ verbose: true }) || [];
-      let initialFen = null;
-      if (header && header.SetUp === '1' && header.FEN) {
-        initialFen = header.FEN;
-      }
-
-      const baseCandidate = new Chess();
-      if (initialFen) {
-        if (!baseCandidate.load(initialFen)) {
-          return false;
-        }
-      }
-      const basePositionFen = baseCandidate.fen();
-      const moves = history.map(m => ({ from: m.from, to: m.to, promotion: m.promotion }));
-
-      const verificationGame = new Chess();
-      if (!verificationGame.load(basePositionFen)) {
-        return false;
-      }
-      for (const mv of moves) {
-        const moveConfig = { from: mv.from, to: mv.to };
-        if (mv.promotion) {
-          moveConfig.promotion = mv.promotion;
-        }
-        const applied = verificationGame.move(moveConfig);
-        if (!applied) {
-          return false;
-        }
-      }
-
-      resetHistory(basePositionFen);
-      moveHistory = moves;
-      navigationIndex = 0;
-      clearEvaluationTimeline(moveHistory.length + 1);
-      if (!game.load(basePositionFen)) {
-        return false;
-      }
-      updateNavigationButtons();
-      renderEvaluationNavigation();
-      lastImportWasPgn = true;
-      return true;
-    };
-
-    lastImportWasPgn = false;
-    const loaders = looksLikePgn ? [loadPgn, loadFen] : [loadFen, loadPgn];
-    let loaded = false;
-    for (const loader of loaders) {
-      if (loader()) {
-        loaded = true;
-        break;
-      }
-    }
-
-    if (!loaded) {
-      alert('Invalid FEN or PGN');
-      return;
-    }
-
-    moveSourceSquare = null;
-    selectedSquare = null;
-    editSelectedPiece = null;
-    editSelectedSquare = null;
-    editSelectionSource = null;
-    applySelectionHighlights();
-    applySpareSelection();
-    renderBoard();
-    updateStatus();
-    updateNavigationButtons();
-    if (lastImportWasPgn) {
-      startReplayFromIndex(0, PGN_REPLAY_DEPTH);
-      probabilityPanelVisible = true;
-      if (probabilityPanel) {
-        probabilityPanel.hidden = false;
-        probabilityPanel.setAttribute('aria-hidden', 'false');
-      }
-      syncProbabilityButton();
-      renderEvaluationNavigation();
-      scheduleProbabilityEvaluation(PROBABILITY_GRAPH_DEPTH);
-    } else {
-      requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
-    }
+    const presetValue = lastImportWasPgn ? '' : game.fen();
+    openInputModal(presetValue);
   });
+
+  if (inputModalApplyButton) {
+    inputModalApplyButton.addEventListener('click', handleInputModalSubmit);
+  }
+
+  if (inputModalCancelButton) {
+    inputModalCancelButton.addEventListener('click', () => closeInputModal());
+  }
+
+  if (inputModalTextarea) {
+    inputModalTextarea.addEventListener('input', () => {
+      if (inputModalErrorElement && !inputModalErrorElement.hidden) {
+        clearInputModalError();
+      }
+    });
+    inputModalTextarea.addEventListener('keydown', event => {
+      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+        event.preventDefault();
+        handleInputModalSubmit();
+      }
+    });
+  }
+
+  if (inputModalElement) {
+    inputModalElement.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeInputModal();
+        return;
+      }
+      if (event.key === 'Tab') {
+        trapInputModalFocus(event);
+      }
+    });
+    inputModalElement.addEventListener('mousedown', event => {
+      if (event.target === inputModalElement) {
+        event.preventDefault();
+        closeInputModal();
+      }
+    });
+  }
 
   clearEvaluationTimeline(1);
   updateAdvantageBar(null, { neutral: true, message: 'Awaiting evaluation' });
   setAdvantageBarLoading(false);
+  scheduleEvaluationNavigationRender();
   renderBoard();
   applyEngineConfig(engineConfig);
   syncEngineInputs();
   setEngineStatusDisplay('idle', 'Not started');
-  setEngineErrorMessage('');
+  setEngineErrorMessage('', { source: '' });
   updateEngineControls({ loading: false });
   syncEnginePanelVisibility();
   syncEngineButton();
@@ -3550,7 +3970,7 @@
     if (!board) return;
     board.resize();
     syncEvalBarWidth();
-    renderEvaluationNavigation();
+    scheduleEvaluationNavigationRender();
   });
 
   if (evaluationNavElement) {
