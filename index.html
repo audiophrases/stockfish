@@ -1493,7 +1493,18 @@
 
       function resolveWorkerCandidate(path) {
         try {
-          return new URL(path, window.location.href).toString();
+          const { origin, pathname } = window.location;
+          let basePath = pathname || '/';
+
+          if (!basePath.endsWith('/')) {
+            const lastSegment = basePath.split('/').pop();
+            if (lastSegment && !lastSegment.includes('.')) {
+              basePath += '/';
+            }
+          }
+
+          const baseUrl = `${origin}${basePath}`;
+          return new URL(path, baseUrl).toString();
         } catch (error) {
           return path;
         }
