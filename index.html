@@ -971,14 +971,11 @@
         { filename: 'stockfish-17-lite.js', requiresThreadSupport: false }
       ];
       const STOCKFISH_ENGINE_DIRECTORY = 'stockfish-17-lite';
-      const STOCKFISH_WORKER_ROLE_DIRECTORIES = Object.freeze({
-        best: [STOCKFISH_ENGINE_DIRECTORY, 'engines/best'],
-        next: [STOCKFISH_ENGINE_DIRECTORY, 'engines/next'],
-        gauge: [STOCKFISH_ENGINE_DIRECTORY, 'engines/gauge'],
-        graph: [STOCKFISH_ENGINE_DIRECTORY, 'engines/graph'],
-        piece: [STOCKFISH_ENGINE_DIRECTORY, 'engines/piece']
-      });
-      const DEFAULT_STOCKFISH_WORKER_ROLE = 'best';
+      const STOCKFISH_WORKER_DIRECTORIES = Object.freeze([
+        STOCKFISH_ENGINE_DIRECTORY,
+        'engines',
+        'engine'
+      ]);
       const threadSupportAvailable = supportsThreadedWorkers();
       const selectedStockfishVariant = (() => {
         for (const variant of STOCKFISH_WORKER_VARIANTS) {
@@ -991,12 +988,16 @@
         return null;
       })();
       const primaryWorkerDirectory = (() => {
-        const preferredDirectories = STOCKFISH_WORKER_ROLE_DIRECTORIES.best;
-        if (Array.isArray(preferredDirectories) && preferredDirectories.length) {
-          return preferredDirectories[0];
+        const directories = Array.isArray(STOCKFISH_WORKER_DIRECTORIES)
+          ? STOCKFISH_WORKER_DIRECTORIES
+          : [STOCKFISH_WORKER_DIRECTORIES];
+        for (const entry of directories) {
+          if (typeof entry === 'string' && entry.trim().length) {
+            return entry.trim();
+          }
         }
-        if (typeof preferredDirectories === 'string' && preferredDirectories.length) {
-          return preferredDirectories;
+        if (typeof STOCKFISH_ENGINE_DIRECTORY === 'string' && STOCKFISH_ENGINE_DIRECTORY.length) {
+          return STOCKFISH_ENGINE_DIRECTORY;
         }
         return 'engine';
       })();
@@ -1614,34 +1615,27 @@
         return typeof SharedArrayBuffer === 'function' && typeof Atomics === 'object';
       }
 
-      function buildWorkerCandidatePaths(filename, { role = DEFAULT_STOCKFISH_WORKER_ROLE } = {}) {
+      function buildWorkerCandidatePaths(filename) {
         const normalizedFilename = typeof filename === 'string' ? filename.trim() : '';
         if (!normalizedFilename.length) {
           return [];
         }
-        const normalizedRole = typeof role === 'string' && role.trim().length
-          ? role.trim().toLowerCase()
-          : DEFAULT_STOCKFISH_WORKER_ROLE;
-        const roleDirectories = (() => {
-          const directories = [];
-          const primary = STOCKFISH_WORKER_ROLE_DIRECTORIES[normalizedRole];
-          if (Array.isArray(primary)) {
-            directories.push(...primary);
-          } else if (typeof primary === 'string' && primary.length) {
-            directories.push(primary);
-          }
-          for (const value of Object.values(STOCKFISH_WORKER_ROLE_DIRECTORIES)) {
-            if (Array.isArray(value)) {
-              directories.push(...value);
-            } else if (typeof value === 'string' && value.length) {
-              directories.push(value);
+        const directories = (() => {
+          const entries = [];
+          if (Array.isArray(STOCKFISH_WORKER_DIRECTORIES)) {
+            for (const value of STOCKFISH_WORKER_DIRECTORIES) {
+              if (typeof value === 'string' && value.trim().length) {
+                entries.push(value.trim());
+              }
             }
+          } else if (typeof STOCKFISH_WORKER_DIRECTORIES === 'string' && STOCKFISH_WORKER_DIRECTORIES.trim().length) {
+            entries.push(STOCKFISH_WORKER_DIRECTORIES.trim());
           }
-          if (typeof STOCKFISH_ENGINE_DIRECTORY === 'string' && STOCKFISH_ENGINE_DIRECTORY.length) {
-            directories.push(STOCKFISH_ENGINE_DIRECTORY);
+          if (typeof STOCKFISH_ENGINE_DIRECTORY === 'string' && STOCKFISH_ENGINE_DIRECTORY.trim().length) {
+            entries.push(STOCKFISH_ENGINE_DIRECTORY.trim());
           }
-          directories.push('engine', 'engine2', '.');
-          return directories;
+          entries.push('engine', 'engine2', '.');
+          return entries;
         })();
         const seen = new Set();
         const candidates = [];
@@ -1671,41 +1665,37 @@
           addCandidate(`./${normalizedDirectory}/${normalizedFilename}`);
           addCandidate(`${normalizedDirectory}/${normalizedFilename}`);
         };
-        roleDirectories.forEach(appendDirectoryCandidates);
+        directories.forEach(appendDirectoryCandidates);
         addCandidate(`./${normalizedFilename}`);
         addCandidate(normalizedFilename);
         return candidates;
       }
 
-      const engineWorkerCandidatesCache = new Map();
+      let engineWorkerCandidatesCache = null;
 
-      function getStockfishWorkerOverrideCandidates(role) {
-        if (!stockfishWorkerPathOverrides) {
-          return null;
-        }
-        const normalizedRole = typeof role === 'string' && role.trim().length
-          ? role.trim().toLowerCase()
-          : DEFAULT_STOCKFISH_WORKER_ROLE;
-        const direct = stockfishWorkerPathOverrides.get(normalizedRole);
-        if (direct && direct.length) {
-          return direct;
-        }
-        const fallbackKeys = ['default', 'all', '*'];
-        for (const key of fallbackKeys) {
-          const fallback = stockfishWorkerPathOverrides.get(key);
-          if (fallback && fallback.length) {
-            return fallback;
+      function getStockfishWorkerOverrideCandidates() {
+        const overrides = new Set();
+        if (stockfishWorkerPathOverrides) {
+          for (const value of stockfishWorkerPathOverrides.values()) {
+            if (!Array.isArray(value)) {
+              continue;
+            }
+            for (const entry of value) {
+              if (typeof entry === 'string' && entry.trim().length) {
+                overrides.add(entry.trim());
+              }
+            }
           }
         }
-        return null;
+        if (typeof stockfishOverridePath === 'string' && stockfishOverridePath.trim().length) {
+          overrides.add(stockfishOverridePath.trim());
+        }
+        return overrides.size ? Array.from(overrides) : null;
       }
 
-      function getEngineWorkerCandidates(role = DEFAULT_STOCKFISH_WORKER_ROLE) {
-        const normalizedRole = typeof role === 'string' && role.trim().length
-          ? role.trim().toLowerCase()
-          : DEFAULT_STOCKFISH_WORKER_ROLE;
-        if (engineWorkerCandidatesCache.has(normalizedRole)) {
-          return engineWorkerCandidatesCache.get(normalizedRole);
+      function getEngineWorkerCandidates() {
+        if (Array.isArray(engineWorkerCandidatesCache) && engineWorkerCandidatesCache.length) {
+          return engineWorkerCandidatesCache;
         }
         const seen = new Set();
         const candidates = [];
@@ -1717,11 +1707,9 @@
           candidates.push(value);
         };
 
-        const overrideCandidates = getStockfishWorkerOverrideCandidates(normalizedRole);
+        const overrideCandidates = getStockfishWorkerOverrideCandidates();
         if (overrideCandidates && overrideCandidates.length) {
           overrideCandidates.forEach(addCandidate);
-        } else if (stockfishOverridePath) {
-          addCandidate(stockfishOverridePath);
         }
 
         const variantsToConsider = selectedStockfishVariant
@@ -1731,23 +1719,22 @@
           if (requiresThreadSupport && !threadSupportAvailable) {
             continue;
           }
-          const roleCandidates = buildWorkerCandidatePaths(filename, { role: normalizedRole });
-          for (const candidate of roleCandidates) {
+          const variantCandidates = buildWorkerCandidatePaths(filename);
+          for (const candidate of variantCandidates) {
             addCandidate(candidate);
           }
         }
 
-        if (!candidates.length) {
-          if (overrideCandidates && overrideCandidates.length) {
-            overrideCandidates.forEach(addCandidate);
-          } else if (stockfishOverridePath) {
-            addCandidate(stockfishOverridePath);
-          }
+        if (!candidates.length && overrideCandidates && overrideCandidates.length) {
+          overrideCandidates.forEach(addCandidate);
         }
 
-        const finalized = candidates.slice();
-        engineWorkerCandidatesCache.set(normalizedRole, finalized);
-        return finalized;
+        if (!candidates.length && typeof defaultWorkerLocation === 'string' && defaultWorkerLocation.length) {
+          addCandidate(defaultWorkerLocation);
+        }
+
+        engineWorkerCandidatesCache = candidates.slice();
+        return engineWorkerCandidatesCache;
       }
 
       function resolveWorkerCandidate(path) {
@@ -1769,12 +1756,12 @@
         }
       }
 
-      function createStockfishWorker(role = DEFAULT_STOCKFISH_WORKER_ROLE) {
+      function createStockfishWorker() {
         if (typeof Worker !== 'function') {
           throw new Error('Web Workers are not supported in this environment.');
         }
         let lastError = null;
-        const candidates = getEngineWorkerCandidates(role);
+        const candidates = getEngineWorkerCandidates();
         for (const candidate of candidates) {
           const absoluteCandidate = resolveWorkerCandidate(candidate);
           try {
@@ -1962,7 +1949,6 @@
       let backgroundEvaluationToken = 0;
       let backgroundEvaluationCompleted = 0;
       let backgroundEvaluationTotal = 0;
-      let backgroundEngineRole = 'gauge';
       let replayMode = false;
       let replayTargetDepth = engineConfig.depth;
       let replayPendingIndex = null;
@@ -2242,7 +2228,7 @@
         backgroundEngine.postMessage(`go depth ${depth}`);
       }
 
-      function queueBackgroundEvaluationTasks(tasks, options = {}) {
+      function queueBackgroundEvaluationTasks(tasks) {
         if (!Array.isArray(tasks) || !tasks.length) {
           cancelBackgroundEvaluation();
           return;
@@ -2251,16 +2237,6 @@
           cancelBackgroundEvaluation();
           scheduleEngineAutostart();
           return;
-        }
-        const requestedRoleRaw = options && typeof options.role === 'string'
-          ? options.role.trim().toLowerCase()
-          : '';
-        const requestedRole = requestedRoleRaw.length ? requestedRoleRaw : backgroundEngineRole;
-        if (requestedRole && requestedRole !== backgroundEngineRole) {
-          shutdownBackgroundEngine();
-          backgroundEngineRole = requestedRole;
-        } else if (!backgroundEngineRole) {
-          backgroundEngineRole = requestedRole || 'gauge';
         }
         backgroundEvaluationToken += 1;
         const token = backgroundEvaluationToken;
@@ -2314,10 +2290,7 @@
         backgroundCurrentTask = null;
         backgroundLastScore = null;
         try {
-          const role = backgroundEngineRole && backgroundEngineRole.trim().length
-            ? backgroundEngineRole
-            : 'gauge';
-          backgroundEngine = createStockfishWorker(role);
+          backgroundEngine = createStockfishWorker();
         } catch (error) {
           const friendlyMessage = buildWorkerInitializationErrorMessage(error, { stage: 'load' });
           console.error('Failed to initialize background Stockfish worker', friendlyMessage, error);
@@ -2440,12 +2413,12 @@
 
       function scheduleFullGameEvaluation() {
         const tasks = buildBackgroundTasksForGame();
-        queueBackgroundEvaluationTasks(tasks, { role: 'gauge' });
+        queueBackgroundEvaluationTasks(tasks);
       }
 
       function scheduleProbabilityEvaluation(depth = PROBABILITY_GRAPH_DEPTH) {
         const tasks = buildBackgroundTasksForGame(depth);
-        queueBackgroundEvaluationTasks(tasks, { role: 'graph' });
+        queueBackgroundEvaluationTasks(tasks);
       }
 
       function setTimelineEntry(index, entry) {
@@ -3476,7 +3449,7 @@
     updateEngineControls({ loading: true });
     let worker;
     try {
-      worker = createStockfishWorker('best');
+      worker = createStockfishWorker();
     } catch (error) {
       console.error('Unable to initialize Stockfish worker', error);
       engineStarting = false;
