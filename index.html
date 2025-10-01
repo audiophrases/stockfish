@@ -1097,16 +1097,35 @@
         }
       }
 
-      function buildWorkerInitializationErrorMessage(error) {
+      function buildWorkerInitializationErrorMessage(error, context = {}) {
+        const stage = context && context.stage === 'runtime' ? 'runtime' : 'load';
         const detail = error && error.message ? String(error.message) : 'Unable to initialize Stockfish worker.';
         const trimmedDetail = detail.trim();
         const normalizedDetail = trimmedDetail.length
           ? (trimmedDetail.endsWith('.') ? trimmedDetail : `${trimmedDetail}.`)
           : '';
+        if (stage === 'runtime') {
+          return normalizedDetail
+            ? `Stockfish worker crashed. ${normalizedDetail}`
+            : 'Stockfish worker crashed.';
+        }
         const guidance = defaultWorkerLocation
           ? `Place the worker at ${defaultWorkerLocation} or set window.STOCKFISH_WORKER_PATH.`
           : 'Set window.STOCKFISH_WORKER_PATH to the Stockfish worker file.';
         return normalizedDetail ? `${normalizedDetail} ${guidance}` : guidance;
+      }
+
+      function determineWorkerErrorStage(event, message) {
+        if (!event) return 'load';
+        if (typeof WebAssembly !== 'undefined' && typeof WebAssembly.RuntimeError === 'function') {
+          if (event.error instanceof WebAssembly.RuntimeError) {
+            return 'runtime';
+          }
+        }
+        if (typeof message === 'string' && message.includes('RuntimeError')) {
+          return 'runtime';
+        }
+        return 'load';
       }
 
       function setButtonLabel(element, label) {
@@ -2052,12 +2071,19 @@
         try {
           backgroundEngine = createStockfishWorker();
         } catch (error) {
-          console.error('Failed to initialize background Stockfish worker', error);
+          const friendlyMessage = buildWorkerInitializationErrorMessage(error, { stage: 'load' });
+          console.error('Failed to initialize background Stockfish worker', friendlyMessage, error);
           backgroundEngine = null;
           return;
         }
         backgroundEngine.addEventListener('error', event => {
-          console.error('Background Stockfish worker error', event?.message || event);
+          const message = event && event.message ? event.message : 'Unknown error';
+          const errorForMessage = event && event.error instanceof Error
+            ? event.error
+            : new Error(message || 'Unknown background Stockfish worker error');
+          const errorStage = determineWorkerErrorStage(event, message);
+          const friendlyMessage = buildWorkerInitializationErrorMessage(errorForMessage, { stage: errorStage });
+          console.error('Background Stockfish worker error', friendlyMessage, event);
         });
         backgroundEngine.onmessage = e => {
           const line = String(e.data).trim();
@@ -3178,7 +3204,7 @@
     } catch (error) {
       console.error('Unable to initialize Stockfish worker', error);
       engineStarting = false;
-      const errorMessage = buildWorkerInitializationErrorMessage(error);
+      const errorMessage = buildWorkerInitializationErrorMessage(error, { stage: 'load' });
       setEngineErrorMessage(errorMessage, { source: 'engine-error' });
       if (autostart && engineAutostartAttempts < ENGINE_AUTOSTART_MAX_ATTEMPTS) {
         setEngineStatusDisplay('loading', 'Retrying…');
@@ -3218,7 +3244,8 @@
         const errorForMessage = event && event.error instanceof Error
           ? event.error
           : new Error(message || 'Unknown Stockfish worker error');
-        const friendlyMessage = buildWorkerInitializationErrorMessage(errorForMessage);
+        const errorStage = determineWorkerErrorStage(event, message);
+        const friendlyMessage = buildWorkerInitializationErrorMessage(errorForMessage, { stage: errorStage });
         setEngineErrorMessage(friendlyMessage, { source: 'engine-error' });
         if (shouldRetry) {
           setEngineStatusDisplay('loading', 'Retrying…');
