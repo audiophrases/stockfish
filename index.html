@@ -1088,9 +1088,9 @@
         if (!element || typeof label !== 'string') return;
         element.setAttribute('aria-label', label);
         const hidden = element.querySelector('.visually-hidden');
-        if (hidden) hidden.textContent = label;
-        const visible = element.querySelector('.control-button__label');
-        if (visible) visible.textContent = label;
+        if (hidden) {
+          hidden.textContent = label;
+        }
       }
 
       function setButtonActive(element, isActive, activeLabel, inactiveLabel) {
@@ -1107,27 +1107,27 @@
       }
 
       function syncBestMoveButton() {
-        setButtonActive(bestMoveButtonElement, bestMoveVisible, 'Hide best move', 'Best');
+        setButtonActive(bestMoveButtonElement, bestMoveVisible, 'Hide best move', 'Show best move');
       }
 
       function syncAdvantageButton() {
-        setButtonActive(advantageToggleButton, advantageBarVisible, 'Hide advantage bar', 'Gauge');
+        setButtonActive(advantageToggleButton, advantageBarVisible, 'Hide advantage bar', 'Show advantage bar');
       }
 
       function syncProbabilityButton() {
-        setButtonActive(probabilityButtonElement, probabilityPanelVisible, 'Hide evaluation graph', 'Graph');
+        setButtonActive(probabilityButtonElement, probabilityPanelVisible, 'Hide evaluation graph', 'Show evaluation graph');
       }
 
       function syncPieceMovesButton() {
-        setButtonActive(pieceMovesButtonElement, pieceMovesMode, 'Return to play mode', 'Piece');
+        setButtonActive(pieceMovesButtonElement, pieceMovesMode, 'Return to play mode', 'Show piece moves');
       }
 
       function syncEditButton() {
-        setButtonActive(editButtonElement, editMode, 'Exit edit mode', 'Edit');
+        setButtonActive(editButtonElement, editMode, 'Exit edit mode', 'Enter edit mode');
       }
 
       function syncEngineButton() {
-        setButtonActive(engineButtonElement, enginePanelVisible, 'Hide engine settings', 'Engine');
+        setButtonActive(engineButtonElement, enginePanelVisible, 'Hide engine settings', 'Show engine settings');
       }
 
       function syncEnginePanelVisibility() {
