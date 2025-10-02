@@ -3681,6 +3681,8 @@
             const pending = pendingReplayStart;
             pendingReplayStart = null;
             startReplayFromIndex(pending.index, pending.depth);
+          } else if (pieceMovesMode) {
+            analyzeMoves();
           } else {
             requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible, depth: engineConfig.depth });
           }
