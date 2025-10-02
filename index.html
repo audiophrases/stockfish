@@ -4380,6 +4380,12 @@
       }
       event.preventDefault();
       flipButtonElement.click();
+    } else if (key === 'g') {
+      if (!advantageToggleButton || advantageToggleButton.disabled) {
+        return;
+      }
+      event.preventDefault();
+      advantageToggleButton.click();
     } else if (key === 'p') {
       if (!pieceMovesButtonElement) {
         return;
