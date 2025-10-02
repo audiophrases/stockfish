@@ -967,31 +967,31 @@
       let moveHistory = [];
       let navigationIndex = 0;
       let enginePanelVisible = false;
-      const STOCKFISH_WORKER_VARIANTS = [
-        { filename: 'stockfish-nnue-16.js', requiresThreadSupport: false }
-      ];
-      const STOCKFISH_ENGINE_DIRECTORY = '.';
-      const STOCKFISH_WORKER_DIRECTORIES = Object.freeze([
-        STOCKFISH_ENGINE_DIRECTORY,
-        'engines',
-        'engine'
-      ]);        
-      const threadSupportAvailable = supportsThreadedWorkers();
-      const selectedStockfishVariant = (() => {
-        for (const variant of STOCKFISH_WORKER_VARIANTS) {
-          if (!variant) continue;
-          if (variant.requiresThreadSupport && !threadSupportAvailable) {
-            continue;
+        const STOCKFISH_WORKER_VARIANTS = [
+          { filename: 'stockfish-nnue-16.js', requiresThreadSupport: true }
+        ];
+        const STOCKFISH_ENGINE_DIRECTORY = '.';
+        const STOCKFISH_WORKER_DIRECTORIES = Object.freeze([
+          STOCKFISH_ENGINE_DIRECTORY,
+          'engines',
+          'engine'
+        ]);
+        const threadSupportAvailable = supportsThreadedWorkers();
+        const selectedStockfishVariant = (() => {
+          for (const variant of STOCKFISH_WORKER_VARIANTS) {
+            if (!variant) continue;
+            if (variant.requiresThreadSupport && !threadSupportAvailable) {
+              continue;
+            }
+            return variant;
           }
-          return variant;
-        }
-        return null;
-      })();
-      const primaryWorkerDirectory = (() => {
-        const directories = Array.isArray(STOCKFISH_WORKER_DIRECTORIES)
-          ? STOCKFISH_WORKER_DIRECTORIES
-          : [STOCKFISH_WORKER_DIRECTORIES];
-        for (const entry of directories) {
+          return null;
+        })();
+        const primaryWorkerDirectory = (() => {
+          const directories = Array.isArray(STOCKFISH_WORKER_DIRECTORIES)
+            ? STOCKFISH_WORKER_DIRECTORIES
+            : [STOCKFISH_WORKER_DIRECTORIES];
+          for (const entry of directories) {
           if (typeof entry === 'string' && entry.trim().length) {
             return entry.trim();
           }
@@ -1001,20 +1001,119 @@
         }
         return 'engine';
       })();
-      const defaultWorkerLocation = selectedStockfishVariant
-        ? `${primaryWorkerDirectory}/${selectedStockfishVariant.filename}`
-        : null;
-      const ENGINE_THREADS_MIN = 1;
-      const DEFAULT_ANALYSIS_DEPTH = 12;
-      const PGN_REPLAY_DEPTH = 12;
-      const DEFAULT_THREADS = 1;
-      const DEFAULT_HASH_MB = 8;
-      const ENGINE_MEMORY_ERROR_FALLBACK_HASH_MB = DEFAULT_HASH_MB;
-      const engineConfig = {
-        threads: DEFAULT_THREADS,
-        hash: DEFAULT_HASH_MB,
-        depth: DEFAULT_ANALYSIS_DEPTH
-      };
+        const engineAssetsBaseDirectory = (() => {
+          if (typeof primaryWorkerDirectory === 'string' && primaryWorkerDirectory.trim().length) {
+            return primaryWorkerDirectory.trim();
+          }
+          if (typeof STOCKFISH_ENGINE_DIRECTORY === 'string' && STOCKFISH_ENGINE_DIRECTORY.trim().length) {
+            return STOCKFISH_ENGINE_DIRECTORY.trim();
+          }
+          return '.';
+        })();
+        const normalizeEngineAssetPath = filename => {
+          if (typeof filename !== 'string') {
+            return null;
+          }
+          const trimmedFilename = filename.trim();
+          if (!trimmedFilename.length) {
+            return null;
+          }
+          const base = engineAssetsBaseDirectory;
+          if (!base || base === '.' || base === './') {
+            return trimmedFilename;
+          }
+          if (base.endsWith('/')) {
+            return `${base}${trimmedFilename}`;
+          }
+          return `${base}/${trimmedFilename}`;
+        };
+        const variantForDefaultLocation = selectedStockfishVariant || (() => {
+          for (const variant of STOCKFISH_WORKER_VARIANTS) {
+            if (variant && typeof variant.filename === 'string' && variant.filename.trim().length) {
+              return variant;
+            }
+          }
+          return null;
+        })();
+        const workerFilenameForDefault = variantForDefaultLocation && typeof variantForDefaultLocation.filename === 'string'
+          ? variantForDefaultLocation.filename
+          : null;
+        const defaultWorkerLocation = workerFilenameForDefault
+          ? normalizeEngineAssetPath(workerFilenameForDefault)
+          : null;
+        const requiresThreadedVariant = !!(variantForDefaultLocation && variantForDefaultLocation.requiresThreadSupport);
+        const defaultEngineAssetMap = (() => {
+          if (!workerFilenameForDefault) {
+            return new Map();
+          }
+          const assets = new Map();
+          const wasmFilename = (() => {
+            const wasmMatch = workerFilenameForDefault.match(/^(.*?)(?:\.worker)?\.js(\?.*)?$/i);
+            if (!wasmMatch) {
+              return null;
+            }
+            const [, baseName, query = ''] = wasmMatch;
+            return `${baseName}.wasm${query}`;
+          })();
+          assets.set(workerFilenameForDefault, normalizeEngineAssetPath(workerFilenameForDefault));
+          if (requiresThreadedVariant) {
+            assets.set('stockfish.worker.js', normalizeEngineAssetPath('stockfish.worker.js'));
+          }
+          if (wasmFilename) {
+            assets.set(wasmFilename, normalizeEngineAssetPath(wasmFilename));
+          }
+          return assets;
+        })();
+        const ENGINE_THREADS_MIN = 1;
+        const DEFAULT_ANALYSIS_DEPTH = 12;
+        const PGN_REPLAY_DEPTH = 12;
+        const DEFAULT_THREADS = 1;
+        const DEFAULT_HASH_MB = 8;
+        const ENGINE_MEMORY_ERROR_FALLBACK_HASH_MB = DEFAULT_HASH_MB;
+        if (typeof window !== 'undefined') {
+          const stockfishWorkerPath = workerFilenameForDefault
+            ? defaultEngineAssetMap.get(workerFilenameForDefault)
+            : null;
+          if (stockfishWorkerPath && (!window.STOCKFISH_WORKER_PATH || !String(window.STOCKFISH_WORKER_PATH).trim().length)) {
+            window.STOCKFISH_WORKER_PATH = stockfishWorkerPath;
+          }
+          const existingWorkerPaths = (window.STOCKFISH_WORKER_PATHS && typeof window.STOCKFISH_WORKER_PATHS === 'object')
+            ? window.STOCKFISH_WORKER_PATHS
+            : {};
+          for (const [assetName, assetPath] of defaultEngineAssetMap.entries()) {
+            if (!assetName || !assetPath) continue;
+            if (typeof existingWorkerPaths[assetName] !== 'string' || !existingWorkerPaths[assetName].trim().length) {
+              existingWorkerPaths[assetName] = assetPath;
+            }
+          }
+          window.STOCKFISH_WORKER_PATHS = existingWorkerPaths;
+          const moduleConfig = (window.STOCKFISH && typeof window.STOCKFISH === 'object') ? window.STOCKFISH : {};
+          if (!moduleConfig.locateFile) {
+            moduleConfig.locateFile = (path, prefix) => {
+              if (path && defaultEngineAssetMap.has(path)) {
+                return defaultEngineAssetMap.get(path);
+              }
+              const normalizedPath = typeof path === 'string' ? path.trim() : '';
+              if (!normalizedPath.length) {
+                return path;
+              }
+              const resolved = normalizeEngineAssetPath(normalizedPath);
+              return resolved || normalizedPath;
+            };
+          }
+          if (stockfishWorkerPath && (!moduleConfig.mainScriptUrlOrBlob || !String(moduleConfig.mainScriptUrlOrBlob).trim().length)) {
+            moduleConfig.mainScriptUrlOrBlob = stockfishWorkerPath;
+          }
+          if (stockfishWorkerPath && (!moduleConfig.workerPath || !String(moduleConfig.workerPath).trim().length)) {
+            moduleConfig.workerPath = stockfishWorkerPath;
+          }
+          window.STOCKFISH = moduleConfig;
+        }
+        const engineConfig = {
+          threads: DEFAULT_THREADS,
+          hash: DEFAULT_HASH_MB,
+          depth: DEFAULT_ANALYSIS_DEPTH
+        };
       const ENGINE_AUTOSTART_DELAY_MS = 400;
       const ENGINE_AUTOSTART_MAX_ATTEMPTS = 3;
       const AUTO_PLAY_MIN_WAIT_MS = 4000;
@@ -1166,10 +1265,14 @@
             ? `Stockfish worker crashed. ${normalizedDetail}`
             : 'Stockfish worker crashed.';
         }
-        const guidance = defaultWorkerLocation
-          ? `Place the worker at ${defaultWorkerLocation} or set window.STOCKFISH_WORKER_PATH.`
-          : 'Set window.STOCKFISH_WORKER_PATH to the Stockfish worker file.';
-        return normalizedDetail ? `${normalizedDetail} ${guidance}` : guidance;
+          const baseGuidance = defaultWorkerLocation
+            ? `Place the worker at ${defaultWorkerLocation} or set window.STOCKFISH_WORKER_PATH.`
+            : 'Set window.STOCKFISH_WORKER_PATH to the Stockfish worker file.';
+          const threadedGuidance = requiresThreadedVariant
+            ? ' Threaded builds also require SharedArrayBuffer support. Serve the page with COOP/COEP headers so window.crossOriginIsolated is true, and ensure stockfish.worker.js and the NNUE wasm file are accessible next to the worker script.'
+            : '';
+          const guidance = `${baseGuidance}${threadedGuidance}`.trim();
+          return normalizedDetail ? `${normalizedDetail} ${guidance}` : guidance;
       }
 
       function determineWorkerErrorStage(event, message) {
