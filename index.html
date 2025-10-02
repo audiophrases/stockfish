@@ -1067,10 +1067,10 @@
           return assets;
         })();
         const ENGINE_THREADS_MIN = 1;
-        const DEFAULT_ANALYSIS_DEPTH = 12;
+        const DEFAULT_ANALYSIS_DEPTH = 16;
         const PGN_REPLAY_DEPTH = 12;
         const DEFAULT_THREADS = 1;
-        const DEFAULT_HASH_MB = 8;
+        const DEFAULT_HASH_MB = 64;
         const ENGINE_MEMORY_ERROR_FALLBACK_HASH_MB = DEFAULT_HASH_MB;
         if (typeof window !== 'undefined') {
           const stockfishWorkerPath = workerFilenameForDefault
