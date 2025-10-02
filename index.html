@@ -4132,13 +4132,31 @@
     };
 
     const loadPgn = () => {
+      const normalizePgn = input => {
+        let normalized = input;
+        const headerMatch = normalized.match(/^((?:\s*\[[^\]]+\][^\S\r\n]*\r?\n)+)([\s\S]*)$/);
+        if (headerMatch) {
+          const headerBlock = headerMatch[1];
+          const remainder = headerMatch[2];
+          const hasBlankLine = /^\s*(?:\r?\n)/.test(remainder);
+          const startsWithMoveText = /^\s*\d+\./.test(remainder);
+          if (!hasBlankLine && startsWithMoveText) {
+            const newline = headerBlock.includes('\r\n') ? '\r\n' : '\n';
+            normalized = `${headerBlock}${newline}${remainder}`;
+          }
+        }
+        return normalized;
+      };
+
+      const normalizedPgn = normalizePgn(trimmed);
+
       let importGame = new Chess();
       let loaded = false;
       if (typeof importGame.load_pgn === 'function') {
-        loaded = importGame.load_pgn(trimmed, { sloppy: true });
+        loaded = importGame.load_pgn(normalizedPgn, { sloppy: true });
         if (!loaded) {
           importGame = new Chess();
-          loaded = importGame.load_pgn(trimmed);
+          loaded = importGame.load_pgn(normalizedPgn);
         }
       }
       if (!loaded) return false;
