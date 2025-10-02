@@ -813,7 +813,7 @@
         <span class="visually-hidden">Show advantage bar</span>
       </button>
       <button id="probability-button" class="control-button" type="button" aria-pressed="false" aria-label="Show evaluation graph">
-        <span class="control-button__label" aria-hidden="true">Graph</span>
+        <span class="control-button__label" aria-hidden="true">Line</span>
         <span class="visually-hidden">Show evaluation graph</span>
       </button>
       <button id="piece-moves-button" class="control-button" type="button" aria-pressed="false" aria-label="Show piece moves">
@@ -912,12 +912,16 @@
       const advantageWhiteElement = document.getElementById('advantage-white-percent');
       const advantageBlackElement = document.getElementById('advantage-black-percent');
       const advantageToggleButton = document.getElementById('advantage-toggle-button');
+      const prevButtonElement = document.getElementById('prev-button');
+      const nextButtonElement = document.getElementById('next-button');
+      const flipButtonElement = document.getElementById('flip-button');
       const probabilityPanel = document.getElementById('probability-panel');
       const evaluationContainer = document.getElementById('evaluation-container');
       const evaluationElement = document.getElementById('evaluation');
       const bestMoveButtonElement = document.getElementById('best-move-button');
       const probabilityButtonElement = document.getElementById('probability-button');
       const pieceMovesButtonElement = document.getElementById('piece-moves-button');
+      const fenButtonElement = document.getElementById('fen-button');
       const editButtonElement = document.getElementById('edit-button');
       const engineButtonElement = document.getElementById('engine-button');
       const engineSettingsElement = document.getElementById('engine-settings');
@@ -4339,7 +4343,13 @@
       return;
     }
 
-    if (editMode && (event.key === 'Delete' || event.key === 'Backspace')) {
+    if (event.ctrlKey || event.metaKey || event.altKey) {
+      return;
+    }
+
+    const key = event.key.toLowerCase();
+
+    if (editMode && (key === 'delete' || key === 'backspace')) {
       if (editSelectionSource === 'board' && editSelectedSquare) {
         event.preventDefault();
         const targetSquare = editSelectedSquare;
@@ -4350,12 +4360,54 @@
       return;
     }
 
-    if (event.key === 'ArrowLeft') {
+    if (key === 'arrowleft') {
+      if (prevButtonElement && prevButtonElement.disabled) {
+        return;
+      }
       event.preventDefault();
       goToPreviousMove();
-    } else if (event.key === 'ArrowRight') {
+    } else if (key === 'arrowright') {
+      if (nextButtonElement && nextButtonElement.disabled) {
+        return;
+      }
       event.preventDefault();
       goToNextMove();
+    } else if (key === 'f') {
+      if (!flipButtonElement) {
+        return;
+      }
+      event.preventDefault();
+      flipButtonElement.click();
+    } else if (key === 'p') {
+      if (!pieceMovesButtonElement) {
+        return;
+      }
+      event.preventDefault();
+      pieceMovesButtonElement.click();
+    } else if (key === 'b') {
+      if (!bestMoveButtonElement || bestMoveButtonElement.disabled) {
+        return;
+      }
+      event.preventDefault();
+      bestMoveButtonElement.click();
+    } else if (key === 'l') {
+      if (!probabilityButtonElement) {
+        return;
+      }
+      event.preventDefault();
+      probabilityButtonElement.click();
+    } else if (key === 'e') {
+      if (!editButtonElement) {
+        return;
+      }
+      event.preventDefault();
+      editButtonElement.click();
+    } else if (key === 'i') {
+      if (!fenButtonElement) {
+        return;
+      }
+      event.preventDefault();
+      fenButtonElement.click();
     }
   });
   $('#piece-moves-button').on('click', () => {
