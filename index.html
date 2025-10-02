@@ -1073,6 +1073,7 @@
         const ENGINE_THREADS_MIN = 2;
         const DEFAULT_ANALYSIS_DEPTH = 16;
         const PGN_REPLAY_DEPTH = 12;
+        const PGN_IMPORT_ANALYSIS_DEPTH = 8;
         const DEFAULT_THREADS = 3;
         const DEFAULT_HASH_MB = 256;
         const ENGINE_MEMORY_ERROR_FALLBACK_HASH_MB = DEFAULT_HASH_MB;
@@ -4211,7 +4212,9 @@
     updateStatus();
     updateNavigationButtons();
     if (lastImportWasPgn) {
-      startReplayFromIndex(0, PGN_REPLAY_DEPTH);
+      stopReplay();
+      replayTargetDepth = engineConfig.depth;
+      pendingReplayStart = null;
       probabilityPanelVisible = true;
       if (probabilityPanel) {
         probabilityPanel.hidden = false;
@@ -4219,7 +4222,7 @@
       }
       syncProbabilityButton();
       scheduleEvaluationNavigationRender();
-      scheduleProbabilityEvaluation();
+      scheduleProbabilityEvaluation(PGN_IMPORT_ANALYSIS_DEPTH);
     } else {
       requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
     }
