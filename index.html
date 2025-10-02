@@ -968,9 +968,14 @@
       let navigationIndex = 0;
       let enginePanelVisible = false;
       const STOCKFISH_WORKER_VARIANTS = [
-        { filename: 'stockfish-nnue-16.js', requiresThreadSupport: false }
+        { filename: 'stockfish-nnue-16.js', requiresThreadSupport: true }
       ];
       const STOCKFISH_ENGINE_DIRECTORY = '.';
+      const STOCKFISH_WORKER_DIRECTORIES = Object.freeze([
+        STOCKFISH_ENGINE_DIRECTORY,
+        'engines',
+        'engine'
+      ]);        
       const threadSupportAvailable = supportsThreadedWorkers();
       const selectedStockfishVariant = (() => {
         for (const variant of STOCKFISH_WORKER_VARIANTS) {
