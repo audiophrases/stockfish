@@ -3708,7 +3708,11 @@
         if (isPieceAnalysis) {
           pieceAnalysisSearchInFlight = false;
           if (pieceAnalysisMode === PIECE_ANALYSIS_MODE_MULTIPV) {
+            const hasActiveRequest = !!pieceAnalysisCurrentRequestId && !pieceAnalysisPendingRequestId;
             currentSearchContext = null;
+            if (!hasActiveRequest) {
+              return;
+            }
             finalizePieceAnalysis();
             return;
           }
