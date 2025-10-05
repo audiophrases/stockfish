@@ -501,6 +501,35 @@
     line-height: 1.5;
   }
 
+  .input-modal__section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .input-modal__section + .input-modal__section {
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .input-modal__section--archive {
+    gap: 14px;
+  }
+
+  .input-modal__subtitle {
+    margin: 0;
+    font-size: 0.94rem;
+    font-weight: 600;
+    color: #e5e9ff;
+  }
+
+  .input-modal__hint {
+    margin: 0;
+    font-size: 0.82rem;
+    color: #9ca6cf;
+    line-height: 1.4;
+  }
+
   .input-modal__textarea {
     width: 100%;
     min-height: 140px;
@@ -554,6 +583,147 @@
     margin: -6px 0 0;
     font-size: 0.82rem;
     color: #ff9aad;
+  }
+
+  .archive-search__field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .archive-search__label {
+    font-size: 0.8rem;
+    color: #b1bcf3;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .archive-search__input {
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(17, 21, 32, 0.92);
+    color: #eef1ff;
+    padding: 10px 12px;
+    font-size: 0.95rem;
+  }
+
+  .archive-search__input::placeholder {
+    color: rgba(226, 230, 255, 0.45);
+  }
+
+  .archive-search__input:focus-visible {
+    outline: 2px solid rgba(122, 140, 255, 0.7);
+    outline-offset: 2px;
+  }
+
+  .archive-search__buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .archive-search__button {
+    border: none;
+    border-radius: 999px;
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #e6eaff;
+    font-size: 0.84rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .archive-search__button:hover {
+    background: rgba(255, 255, 255, 0.14);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px rgba(60, 86, 210, 0.25);
+  }
+
+  .archive-search__button:focus-visible {
+    outline: 2px solid rgba(122, 140, 255, 0.7);
+    outline-offset: 2px;
+  }
+
+  .archive-search__button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .archive-search__button:disabled:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .archive-search__status {
+    margin: 0;
+    min-height: 1.2em;
+    font-size: 0.8rem;
+    color: #b8c2ff;
+  }
+
+  .archive-search__status[data-state="loading"] {
+    color: #d8ddff;
+  }
+
+  .archive-search__status[data-state="error"] {
+    color: #ff9aad;
+  }
+
+  .archive-search__status[data-state="success"] {
+    color: #8fe1ff;
+  }
+
+  .archive-search__results {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(17, 21, 32, 0.75);
+    overflow: hidden;
+    max-height: 240px;
+    overflow-y: auto;
+  }
+
+  .archive-search__results[hidden] {
+    display: none !important;
+  }
+
+  .archive-search__result-item + .archive-search__result-item {
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .archive-search__result-button {
+    width: 100%;
+    border: none;
+    background: transparent;
+    text-align: left;
+    padding: 12px 16px;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+  }
+
+  .archive-search__result-button:hover,
+  .archive-search__result-button:focus-visible {
+    background: rgba(255, 255, 255, 0.08);
+    outline: none;
+  }
+
+  .archive-search__result-primary {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #eef1ff;
+  }
+
+  .archive-search__result-meta {
+    font-size: 0.75rem;
+    color: #9ca6cf;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -874,9 +1044,25 @@
     <div id="input-modal" role="dialog" aria-modal="true" aria-labelledby="input-modal-title" aria-describedby="input-modal-description" aria-hidden="true" hidden>
       <div class="input-modal__dialog">
         <h2 id="input-modal-title" class="input-modal__title">Load FEN or PGN</h2>
-        <p id="input-modal-description" class="input-modal__description">Paste a FEN position or PGN moves. Press Ctrl+Enter (or Cmd+Enter) to apply.</p>
-        <textarea id="input-modal-text" class="input-modal__textarea" aria-describedby="input-modal-description input-modal-error"></textarea>
-        <p id="input-modal-error" class="input-modal__error" role="alert" hidden></p>
+        <div class="input-modal__section input-modal__section--manual">
+          <p id="input-modal-description" class="input-modal__description input-modal__hint">Paste a FEN position or PGN moves. Press Ctrl+Enter (or Cmd+Enter) to apply.</p>
+          <textarea id="input-modal-text" class="input-modal__textarea" aria-describedby="input-modal-description input-modal-error"></textarea>
+          <p id="input-modal-error" class="input-modal__error" role="alert" hidden></p>
+        </div>
+        <div class="input-modal__section input-modal__section--archive" id="archive-search-section">
+          <h3 id="archive-search-title" class="input-modal__subtitle">Find a game by username</h3>
+          <p class="input-modal__hint">Search recent games on Chess.com or Lichess, then choose a game to load its PGN.</p>
+          <label class="archive-search__field" for="archive-username">
+            <span class="archive-search__label">Username</span>
+            <input id="archive-username" class="archive-search__input" type="text" inputmode="text" autocomplete="username" placeholder="e.g. MagnusCarlsen">
+          </label>
+          <div class="archive-search__buttons">
+            <button type="button" id="archive-search-chesscom" class="archive-search__button">Chess.com</button>
+            <button type="button" id="archive-search-lichess" class="archive-search__button">Lichess</button>
+          </div>
+          <p id="archive-status" class="archive-search__status" role="status" aria-live="polite"></p>
+          <ul id="archive-results" class="archive-search__results" hidden aria-labelledby="archive-search-title"></ul>
+        </div>
         <div class="input-modal__actions">
           <button type="button" id="input-modal-cancel" class="input-modal__button input-modal__button--cancel">Cancel</button>
           <button type="button" id="input-modal-apply" class="input-modal__button input-modal__button--submit">Apply</button>
@@ -939,6 +1125,12 @@
       const inputModalApplyButton = document.getElementById('input-modal-apply');
       const inputModalCancelButton = document.getElementById('input-modal-cancel');
       const inputModalErrorElement = document.getElementById('input-modal-error');
+      const archiveSearchSection = document.getElementById('archive-search-section');
+      const archiveSearchInput = document.getElementById('archive-username');
+      const archiveChesscomButton = document.getElementById('archive-search-chesscom');
+      const archiveLichessButton = document.getElementById('archive-search-lichess');
+      const archiveStatusElement = document.getElementById('archive-status');
+      const archiveResultsElement = document.getElementById('archive-results');
       const statusElement = document.getElementById('status');
       const CHESSBOARD_SELECTORS = Object.freeze({
         square: 'div.square-55d63',
@@ -947,6 +1139,14 @@
       });
       const sparePiecesContainerSelector = `.board-container ${CHESSBOARD_SELECTORS.spareWrapper}`;
       const sparePieceSelector = CHESSBOARD_SELECTORS.piece;
+      const ARCHIVE_SEARCH_SOURCES = Object.freeze({ CHESSCOM: 'chesscom', LICHESS: 'lichess' });
+      const DEFAULT_ARCHIVE_STATUS_MESSAGE = 'Enter a username, then choose Chess.com or Lichess to load recent games.';
+      const ARCHIVE_SEARCH_LIMIT = 30;
+      const CHESS_COM_MAX_ARCHIVES = 6;
+      let archiveSearchEntries = [];
+      let archiveSearchToken = 0;
+      let archiveSearchAbortController = null;
+      let archiveSearchLastSource = ARCHIVE_SEARCH_SOURCES.CHESSCOM;
       const ENGINE_AUTOSTART_STORAGE_KEY = 'stockfish-ui:engine-autostart-disabled';
       let baseFen = game.fen();
       let selectedSquare = null;
@@ -1982,12 +2182,44 @@
         inputModalErrorElement.textContent = text;
       }
 
+      function getInputModalFocusableElements() {
+        if (!inputModalElement) {
+          return [];
+        }
+        const selectors = [
+          'button:not([disabled])',
+          'input:not([disabled])',
+          'textarea:not([disabled])',
+          'select:not([disabled])',
+          '[tabindex]:not([tabindex="-1"])',
+          'a[href]'
+        ];
+        const candidates = Array.from(inputModalElement.querySelectorAll(selectors.join(',')));
+        return candidates.filter(element => {
+          if (!element || typeof element.focus !== 'function') {
+            return false;
+          }
+          if (element.getAttribute && element.getAttribute('aria-hidden') === 'true') {
+            return false;
+          }
+          if ('disabled' in element && element.disabled) {
+            return false;
+          }
+          if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
+            const style = window.getComputedStyle(element);
+            if (style && (style.visibility === 'hidden' || style.display === 'none')) {
+              return false;
+            }
+          }
+          return true;
+        });
+      }
+
       function trapInputModalFocus(event) {
-        if (event.key !== 'Tab') {
+        if (!inputModalElement || event.key !== 'Tab') {
           return;
         }
-        const focusable = [inputModalTextarea, inputModalCancelButton, inputModalApplyButton]
-          .filter(element => element && typeof element.focus === 'function' && !element.disabled);
+        const focusable = getInputModalFocusableElements();
         if (!focusable.length) {
           return;
         }
@@ -2004,6 +2236,499 @@
         }
       }
 
+      function setArchiveStatus(message, options = {}) {
+        if (!archiveStatusElement) {
+          return;
+        }
+        const { state = 'idle' } = options || {};
+        const text = typeof message === 'string' ? message : '';
+        archiveStatusElement.textContent = text;
+        if (state) {
+          archiveStatusElement.setAttribute('data-state', state);
+        } else {
+          archiveStatusElement.removeAttribute('data-state');
+        }
+      }
+
+      function getArchiveSourceLabel(source) {
+        switch (source) {
+          case ARCHIVE_SEARCH_SOURCES.CHESSCOM:
+            return 'Chess.com';
+          case ARCHIVE_SEARCH_SOURCES.LICHESS:
+            return 'Lichess';
+          default:
+            return 'the selected source';
+        }
+      }
+
+      function describeArchiveUsername(username) {
+        const trimmed = typeof username === 'string' ? username.trim() : '';
+        return trimmed.length ? `“${trimmed}”` : 'that username';
+      }
+
+      function clearArchiveResults() {
+        archiveSearchEntries = [];
+        if (archiveResultsElement) {
+          archiveResultsElement.innerHTML = '';
+          archiveResultsElement.hidden = true;
+          archiveResultsElement.removeAttribute('aria-busy');
+        }
+        if (archiveSearchSection) {
+          archiveSearchSection.setAttribute('data-has-results', 'false');
+        }
+      }
+
+      function extractPgnTagValue(pgn, tagName) {
+        if (typeof pgn !== 'string' || typeof tagName !== 'string') {
+          return '';
+        }
+        const pattern = new RegExp(`\\[${tagName}\\s+"([^\"]*)"\\]`, 'i');
+        const match = pattern.exec(pgn);
+        if (!match) {
+          return '';
+        }
+        return match[1].trim();
+      }
+
+      function formatArchiveDate(dateTag, timeTag) {
+        if (typeof dateTag !== 'string') {
+          return '';
+        }
+        const match = dateTag.match(/^(\d{4})\.(\d{2})\.(\d{2})$/);
+        if (!match) {
+          return '';
+        }
+        const [, year, month, day] = match;
+        if (year.includes('?') || month.includes('?') || day.includes('?')) {
+          return '';
+        }
+        const isoDate = `${year}-${month}-${day}`;
+        const hasTime = typeof timeTag === 'string' && /^\d{2}:\d{2}:\d{2}$/.test(timeTag);
+        const date = hasTime
+          ? new Date(`${isoDate}T${timeTag}Z`)
+          : new Date(`${isoDate}T00:00:00Z`);
+        if (Number.isNaN(date.getTime())) {
+          return '';
+        }
+        try {
+          const options = { dateStyle: 'medium' };
+          if (hasTime) {
+            options.timeStyle = 'short';
+          }
+          return new Intl.DateTimeFormat(undefined, options).format(date);
+        } catch (error) {
+          const iso = date.toISOString();
+          return hasTime ? iso.replace('T', ' ').replace(/Z$/, '') : iso.slice(0, 10);
+        }
+      }
+
+      function formatArchiveResultTitle(entry) {
+        if (!entry) {
+          return 'View game';
+        }
+        const pgn = typeof entry.pgn === 'string' ? entry.pgn : '';
+        const white = extractPgnTagValue(pgn, 'White') || 'White';
+        const black = extractPgnTagValue(pgn, 'Black') || 'Black';
+        return `${white} vs ${black}`;
+      }
+
+      function formatArchiveResultMeta(entry) {
+        if (!entry) {
+          return '';
+        }
+        const pgn = typeof entry.pgn === 'string' ? entry.pgn : '';
+        const metaParts = [];
+        const seen = new Set();
+        const addPart = value => {
+          if (!value) {
+            return;
+          }
+          const normalized = value.toLowerCase();
+          if (seen.has(normalized)) {
+            return;
+          }
+          seen.add(normalized);
+          metaParts.push(value);
+        };
+        const result = extractPgnTagValue(pgn, 'Result');
+        if (result && result !== '*') {
+          addPart(result);
+        }
+        const formattedDate = formatArchiveDate(
+          extractPgnTagValue(pgn, 'Date'),
+          extractPgnTagValue(pgn, 'UTCTime')
+        );
+        if (formattedDate) {
+          addPart(formattedDate);
+        }
+        const event = extractPgnTagValue(pgn, 'Event');
+        if (event) {
+          addPart(event);
+        }
+        const siteTag = extractPgnTagValue(pgn, 'Site');
+        const sourceLabel = entry.sourceLabel || '';
+        if (siteTag && (!sourceLabel || siteTag.toLowerCase() !== sourceLabel.toLowerCase())) {
+          addPart(siteTag);
+        }
+        if (sourceLabel) {
+          addPart(sourceLabel);
+        }
+        return metaParts.join(' • ');
+      }
+
+      function renderArchiveResults(entries) {
+        archiveSearchEntries = Array.isArray(entries)
+          ? entries.slice(0, ARCHIVE_SEARCH_LIMIT)
+          : [];
+        if (!archiveResultsElement) {
+          return;
+        }
+        archiveResultsElement.innerHTML = '';
+        archiveResultsElement.removeAttribute('aria-busy');
+        if (!archiveSearchEntries.length) {
+          archiveResultsElement.hidden = true;
+          if (archiveSearchSection) {
+            archiveSearchSection.setAttribute('data-has-results', 'false');
+          }
+          return;
+        }
+        const fragment = document.createDocumentFragment();
+        archiveSearchEntries.forEach((entry, index) => {
+          const item = document.createElement('li');
+          item.className = 'archive-search__result-item';
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'archive-search__result-button';
+          button.setAttribute('data-archive-index', String(index));
+          const title = formatArchiveResultTitle(entry);
+          const meta = formatArchiveResultMeta(entry);
+          const primary = document.createElement('span');
+          primary.className = 'archive-search__result-primary';
+          primary.textContent = title;
+          button.appendChild(primary);
+          if (meta) {
+            const metaElement = document.createElement('span');
+            metaElement.className = 'archive-search__result-meta';
+            metaElement.textContent = meta;
+            button.appendChild(metaElement);
+          }
+          const tooltipParts = [title, meta, entry && entry.url ? entry.url : '', 'Click to load this game']
+            .filter(part => typeof part === 'string' && part.trim().length);
+          if (tooltipParts.length) {
+            button.title = tooltipParts.join(' • ');
+          }
+          item.appendChild(button);
+          fragment.appendChild(item);
+        });
+        archiveResultsElement.appendChild(fragment);
+        archiveResultsElement.hidden = false;
+        if (archiveSearchSection) {
+          archiveSearchSection.setAttribute('data-has-results', 'true');
+        }
+      }
+
+      function setArchiveButtonsDisabled(disabled) {
+        const buttons = [archiveChesscomButton, archiveLichessButton];
+        buttons.forEach(button => {
+          if (button) {
+            button.disabled = !!disabled;
+          }
+        });
+      }
+
+      function isAbortError(error) {
+        if (!error) {
+          return false;
+        }
+        if (error.name === 'AbortError') {
+          return true;
+        }
+        return error.code === 'ABORT_ERR';
+      }
+
+      function buildArchiveErrorMessage(source, error, username) {
+        const sourceLabel = getArchiveSourceLabel(source);
+        if (error && error.code === 'not_found') {
+          return `${sourceLabel} user ${describeArchiveUsername(username)} was not found.`;
+        }
+        if (error && error.code === 'rate_limited') {
+          return `${sourceLabel} temporarily rate limited the request. Please try again later.`;
+        }
+        const status = error && (error.status || error.statusCode);
+        if (status) {
+          return `Unable to load games from ${sourceLabel} (status ${status}).`;
+        }
+        const detail = extractErrorMessage(error);
+        if (detail) {
+          return `Unable to load games from ${sourceLabel}: ${detail}`;
+        }
+        return `Unable to load games from ${sourceLabel}.`;
+      }
+
+      async function fetchChessComGames(username, { signal } = {}) {
+        const normalizedUsername = typeof username === 'string' ? username.trim().toLowerCase() : '';
+        if (!normalizedUsername.length) {
+          return [];
+        }
+        const archivesUrl = `https://api.chess.com/pub/player/${encodeURIComponent(normalizedUsername)}/games/archives`;
+        const archivesResponse = await fetch(archivesUrl, {
+          signal,
+          headers: { Accept: 'application/json' },
+          cache: 'no-store'
+        });
+        if (!archivesResponse.ok) {
+          const error = new Error('Chess.com request failed.');
+          error.status = archivesResponse.status;
+          if (archivesResponse.status === 404) {
+            error.code = 'not_found';
+            error.message = 'Chess.com user not found.';
+          } else if (archivesResponse.status === 429) {
+            error.code = 'rate_limited';
+          }
+          throw error;
+        }
+        let archivesPayload = null;
+        try {
+          archivesPayload = await archivesResponse.json();
+        } catch (parseError) {
+          if (isAbortError(parseError)) {
+            throw parseError;
+          }
+          const error = new Error('Unexpected response from Chess.com.');
+          throw error;
+        }
+        const archives = Array.isArray(archivesPayload && archivesPayload.archives)
+          ? archivesPayload.archives.slice().reverse()
+          : [];
+        if (!archives.length) {
+          return [];
+        }
+        const games = [];
+        const consideredArchives = archives.slice(0, CHESS_COM_MAX_ARCHIVES);
+        for (const archiveUrl of consideredArchives) {
+          if (games.length >= ARCHIVE_SEARCH_LIMIT) {
+            break;
+          }
+          if (!archiveUrl) {
+            continue;
+          }
+          const monthResponse = await fetch(archiveUrl, {
+            signal,
+            headers: { Accept: 'application/json' },
+            cache: 'no-store'
+          });
+          if (!monthResponse.ok) {
+            if (monthResponse.status === 404) {
+              continue;
+            }
+            const error = new Error('Chess.com archive request failed.');
+            error.status = monthResponse.status;
+            if (monthResponse.status === 429) {
+              error.code = 'rate_limited';
+            }
+            throw error;
+          }
+          let monthPayload = null;
+          try {
+            monthPayload = await monthResponse.json();
+          } catch (parseError) {
+            if (isAbortError(parseError)) {
+              throw parseError;
+            }
+            continue;
+          }
+          const monthGames = Array.isArray(monthPayload && monthPayload.games)
+            ? monthPayload.games.slice().reverse()
+            : [];
+          for (const game of monthGames) {
+            if (games.length >= ARCHIVE_SEARCH_LIMIT) {
+              break;
+            }
+            if (!game || typeof game.pgn !== 'string') {
+              continue;
+            }
+            const trimmedPgn = game.pgn.trim();
+            if (!trimmedPgn.length) {
+              continue;
+            }
+            games.push({
+              pgn: trimmedPgn,
+              url: typeof game.url === 'string' ? game.url : '',
+              source: ARCHIVE_SEARCH_SOURCES.CHESSCOM,
+              sourceLabel: 'Chess.com'
+            });
+          }
+        }
+        return games;
+      }
+
+      async function fetchLichessGames(username, { signal } = {}) {
+        const trimmedUsername = typeof username === 'string' ? username.trim() : '';
+        if (!trimmedUsername.length) {
+          return [];
+        }
+        const params = new URLSearchParams({
+          max: String(ARCHIVE_SEARCH_LIMIT),
+          moves: 'false',
+          pgnInJson: 'true',
+          clocks: 'false',
+          evals: 'false',
+          opening: 'true'
+        });
+        const lichessUrl = `https://lichess.org/api/games/user/${encodeURIComponent(trimmedUsername)}?${params.toString()}`;
+        const lichessResponse = await fetch(lichessUrl, {
+          signal,
+          headers: { Accept: 'application/x-ndjson' },
+          cache: 'no-store'
+        });
+        if (!lichessResponse.ok) {
+          const error = new Error('Lichess request failed.');
+          error.status = lichessResponse.status;
+          if (lichessResponse.status === 404) {
+            error.code = 'not_found';
+            error.message = 'Lichess user not found.';
+          } else if (lichessResponse.status === 429) {
+            error.code = 'rate_limited';
+          }
+          throw error;
+        }
+        const text = await lichessResponse.text();
+        if (!text || !text.trim().length) {
+          return [];
+        }
+        const games = [];
+        const lines = text.split(/\r?\n/);
+        for (const line of lines) {
+          if (games.length >= ARCHIVE_SEARCH_LIMIT) {
+            break;
+          }
+          const trimmed = line.trim();
+          if (!trimmed.length) {
+            continue;
+          }
+          let parsed = null;
+          try {
+            parsed = JSON.parse(trimmed);
+          } catch (parseError) {
+            continue;
+          }
+          if (!parsed || typeof parsed.pgn !== 'string') {
+            continue;
+          }
+          const trimmedPgn = parsed.pgn.trim();
+          if (!trimmedPgn.length) {
+            continue;
+          }
+          let gameUrl = '';
+          if (typeof parsed.url === 'string' && parsed.url.trim().length) {
+            gameUrl = parsed.url.trim();
+          } else if (typeof parsed.id === 'string' && parsed.id.trim().length) {
+            gameUrl = `https://lichess.org/${parsed.id.trim()}`;
+          }
+          games.push({
+            pgn: trimmedPgn,
+            url: gameUrl,
+            source: ARCHIVE_SEARCH_SOURCES.LICHESS,
+            sourceLabel: 'Lichess'
+          });
+        }
+        return games;
+      }
+
+      async function handleArchiveSearch(source) {
+        const targetSource = source || ARCHIVE_SEARCH_SOURCES.CHESSCOM;
+        archiveSearchLastSource = targetSource;
+        if (!archiveSearchInput) {
+          return;
+        }
+        const username = archiveSearchInput.value.trim();
+        if (!username.length) {
+          setArchiveStatus('Enter a username to search.', { state: 'error' });
+          archiveSearchInput.focus();
+          return;
+        }
+        clearInputModalError();
+        if (archiveSearchAbortController && typeof archiveSearchAbortController.abort === 'function') {
+          archiveSearchAbortController.abort();
+        }
+        const controller = typeof AbortController === 'function' ? new AbortController() : null;
+        if (controller) {
+          archiveSearchAbortController = controller;
+        } else {
+          archiveSearchAbortController = null;
+        }
+        const signal = controller ? controller.signal : undefined;
+        const requestToken = ++archiveSearchToken;
+        setArchiveButtonsDisabled(true);
+        clearArchiveResults();
+        if (archiveResultsElement) {
+          archiveResultsElement.setAttribute('aria-busy', 'true');
+        }
+        const sourceLabel = getArchiveSourceLabel(targetSource);
+        setArchiveStatus(`Loading recent ${sourceLabel} games…`, { state: 'loading' });
+        try {
+          const games = targetSource === ARCHIVE_SEARCH_SOURCES.LICHESS
+            ? await fetchLichessGames(username, { signal })
+            : await fetchChessComGames(username, { signal });
+          if (archiveSearchToken !== requestToken) {
+            return;
+          }
+          archiveSearchAbortController = null;
+          if (!Array.isArray(games) || !games.length) {
+            clearArchiveResults();
+            setArchiveStatus(`No recent ${sourceLabel} games found for ${describeArchiveUsername(username)}.`, { state: 'empty' });
+            return;
+          }
+          renderArchiveResults(games);
+          const count = archiveSearchEntries.length;
+          const descriptor = count === 1 ? 'game' : 'games';
+          setArchiveStatus(`Loaded ${count} ${descriptor} from ${sourceLabel} for ${describeArchiveUsername(username)}.`, { state: 'success' });
+        } catch (error) {
+          if (isAbortError(error)) {
+            return;
+          }
+          if (archiveSearchToken !== requestToken) {
+            return;
+          }
+          archiveSearchAbortController = null;
+          clearArchiveResults();
+          const message = buildArchiveErrorMessage(targetSource, error, username);
+          setArchiveStatus(message, { state: 'error' });
+        } finally {
+          setArchiveButtonsDisabled(false);
+          if (archiveResultsElement) {
+            archiveResultsElement.removeAttribute('aria-busy');
+          }
+        }
+      }
+
+      function handleArchiveResultSelection(entry) {
+        if (!entry || typeof entry.pgn !== 'string' || !entry.pgn.trim().length) {
+          showInputModalError('Unable to load the selected game.');
+          return;
+        }
+        clearInputModalError();
+        const result = importPositionFromText(entry.pgn);
+        if (!result || result.success !== true) {
+          const message = result && typeof result.error === 'string' ? result.error : 'Unable to load the selected game.';
+          showInputModalError(message);
+          return;
+        }
+        closeInputModal();
+      }
+
+      function initializeArchiveSearch() {
+        if (archiveStatusElement) {
+          setArchiveStatus(DEFAULT_ARCHIVE_STATUS_MESSAGE, { state: 'idle' });
+        }
+        if (archiveResultsElement) {
+          archiveResultsElement.hidden = archiveSearchEntries.length === 0;
+        }
+        if (archiveSearchSection) {
+          archiveSearchSection.setAttribute('data-has-results', archiveSearchEntries.length ? 'true' : 'false');
+        }
+      }
+
       function openInputModal(presetText = '') {
         if (!inputModalElement) return;
         lastFocusedElementBeforeModal = document.activeElement && typeof document.activeElement.focus === 'function'
@@ -2012,6 +2737,12 @@
         inputModalElement.hidden = false;
         inputModalElement.setAttribute('aria-hidden', 'false');
         clearInputModalError();
+        if (archiveStatusElement && (!archiveStatusElement.textContent || !archiveStatusElement.textContent.trim().length)) {
+          setArchiveStatus(DEFAULT_ARCHIVE_STATUS_MESSAGE, { state: 'idle' });
+        }
+        if (archiveResultsElement) {
+          archiveResultsElement.hidden = archiveSearchEntries.length === 0;
+        }
         if (inputModalTextarea) {
           inputModalTextarea.value = typeof presetText === 'string' ? presetText : '';
           requestAnimationFrame(() => {
@@ -2024,6 +2755,15 @@
       function closeInputModal(options = {}) {
         if (!inputModalElement) return;
         const { restoreFocus = true } = options || {};
+        if (archiveSearchAbortController && typeof archiveSearchAbortController.abort === 'function') {
+          archiveSearchAbortController.abort();
+        }
+        archiveSearchAbortController = null;
+        archiveSearchToken += 1;
+        setArchiveButtonsDisabled(false);
+        if (archiveResultsElement) {
+          archiveResultsElement.removeAttribute('aria-busy');
+        }
         inputModalElement.hidden = true;
         inputModalElement.setAttribute('aria-hidden', 'true');
         if (inputModalTextarea) {
@@ -4524,6 +5264,43 @@
       }
     });
   }
+
+  if (archiveChesscomButton) {
+    archiveChesscomButton.addEventListener('click', () => handleArchiveSearch(ARCHIVE_SEARCH_SOURCES.CHESSCOM));
+  }
+
+  if (archiveLichessButton) {
+    archiveLichessButton.addEventListener('click', () => handleArchiveSearch(ARCHIVE_SEARCH_SOURCES.LICHESS));
+  }
+
+  if (archiveSearchInput) {
+    archiveSearchInput.addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        handleArchiveSearch(archiveSearchLastSource || ARCHIVE_SEARCH_SOURCES.CHESSCOM);
+      }
+    });
+  }
+
+  if (archiveResultsElement) {
+    archiveResultsElement.addEventListener('click', event => {
+      const trigger = event.target && typeof event.target.closest === 'function'
+        ? event.target.closest('button[data-archive-index]')
+        : null;
+      if (!trigger) {
+        return;
+      }
+      event.preventDefault();
+      const indexValue = Number(trigger.getAttribute('data-archive-index'));
+      if (!Number.isInteger(indexValue) || indexValue < 0 || indexValue >= archiveSearchEntries.length) {
+        return;
+      }
+      const entry = archiveSearchEntries[indexValue];
+      handleArchiveResultSelection(entry);
+    });
+  }
+
+  initializeArchiveSearch();
 
   if (inputModalElement) {
     inputModalElement.addEventListener('keydown', event => {
