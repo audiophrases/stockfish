@@ -28,8 +28,15 @@
     width: min(94vw, 540px);
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: stretch;
     gap: 26px;
+  }
+
+  .responsive-layout {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
   }
 
   .board-shell {
@@ -51,6 +58,48 @@
     flex-direction: column;
     gap: 20px;
     align-items: center;
+  }
+
+  .side-panel {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .side-panel__section {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .player-summary {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 12px 16px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(10, 14, 26, 0.85);
+    color: #eef1ff;
+    font-size: 0.95rem;
+    line-height: 1.4;
+    width: 100%;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+  }
+
+  .player-summary__names {
+    font-weight: 600;
+  }
+
+  .player-summary__divider {
+    color: rgba(255, 255, 255, 0.28);
+  }
+
+  .player-summary__outcome {
+    font-weight: 500;
+    color: #b9c5ff;
   }
 
   .board-container {
@@ -228,6 +277,42 @@
     0% { opacity: 0.4; }
     50% { opacity: 1; }
     100% { opacity: 0.4; }
+  }
+
+  @media (min-width: 1024px) and (orientation: landscape) {
+    body {
+      align-items: flex-start;
+      padding: 48px 0;
+    }
+
+    .container {
+      width: min(96vw, 1160px);
+      margin: 0 auto;
+    }
+
+    .responsive-layout {
+      flex-direction: row;
+      align-items: flex-start;
+      gap: 48px;
+    }
+
+    .board-shell {
+      flex: 0 0 auto;
+      max-width: 520px;
+    }
+
+    .side-panel {
+      max-width: 420px;
+      flex: 1 1 0%;
+    }
+
+    #info-line {
+      justify-content: flex-start;
+    }
+
+    #board {
+      max-width: 520px;
+    }
   }
 
   button {
@@ -927,10 +1012,31 @@
 </head>
 <body>
   <div class="container">
-    <div class="board-shell">
-      <div class="board-area">
-        <div class="board-container">
-          <div id="board"></div>
+    <div class="responsive-layout">
+      <div class="board-shell">
+        <div class="board-area">
+          <div class="board-container">
+            <div id="board"></div>
+          </div>
+        </div>
+      </div>
+      <aside class="side-panel">
+        <div class="player-summary" id="player-summary" role="status" aria-live="polite" aria-atomic="true">
+          <span class="player-summary__names" id="player-summary-names">White vs Black</span>
+          <span class="player-summary__divider" aria-hidden="true">—</span>
+          <span class="player-summary__outcome" id="player-summary-outcome">In progress</span>
+        </div>
+        <div class="side-panel__section">
+          <div id="info-line">
+            <span id="status" class="status-text" role="status" aria-live="polite" aria-atomic="true" data-turn="white" data-state="normal" aria-label="White to move">
+              <span class="status-text__label">White to move</span>
+            </span>
+            <span class="info-line-item" id="evaluation-container" aria-hidden="true" hidden>
+              <span id="evaluation" class="evaluation-indicator" role="img" aria-label="Eval: --" data-probability="0.5" aria-live="off" aria-atomic="true">
+                <span class="visually-hidden">Eval: --</span>
+              </span>
+            </span>
+          </div>
         </div>
         <div class="advantage-bar is-balanced advantage-bar--minimal" id="advantage-bar" aria-live="polite" aria-busy="false" aria-atomic="true" aria-hidden="true" hidden>
           <div class="advantage-bar__header" aria-hidden="true">
@@ -949,27 +1055,14 @@
             </span>
           </div>
         </div>
-      </div>
-
-      <div id="info-line">
-        <span id="status" class="status-text" role="status" aria-live="polite" aria-atomic="true" data-turn="white" data-state="normal" aria-label="White to move">
-          <span class="status-text__label">White to move</span>
-        </span>
-        <span class="info-line-item" id="evaluation-container" aria-hidden="true" hidden>
-          <span id="evaluation" class="evaluation-indicator" role="img" aria-label="Eval: --" data-probability="0.5" aria-live="off" aria-atomic="true">
-            <span class="visually-hidden">Eval: --</span>
-          </span>
-        </span>
-      </div>
-      <div class="probability-panel" id="probability-panel" hidden>
-        <div class="probability-panel__graph" id="evaluation-nav" role="group" aria-label="Evaluation timeline"></div>
-      </div>
-    </div>
-    <div id="controls">
-      <button id="prev-button" class="control-button" type="button" disabled aria-label="Previous move">
-        <span class="control-button__label" aria-hidden="true">Prev</span>
-        <span class="visually-hidden">Previous move</span>
-      </button>
+        <div class="probability-panel" id="probability-panel" hidden>
+          <div class="probability-panel__graph" id="evaluation-nav" role="group" aria-label="Evaluation timeline"></div>
+        </div>
+        <div id="controls">
+          <button id="prev-button" class="control-button" type="button" disabled aria-label="Previous move">
+            <span class="control-button__label" aria-hidden="true">Prev</span>
+            <span class="visually-hidden">Previous move</span>
+          </button>
       <button id="next-button" class="control-button" type="button" disabled aria-label="Next move">
         <span class="control-button__label" aria-hidden="true">Next</span>
         <span class="visually-hidden">Next move</span>
@@ -1002,12 +1095,12 @@
         <span class="control-button__label" aria-hidden="true">Input</span>
         <span class="visually-hidden">Load FEN or PGN</span>
       </button>
-      <button id="engine-button" class="control-button" type="button" aria-pressed="false" aria-label="Show engine settings">
-        <span class="control-button__label" aria-hidden="true">Engine</span>
-        <span class="visually-hidden">Show engine settings</span>
-      </button>
-    </div>
-    <section id="engine-settings" class="engine-settings" hidden aria-hidden="true">
+          <button id="engine-button" class="control-button" type="button" aria-pressed="false" aria-label="Show engine settings">
+            <span class="control-button__label" aria-hidden="true">Engine</span>
+            <span class="visually-hidden">Show engine settings</span>
+          </button>
+        </div>
+        <section id="engine-settings" class="engine-settings" hidden aria-hidden="true">
       <div class="engine-settings__header">
         <h2 class="engine-settings__title">Engine</h2>
         <span id="engine-status" class="engine-settings__status" data-state="idle" aria-live="polite">Not started</span>
@@ -1036,11 +1129,13 @@
         <button type="button" id="engine-start-button" class="engine-action-button engine-action-button--primary">
           <span class="engine-action-button__label">Start</span>
         </button>
-        <button type="button" id="engine-stop-button" class="engine-action-button" disabled>
+          <button type="button" id="engine-stop-button" class="engine-action-button" disabled>
           <span class="engine-action-button__label">Cease</span>
         </button>
       </div>
-    </section>
+        </section>
+      </aside>
+    </div>
     <div id="input-modal" role="dialog" aria-modal="true" aria-labelledby="input-modal-title" aria-describedby="input-modal-description" aria-hidden="true" hidden>
       <div class="input-modal__dialog">
         <h2 id="input-modal-title" class="input-modal__title">Load FEN or PGN</h2>
@@ -1098,6 +1193,9 @@
       const advantageWhiteElement = document.getElementById('advantage-white-percent');
       const advantageBlackElement = document.getElementById('advantage-black-percent');
       const advantageToggleButton = document.getElementById('advantage-toggle-button');
+      const playerSummaryElement = document.getElementById('player-summary');
+      const playerSummaryNamesElement = document.getElementById('player-summary-names');
+      const playerSummaryOutcomeElement = document.getElementById('player-summary-outcome');
       const prevButtonElement = document.getElementById('prev-button');
       const nextButtonElement = document.getElementById('next-button');
       const flipButtonElement = document.getElementById('flip-button');
@@ -1143,6 +1241,16 @@
       const DEFAULT_ARCHIVE_STATUS_MESSAGE = 'Enter a username, then choose Chess.com or Lichess to load recent games.';
       const ARCHIVE_SEARCH_LIMIT = 30;
       const CHESS_COM_MAX_ARCHIVES = 6;
+      const DEFAULT_PLAYER_WHITE_NAME = 'White';
+      const DEFAULT_PLAYER_BLACK_NAME = 'Black';
+      const DEFAULT_PLAYER_OUTCOME_LABEL = 'In progress';
+      const playerSummaryState = {
+        white: DEFAULT_PLAYER_WHITE_NAME,
+        black: DEFAULT_PLAYER_BLACK_NAME,
+        outcomeLabel: DEFAULT_PLAYER_OUTCOME_LABEL,
+        resultCode: '',
+        locked: false
+      };
       let archiveSearchEntries = [];
       let archiveSearchToken = 0;
       let archiveSearchAbortController = null;
@@ -1171,6 +1279,158 @@
       let moveHistory = [];
       let navigationIndex = 0;
       let enginePanelVisible = false;
+      function sanitizePlayerName(name, fallback) {
+        if (typeof name !== 'string') {
+          return fallback;
+        }
+        const trimmed = name.trim();
+        return trimmed.length ? trimmed : fallback;
+      }
+
+      function resolvePlayerOutcomeLabel(label) {
+        if (typeof label !== 'string') {
+          return DEFAULT_PLAYER_OUTCOME_LABEL;
+        }
+        const trimmed = label.trim();
+        return trimmed.length ? trimmed : DEFAULT_PLAYER_OUTCOME_LABEL;
+      }
+
+      function buildPlayerSummaryOutcomeText() {
+        const label = resolvePlayerOutcomeLabel(playerSummaryState.outcomeLabel);
+        const code = typeof playerSummaryState.resultCode === 'string'
+          ? playerSummaryState.resultCode.trim()
+          : '';
+        if (code && code !== '*') {
+          return `${label} (${code})`;
+        }
+        return label;
+      }
+
+      function updatePlayerSummaryDisplay() {
+        if (!playerSummaryElement) {
+          return;
+        }
+        const namesText = `${playerSummaryState.white} vs ${playerSummaryState.black}`;
+        const outcomeText = buildPlayerSummaryOutcomeText();
+        if (playerSummaryNamesElement) {
+          playerSummaryNamesElement.textContent = namesText;
+        }
+        if (playerSummaryOutcomeElement) {
+          playerSummaryOutcomeElement.textContent = outcomeText;
+        }
+        if (!playerSummaryNamesElement || !playerSummaryOutcomeElement) {
+          playerSummaryElement.textContent = `${namesText} — ${outcomeText}`;
+        }
+      }
+
+      function resetPlayerSummaryState({
+        white = DEFAULT_PLAYER_WHITE_NAME,
+        black = DEFAULT_PLAYER_BLACK_NAME,
+        label = DEFAULT_PLAYER_OUTCOME_LABEL,
+        resultCode = '',
+        locked = false
+      } = {}) {
+        playerSummaryState.white = sanitizePlayerName(white, DEFAULT_PLAYER_WHITE_NAME);
+        playerSummaryState.black = sanitizePlayerName(black, DEFAULT_PLAYER_BLACK_NAME);
+        playerSummaryState.outcomeLabel = resolvePlayerOutcomeLabel(label);
+        const code = typeof resultCode === 'string' ? resultCode.trim() : '';
+        playerSummaryState.resultCode = code && code !== '*' ? code : '';
+        playerSummaryState.locked = Boolean(locked);
+        updatePlayerSummaryDisplay();
+      }
+
+      function releasePlayerSummaryLock() {
+        if (!playerSummaryState.locked) {
+          return;
+        }
+        playerSummaryState.locked = false;
+        playerSummaryState.outcomeLabel = DEFAULT_PLAYER_OUTCOME_LABEL;
+        playerSummaryState.resultCode = '';
+        updatePlayerSummaryDisplay();
+      }
+
+      function deriveOutcomeLabelFromTags(resultTag, terminationTag, finalSan) {
+        const normalizedTermination = typeof terminationTag === 'string'
+          ? terminationTag.trim().toLowerCase()
+          : '';
+        const normalizedResult = typeof resultTag === 'string'
+          ? resultTag.trim()
+          : '';
+        const finalMoveSan = typeof finalSan === 'string' ? finalSan.trim() : '';
+        const terminationIncludes = token => normalizedTermination.includes(token);
+        if (terminationIncludes('resign')) {
+          return 'Resignation';
+        }
+        if (terminationIncludes('time') || terminationIncludes('flag') || terminationIncludes('timeout') || terminationIncludes('forfeit')) {
+          return 'Time';
+        }
+        if (terminationIncludes('mate')) {
+          return 'Checkmate';
+        }
+        if (terminationIncludes('stalemate')) {
+          return 'Stalemate';
+        }
+        if (terminationIncludes('agreed') || terminationIncludes('agreement')) {
+          return 'Draw';
+        }
+        if (terminationIncludes('draw') || terminationIncludes('repetition') || terminationIncludes('50') || terminationIncludes('fifty') || terminationIncludes('insufficient') || terminationIncludes('material')) {
+          return 'Draw';
+        }
+        if (terminationIncludes('abandon') || terminationIncludes('disconnect')) {
+          return 'Abandoned';
+        }
+        if (normalizedTermination === 'normal' && finalMoveSan.includes('#')) {
+          return 'Checkmate';
+        }
+        if (finalMoveSan.includes('#')) {
+          return 'Checkmate';
+        }
+        if (normalizedResult === '1/2-1/2') {
+          return 'Draw';
+        }
+        if (normalizedResult === '1-0' || normalizedResult === '0-1') {
+          return 'Completed';
+        }
+        return DEFAULT_PLAYER_OUTCOME_LABEL;
+      }
+
+      function applyPlayerSummaryFromPgn(header, history) {
+        const safeHeader = header && typeof header === 'object' ? header : {};
+        const white = safeHeader.White || safeHeader.white || DEFAULT_PLAYER_WHITE_NAME;
+        const black = safeHeader.Black || safeHeader.black || DEFAULT_PLAYER_BLACK_NAME;
+        const resultTag = typeof safeHeader.Result === 'string' ? safeHeader.Result : '';
+        const terminationTag = typeof safeHeader.Termination === 'string' ? safeHeader.Termination : '';
+        const finalMove = Array.isArray(history) && history.length ? history[history.length - 1] : null;
+        const finalSan = finalMove && typeof finalMove.san === 'string' ? finalMove.san : '';
+        const outcomeLabel = deriveOutcomeLabelFromTags(resultTag, terminationTag, finalSan);
+        const resultCode = resultTag && resultTag !== '*' ? resultTag : '';
+        const shouldLock = Boolean(resultCode || outcomeLabel !== DEFAULT_PLAYER_OUTCOME_LABEL);
+        resetPlayerSummaryState({ white, black, label: outcomeLabel, resultCode, locked: shouldLock });
+      }
+
+      function updatePlayerSummaryFromGame() {
+        if (!playerSummaryElement) {
+          return;
+        }
+        if (playerSummaryState.locked) {
+          updatePlayerSummaryDisplay();
+          return;
+        }
+        let outcomeLabel = DEFAULT_PLAYER_OUTCOME_LABEL;
+        let resultCode = '';
+        if (game.in_checkmate()) {
+          outcomeLabel = 'Checkmate';
+          resultCode = game.turn() === 'w' ? '0-1' : '1-0';
+        } else if (game.in_draw() || game.in_stalemate()) {
+          outcomeLabel = 'Draw';
+          resultCode = '1/2-1/2';
+        }
+        playerSummaryState.outcomeLabel = outcomeLabel;
+        playerSummaryState.resultCode = resultCode;
+        updatePlayerSummaryDisplay();
+      }
+
+      updatePlayerSummaryDisplay();
         const STOCKFISH_WORKER_VARIANTS = [
    
           { filename: 'stockfish-nnue-16-single.js', requiresThreadSupport: false },
@@ -3660,19 +3920,21 @@
       function recordMove(move) {
         if (!move) return;
         lastImportWasPgn = false;
+        releasePlayerSummaryLock();
         if (navigationIndex < moveHistory.length) {
           moveHistory = moveHistory.slice(0, navigationIndex);
           evaluationTimeline = evaluationTimeline.slice(0, navigationIndex + 1);
         }
-      moveHistory.push({ from: move.from, to: move.to, promotion: move.promotion });
-      navigationIndex = moveHistory.length;
-      ensureTimelineCapacity(navigationIndex + 1);
-      updateNavigationButtons();
-      scheduleEvaluationNavigationRender();
-      if (probabilityPanelVisible) {
-        scheduleProbabilityEvaluation();
+        moveHistory.push({ from: move.from, to: move.to, promotion: move.promotion });
+        navigationIndex = moveHistory.length;
+        ensureTimelineCapacity(navigationIndex + 1);
+        updateNavigationButtons();
+        scheduleEvaluationNavigationRender();
+        if (probabilityPanelVisible) {
+          scheduleProbabilityEvaluation();
+        }
+        updatePlayerSummaryFromGame();
       }
-    }
 
       function resetHistory(newBaseFen = null) {
         moveHistory = [];
@@ -4110,6 +4372,7 @@
       statusElement.removeAttribute('tabindex');
       statusElement.removeAttribute('aria-pressed');
     }
+    updatePlayerSummaryFromGame();
   }
 
   function onDragStart(src, piece) {
@@ -4857,19 +5120,21 @@
 
     const looksLikePgn = /\d+\./.test(trimmed) || /\[\w+\s+".*"\]/.test(trimmed) || trimmed.includes('\n');
 
-    const loadFen = () => {
-      const fenTest = new Chess();
-      if (!fenTest.load(trimmed)) {
-        return false;
-      }
-      const canonicalFen = fenTest.fen();
-      if (!game.load(canonicalFen)) {
-        return false;
-      }
-      resetHistory(game.fen());
-      lastImportWasPgn = false;
-      return true;
-    };
+      const loadFen = () => {
+        const fenTest = new Chess();
+        if (!fenTest.load(trimmed)) {
+          return false;
+        }
+        const canonicalFen = fenTest.fen();
+        if (!game.load(canonicalFen)) {
+          return false;
+        }
+        resetHistory(game.fen());
+        lastImportWasPgn = false;
+        resetPlayerSummaryState({ locked: false });
+        updatePlayerSummaryFromGame();
+        return true;
+      };
 
     const loadPgn = () => {
       const normalizePgn = input => {
@@ -4903,6 +5168,7 @@
 
       const header = typeof importGame.header === 'function' ? importGame.header() : {};
       const history = importGame.history({ verbose: true }) || [];
+      applyPlayerSummaryFromPgn(header, history);
       let initialFen = null;
       if (header && header.SetUp === '1' && header.FEN) {
         initialFen = header.FEN;
