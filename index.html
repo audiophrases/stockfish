@@ -1266,6 +1266,8 @@
       const archiveStatusElement = document.getElementById('archive-status');
       const archiveResultsElement = document.getElementById('archive-results');
       const statusElement = document.getElementById('status');
+      const moveSoundElement = createAudioElement('sounds/move.mp3');
+      const captureSoundElement = createAudioElement('sounds/capture.mp3');
       const CHESSBOARD_SELECTORS = Object.freeze({
         square: 'div.square-55d63',
         spareWrapper: '.spare-pieces-7492f',
@@ -1315,6 +1317,39 @@
       let moveHistory = [];
       let navigationIndex = 0;
       let enginePanelVisible = false;
+      function createAudioElement(src) {
+        if (typeof Audio !== 'function') {
+          return null;
+        }
+        try {
+          const audio = new Audio(src);
+          audio.preload = 'auto';
+          return audio;
+        } catch (error) {
+          console.warn('Failed to initialize audio element', error);
+          return null;
+        }
+      }
+
+      function playAudioClip(audio) {
+        if (!audio) return;
+        try {
+          const clip = audio.cloneNode();
+          const playPromise = clip.play();
+          if (playPromise && typeof playPromise.catch === 'function') {
+            playPromise.catch(() => {});
+          }
+        } catch (error) {
+          console.warn('Failed to play audio clip', error);
+        }
+      }
+
+      function playMoveSound(move) {
+        if (!move) return;
+        const flags = typeof move.flags === 'string' ? move.flags : '';
+        const isCapture = flags.includes('c') || flags.includes('e');
+        playAudioClip(isCapture ? captureSoundElement : moveSoundElement);
+      }
       function sanitizePlayerName(name, fallback) {
         if (typeof name !== 'string') {
           return fallback;
@@ -4068,6 +4103,7 @@
         const promotion = uciMove.length > 4 ? uciMove.slice(4, 5) : undefined;
         const move = game.move({ from, to, promotion });
         if (move) {
+          playMoveSound(move);
           moveSourceSquare = null;
           selectedSquare = null;
           recordMove(move);
@@ -4298,6 +4334,7 @@
     const move = game.move({ from: moveSourceSquare, to: square, promotion: 'q' });
 
     if (move) {
+      playMoveSound(move);
       recordMove(move);
       moveSourceSquare = null;
       renderBoard();
@@ -4469,6 +4506,7 @@
     if (freezeMode && !editMode) return 'snapback';
     const m = game.move({from:src,to:tgt,promotion:'q'});
     if (!m) return 'snapback';
+    playMoveSound(m);
     recordMove(m);
     renderBoard(); updateStatus(); requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
   }
