@@ -1147,7 +1147,7 @@
         </label>
         <label class="engine-field" for="engine-hash">
           <span class="engine-field__label">Hash (MB)</span>
-          <input id="engine-hash" class="engine-field__input" name="hash" type="number" min="1" step="1" inputmode="numeric" value="8">
+          <input id="engine-hash" class="engine-field__input" name="hash" type="number" min="1" step="1" inputmode="numeric" value="469">
         </label>
         <label class="engine-field" for="engine-depth">
           <span class="engine-field__label">Depth</span>
@@ -1605,8 +1605,8 @@
         const DEFAULT_ANALYSIS_DEPTH = 20;
         const PGN_REPLAY_DEPTH = 20;
         const PGN_IMPORT_ANALYSIS_DEPTH = 20;
-        const DEFAULT_THREADS = 1;
-        const DEFAULT_HASH_MB = 32;
+        const DEFAULT_THREADS = 3;
+        const DEFAULT_HASH_MB = 469;
         const ENGINE_MEMORY_ERROR_FALLBACK_HASH_MB = DEFAULT_HASH_MB;
         if (typeof window !== 'undefined') {
           const stockfishWorkerPath = workerFilenameForDefault
