@@ -1151,7 +1151,7 @@
         </label>
         <label class="engine-field" for="engine-depth">
           <span class="engine-field__label">Depth</span>
-          <input id="engine-depth" class="engine-field__input" name="depth" type="number" min="1" step="1" inputmode="numeric" value="12">
+          <input id="engine-depth" class="engine-field__input" name="depth" type="number" min="1" step="1" inputmode="numeric" value="20">
         </label>
       </form>
       <label class="engine-autostart-toggle" for="engine-autostart-toggle">
@@ -1601,12 +1601,12 @@
           }
           return assets;
         })();
-        const ENGINE_THREADS_MIN = 2;
-        const DEFAULT_ANALYSIS_DEPTH = 16;
-        const PGN_REPLAY_DEPTH = 12;
-        const PGN_IMPORT_ANALYSIS_DEPTH = 16;
-        const DEFAULT_THREADS = 3;
-        const DEFAULT_HASH_MB = 256;
+        const ENGINE_THREADS_MIN = 1;
+        const DEFAULT_ANALYSIS_DEPTH = 20;
+        const PGN_REPLAY_DEPTH = 20;
+        const PGN_IMPORT_ANALYSIS_DEPTH = 20;
+        const DEFAULT_THREADS = 1;
+        const DEFAULT_HASH_MB = 32;
         const ENGINE_MEMORY_ERROR_FALLBACK_HASH_MB = DEFAULT_HASH_MB;
         if (typeof window !== 'undefined') {
           const stockfishWorkerPath = workerFilenameForDefault
