@@ -25,7 +25,7 @@
   }
 
   .container {
-    width: min(94vw, 540px);
+    width: min(94vw, 648px);
     display: flex;
     flex-direction: column;
     align-items: stretch;
@@ -50,6 +50,7 @@
     align-items: center;
     gap: 20px;
     box-shadow: 0 40px 80px rgba(0, 0, 0, 0.55);
+    max-width: 624px;
   }
 
   .board-area {
@@ -110,7 +111,7 @@
 
   #board {
     width: 100%;
-    max-width: 480px;
+    max-width: 576px;
   }
 
   .visually-hidden {
@@ -285,13 +286,14 @@
   .advantage-bar__track::after {
     content: '';
     position: absolute;
-    top: 1px;
-    bottom: 1px;
-    width: 1px;
-    left: calc(50% - 0.5px);
-    background: rgba(255, 69, 58, 0.95);
-    opacity: 0.9;
+    top: -4px;
+    bottom: -4px;
+    width: 2px;
+    left: calc(50% - 1px);
+    background: rgba(255, 85, 74, 0.95);
+    opacity: 0.95;
     pointer-events: none;
+    box-shadow: 0 0 4px rgba(255, 120, 110, 0.6);
   }
 
   .advantage-bar.is-white-favored {
@@ -346,7 +348,7 @@
 
     .board-shell {
       flex: 0 0 auto;
-      max-width: 520px;
+      max-width: 624px;
     }
 
     .side-panel {
@@ -359,7 +361,7 @@
     }
 
     #board {
-      max-width: 520px;
+      max-width: 624px;
     }
   }
 
