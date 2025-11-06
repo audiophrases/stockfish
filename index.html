@@ -365,6 +365,34 @@
     }
   }
 
+  @media (max-width: 768px) and (orientation: portrait) {
+    body {
+      align-items: flex-start;
+      justify-content: flex-start;
+      padding: 18px 0 32px;
+    }
+
+    .container {
+      width: min(100vw, 520px);
+      padding: 0 18px 32px;
+    }
+
+    .responsive-layout {
+      gap: 22px;
+    }
+
+    .board-shell {
+      position: sticky;
+      top: 18px;
+      z-index: 5;
+      max-height: calc(100vh - 36px);
+    }
+
+    .side-panel {
+      padding-bottom: 12px;
+    }
+  }
+
   button {
     appearance: none;
     border: none;
