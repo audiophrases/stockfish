@@ -1635,6 +1635,7 @@
         const DEFAULT_ANALYSIS_DEPTH = 20;
         const PGN_REPLAY_DEPTH = 20;
         const PGN_IMPORT_ANALYSIS_DEPTH = 20;
+        const PROBABILITY_BOOTSTRAP_DEPTH = 10;
         const DEFAULT_THREADS = 3;
         const DEFAULT_HASH_MB = 469;
         const ENGINE_MEMORY_ERROR_FALLBACK_HASH_MB = DEFAULT_HASH_MB;
@@ -1730,6 +1731,8 @@
       let advantageBarVisible = false;
       let probabilityPanelVisible = false;
       let evaluationTimeline = [];
+      let probabilityBootstrapActive = false;
+      let probabilityBootstrapFollowupDepth = null;
       let engineStarting = false;
       let engineAutostartTimer = null;
       let engineAutostartScheduled = false;
@@ -3457,6 +3460,8 @@
         backgroundEvaluationQueue = [];
         backgroundCurrentTask = null;
         backgroundLastScore = null;
+        probabilityBootstrapActive = false;
+        probabilityBootstrapFollowupDepth = null;
         resetBackgroundEvaluationProgress();
         if (backgroundEngine && hadActiveTask) {
           backgroundPendingStart = true;
@@ -3470,8 +3475,17 @@
         if (!backgroundEngine || !backgroundEngineReady || backgroundPendingStart || backgroundCurrentTask) return;
         const nextTask = backgroundEvaluationQueue.shift();
         if (!nextTask || nextTask.token !== backgroundEvaluationToken) {
-          if (!backgroundEvaluationQueue.length && backgroundEvaluationCompleted >= backgroundEvaluationTotal && backgroundEvaluationTotal > 0) {
+          const queueDrained = !backgroundEvaluationQueue.length && backgroundEvaluationTotal > 0 && backgroundEvaluationCompleted >= backgroundEvaluationTotal;
+          if (queueDrained) {
             updateEvaluationProgressLabel();
+            if (probabilityBootstrapActive) {
+              const followupDepth = probabilityBootstrapFollowupDepth || engineConfig.depth;
+              probabilityBootstrapActive = false;
+              probabilityBootstrapFollowupDepth = null;
+              if (followupDepth) {
+                scheduleProbabilityEvaluation(followupDepth);
+              }
+            }
           }
           return;
         }
@@ -3678,7 +3692,27 @@
       }
 
       function scheduleProbabilityEvaluation(depth = engineConfig.depth) {
-        const tasks = buildBackgroundTasksForGame(depth);
+        const resolvedDepth = typeof depth === 'number' && depth > 0 ? depth : engineConfig.depth;
+        const requiresBootstrap = !hasCachedProbabilityData() && resolvedDepth > PROBABILITY_BOOTSTRAP_DEPTH;
+        if (requiresBootstrap) {
+          if (!probabilityBootstrapActive) {
+            probabilityBootstrapActive = true;
+            probabilityBootstrapFollowupDepth = resolvedDepth;
+            const bootstrapTasks = buildBackgroundTasksForGame(PROBABILITY_BOOTSTRAP_DEPTH);
+            queueBackgroundEvaluationTasks(bootstrapTasks);
+          } else if (!probabilityBootstrapFollowupDepth || resolvedDepth > probabilityBootstrapFollowupDepth) {
+            probabilityBootstrapFollowupDepth = resolvedDepth;
+          }
+          return;
+        }
+        if (probabilityBootstrapActive) {
+          if (!probabilityBootstrapFollowupDepth || resolvedDepth > probabilityBootstrapFollowupDepth) {
+            probabilityBootstrapFollowupDepth = resolvedDepth;
+          }
+          return;
+        }
+        probabilityBootstrapFollowupDepth = null;
+        const tasks = buildBackgroundTasksForGame(resolvedDepth);
         queueBackgroundEvaluationTasks(tasks);
       }
 
@@ -3701,6 +3735,10 @@
           return null;
         }
         return evaluationTimeline[index];
+      }
+
+      function hasCachedProbabilityData() {
+        return evaluationTimeline.some(entry => entry && typeof entry === 'object' && (entry.value !== undefined || entry.whiteWinProbability !== undefined));
       }
 
       function clampEvaluationValue(cp) {
