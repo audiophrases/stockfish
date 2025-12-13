@@ -930,9 +930,10 @@
   }
 
   .evaluation-nav__baseline {
-    stroke: rgba(255, 255, 255, 0.14);
+    stroke: rgba(255, 255, 255, 0.35);
     stroke-width: 1;
-    stroke-dasharray: 6 6;
+    stroke-dasharray: 4 4;
+    pointer-events: none;
   }
 
   .evaluation-nav__overlay {
@@ -3819,14 +3820,6 @@
           svg.appendChild(area);
         }
 
-        const baseline = document.createElementNS(svgNS, 'line');
-        baseline.setAttribute('x1', '0');
-        baseline.setAttribute('y1', baselineY.toFixed(2));
-        baseline.setAttribute('x2', width.toFixed(2));
-        baseline.setAttribute('y2', baselineY.toFixed(2));
-        baseline.setAttribute('class', 'evaluation-nav__baseline');
-        svg.appendChild(baseline);
-
         if (lineCommands) {
           const linePath = document.createElementNS(svgNS, 'path');
           linePath.setAttribute('d', lineCommands);
@@ -3843,6 +3836,14 @@
             svg.appendChild(marker);
           }
         }
+
+        const baseline = document.createElementNS(svgNS, 'line');
+        baseline.setAttribute('x1', '0');
+        baseline.setAttribute('y1', baselineY.toFixed(2));
+        baseline.setAttribute('x2', width.toFixed(2));
+        baseline.setAttribute('y2', baselineY.toFixed(2));
+        baseline.setAttribute('class', 'evaluation-nav__baseline');
+        svg.appendChild(baseline);
 
         const overlay = document.createElement('div');
         overlay.className = 'evaluation-nav__overlay';
