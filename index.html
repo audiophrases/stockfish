@@ -965,6 +965,38 @@
     box-shadow: inset 0 0 0 3px #f2ff5f !important;
   }
 
+  .best-move-primary,
+  .best-move-secondary {
+    position: relative;
+  }
+
+  .best-move-primary {
+    box-shadow: inset 0 0 0 3px rgba(82, 226, 165, 0.95), 0 0 12px rgba(82, 226, 165, 0.45);
+  }
+
+  .best-move-secondary {
+    box-shadow: inset 0 0 0 3px rgba(247, 211, 82, 0.95), 0 0 12px rgba(247, 211, 82, 0.45);
+  }
+
+  .best-move-badge {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    padding: 4px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #05070f;
+    background: rgba(82, 226, 165, 0.9);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.45);
+    pointer-events: none;
+    line-height: 1;
+  }
+
+  .best-move-badge--secondary {
+    background: rgba(247, 211, 82, 0.9);
+  }
+
   .highlight-move-from,
   .highlight-move-to {
     background: rgba(255, 255, 0, 0.38) !important;
@@ -1348,6 +1380,9 @@
       let moveHistory = [];
       let navigationIndex = 0;
       let enginePanelVisible = false;
+      let primaryBestMove = null;
+      let secondaryBestMove = null;
+      let bestMoveProbabilities = { primary: null, secondary: null };
       function createAudioElement(src) {
         if (typeof Audio !== 'function') {
           return null;
@@ -3916,6 +3951,32 @@
         updateAdvantageBar(entry);
       }
 
+      function clearBestMoveHighlights() {
+        if (!boardEl) return;
+        boardEl
+          .find('.best-move-primary, .best-move-secondary')
+          .removeClass('best-move-primary best-move-secondary');
+        boardEl.find('.best-move-badge').remove();
+      }
+
+      function renderBestMoveHighlight(moveKey, { variant = 'primary', probability = null } = {}) {
+        if (!moveKey || moveKey.length < 4 || !boardEl) return;
+        const from = moveKey.slice(0, 2);
+        const to = moveKey.slice(2, 4);
+        const className = variant === 'secondary' ? 'best-move-secondary' : 'best-move-primary';
+        boardEl.find(`.square-${from}`).addClass(className);
+        boardEl.find(`.square-${to}`).addClass(className);
+        if (typeof probability === 'number' && !Number.isNaN(probability)) {
+          const badge = document.createElement('div');
+          badge.className = `best-move-badge${variant === 'secondary' ? ' best-move-badge--secondary' : ''}`;
+          badge.textContent = formatWinProbability(probability);
+          const targetSquare = boardEl.find(`.square-${to}`);
+          if (targetSquare && targetSquare.length) {
+            targetSquare.prepend(badge);
+          }
+        }
+      }
+
       function applyStoredEvaluationIfAvailable() {
         const entry = getTimelineEntry(navigationIndex);
         if (entry) {
@@ -3983,20 +4044,22 @@
       }
 
       function updateBestMoveDisplay() {
-        if (!bestMoveVisible) {
+        clearBestMoveHighlights();
+        if (!bestMoveVisible || pieceMovesMode || editMode) {
           if (!pieceMovesMode) {
             clearHighlights();
           }
           return;
         }
 
-        if (pieceMovesMode) {
-          return;
-        }
-
-        if (currentBestMove && shouldHighlightBest) {
-          visualize(currentBestMove);
-        } else if (!currentBestMove) {
+        if (shouldHighlightBest) {
+          if (primaryBestMove) {
+            renderBestMoveHighlight(primaryBestMove, { variant: 'primary', probability: bestMoveProbabilities.primary });
+          }
+          if (secondaryBestMove) {
+            renderBestMoveHighlight(secondaryBestMove, { variant: 'secondary', probability: bestMoveProbabilities.secondary });
+          }
+        } else if (!primaryBestMove && !secondaryBestMove) {
           clearHighlights();
         }
       }
@@ -4116,6 +4179,9 @@
         clearEvaluationTimeline(1);
         setEvaluationText('Win chance --', 0.5);
         currentBestMove = null;
+        primaryBestMove = null;
+        secondaryBestMove = null;
+        bestMoveProbabilities = { primary: null, secondary: null };
         latestAnalysisFen = null;
         setAdvantageBarLoading(false);
         updateAdvantageBar(null, { neutral: true, message: 'Awaiting evaluation' });
@@ -4469,9 +4535,6 @@
     });
     applySelectionHighlights();
     applySpareSelection();
-    if (!editMode && !pieceMovesMode && shouldHighlightBest && currentBestMove) {
-      visualize(currentBestMove);
-    }
     updateNavigationButtons();
     updateBestMoveDisplay();
   }
@@ -4583,8 +4646,9 @@
   function onSnapEnd() { if (!editMode) board.position(game.fen()); }
   function clearHighlights() {
     boardEl
-      .find('.highlight-move-from, .highlight-move-to, .highlight-piece-move-target')
-      .removeClass('highlight-move-from highlight-move-to highlight-piece-move-target');
+      .find('.highlight-move-from, .highlight-move-to, .highlight-piece-move-target, .best-move-primary, .best-move-secondary')
+      .removeClass('highlight-move-from highlight-move-to highlight-piece-move-target best-move-primary best-move-secondary');
+    boardEl.find('.best-move-badge').remove();
   }
   function clearRatings() {
     boardEl.find('.move-rating').remove();
@@ -4725,6 +4789,9 @@
     }
     updateEngineControls({ loading: false });
     currentBestMove = null;
+    primaryBestMove = null;
+    secondaryBestMove = null;
+    bestMoveProbabilities = { primary: null, secondary: null };
     updateBestMoveDisplay();
     if (!pieceMovesMode) {
       setEvaluationText('Win chance --', 0.5);
@@ -4928,6 +4995,9 @@
 
         if (move && move !== '(none)') {
           currentBestMove = move;
+          if (!primaryBestMove) {
+            primaryBestMove = move;
+          }
           updateBestMoveDisplay();
         }
         currentSearchContext = null;
@@ -4946,15 +5016,19 @@
         currentDepth = parseInt(depthMatch[1], 10);
       }
 
+      const multipvMatch = line.match(/multipv\s+(\d+)/i);
+      const multipvIndex = multipvMatch ? parseInt(multipvMatch[1], 10) : 1;
       const cpMatch = line.match(/score cp (-?\d+)/);
       const mateMatch = line.match(/score mate (-?\d+)/);
       const turn = game.turn();
+      let evaluationEntry = null;
 
       if (cpMatch || mateMatch) {
         const cpValue = cpMatch ? parseInt(cpMatch[1], 10) : null;
         const mateValue = mateMatch ? parseInt(mateMatch[1], 10) : null;
         const entry = buildEvaluationEntryFromScore({ cp: cpValue, mate: mateValue, turn });
-        if (entry) {
+        evaluationEntry = entry;
+        if (entry && multipvIndex === 1) {
           applyEvaluationEntry(entry);
         }
       }
@@ -4963,7 +5037,15 @@
       if (pvIndex !== -1) {
         const pvMoves = line.slice(pvIndex + 4).trim().split(' ');
         if (pvMoves.length) {
-          currentBestMove = pvMoves[0];
+          const moveKey = pvMoves[0];
+          if (multipvIndex === 1) {
+            currentBestMove = moveKey;
+            primaryBestMove = moveKey;
+            bestMoveProbabilities.primary = evaluationEntry ? evaluationEntry.whiteWinProbability : null;
+          } else if (multipvIndex === 2) {
+            secondaryBestMove = moveKey;
+            bestMoveProbabilities.secondary = evaluationEntry ? evaluationEntry.whiteWinProbability : null;
+          }
           updateBestMoveDisplay();
         }
       }
@@ -5044,6 +5126,13 @@
       forceRefresh = false
     } = options;
 
+    let resolvedMultiPv = Number.isFinite(Number(multiPv))
+      ? Math.max(1, Math.floor(Number(multiPv)))
+      : 1;
+    if (!pieceAnalysis && bestMoveVisible) {
+      resolvedMultiPv = Math.max(resolvedMultiPv, 2);
+    }
+
     latestAnalysisFen = currentFen;
     shouldHighlightBest = highlight && revealBest;
     isPieceAnalysis = pieceAnalysis;
@@ -5063,7 +5152,7 @@
       fen: normalizedFenForCache,
       pieceAnalysis,
       searchMoves: searchMovesForCache,
-      multiPv,
+      multiPv: resolvedMultiPv,
       autoPlay,
       depth
     });
@@ -5119,6 +5208,9 @@
     }
 
     currentBestMove = null;
+    primaryBestMove = null;
+    secondaryBestMove = null;
+    bestMoveProbabilities = { primary: null, secondary: null };
     currentDepth = 0;
     waitingForAutoBestMove = false;
     autoMoveCandidate = null;
@@ -5186,7 +5278,7 @@
     };
     const queuedCommands = [
       'ucinewgame',
-      `setoption name MultiPV value ${multiPv}`,
+      `setoption name MultiPV value ${resolvedMultiPv}`,
       `position fen ${safeFen}`,
       goCommand
     ];
