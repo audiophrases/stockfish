@@ -1592,6 +1592,17 @@
         
         ];
         const STOCKFISH_ENGINE_DIRECTORY = '.';
+        const STOCKFISH_ENGINE_BASE_URL = (() => {
+          if (typeof window === 'undefined') {
+            return null;
+          }
+          const baseUrl = window.STOCKFISH_ENGINE_BASE_URL;
+          if (typeof baseUrl !== 'string') {
+            return null;
+          }
+          const trimmed = baseUrl.trim();
+          return trimmed.length ? trimmed : null;
+        })();
         const STOCKFISH_WORKER_DIRECTORIES = Object.freeze([
           STOCKFISH_ENGINE_DIRECTORY,
           'engines',
@@ -1631,6 +1642,25 @@
           }
           return '.';
         })();
+        const engineAssetsBaseUrl = (() => {
+          if (!STOCKFISH_ENGINE_BASE_URL) {
+            return null;
+          }
+          return STOCKFISH_ENGINE_BASE_URL.endsWith('/')
+            ? STOCKFISH_ENGINE_BASE_URL.slice(0, -1)
+            : STOCKFISH_ENGINE_BASE_URL;
+        })();
+        const isAbsoluteAssetUrl = value => typeof value === 'string' && /^[a-z][a-z0-9+.-]*:/.test(value);
+        const prependEngineBaseUrl = assetPath => {
+          if (!engineAssetsBaseUrl || typeof assetPath !== 'string' || !assetPath.length) {
+            return assetPath;
+          }
+          if (isAbsoluteAssetUrl(assetPath)) {
+            return assetPath;
+          }
+          const normalizedPath = assetPath.replace(/^\.\//, '');
+          return `${engineAssetsBaseUrl}/${normalizedPath}`;
+        };
         const normalizeEngineAssetPath = filename => {
           if (typeof filename !== 'string') {
             return null;
@@ -1641,12 +1671,12 @@
           }
           const base = engineAssetsBaseDirectory;
           if (!base || base === '.' || base === './') {
-            return trimmedFilename;
+            return prependEngineBaseUrl(trimmedFilename);
           }
           if (base.endsWith('/')) {
-            return `${base}${trimmedFilename}`;
+            return prependEngineBaseUrl(`${base}${trimmedFilename}`);
           }
-          return `${base}/${trimmedFilename}`;
+          return prependEngineBaseUrl(`${base}/${trimmedFilename}`);
         };
         const variantForDefaultLocation = selectedStockfishVariant || (() => {
           for (const variant of STOCKFISH_WORKER_VARIANTS) {
@@ -1882,6 +1912,12 @@
         const normalizedDetail = trimmedDetail.length
           ? (trimmedDetail.endsWith('.') ? trimmedDetail : `${trimmedDetail}.`)
           : '';
+        const resolvedWorkerUrl = error && typeof error.stockfishWorkerUrl === 'string'
+          ? error.stockfishWorkerUrl
+          : null;
+        const resolvedWorkerDetail = resolvedWorkerUrl
+          ? `Last tried worker URL: ${resolvedWorkerUrl}.`
+          : '';
         if (stage === 'runtime') {
           if (isMemoryAccessOutOfBoundsError(error)) {
             return 'Stockfish worker crashed. The engine ran out of memory while allocating its hash table. Reduce the Hash setting (e.g., 16 MB) and try again.';
@@ -1897,7 +1933,8 @@
             ? ' Threaded builds also require SharedArrayBuffer support. Serve the page with COOP/COEP headers so window.crossOriginIsolated is true, and ensure stockfish.worker.js and the NNUE wasm file are accessible next to the worker script.'
             : '';
           const guidance = `${baseGuidance}${threadedGuidance}`.trim();
-          return normalizedDetail ? `${normalizedDetail} ${guidance}` : guidance;
+          const detailSegments = [normalizedDetail, resolvedWorkerDetail, guidance].filter(Boolean);
+          return detailSegments.join(' ');
       }
 
       function determineWorkerErrorStage(event, message) {
@@ -2386,28 +2423,35 @@
           seen.add(candidate);
           candidates.push(candidate);
         };
+        const addCandidateWithBase = candidate => {
+          addCandidate(candidate);
+          const prefixedCandidate = prependEngineBaseUrl(candidate);
+          if (prefixedCandidate && prefixedCandidate !== candidate) {
+            addCandidate(prefixedCandidate);
+          }
+        };
         const appendDirectoryCandidates = directory => {
           if (typeof directory !== 'string') {
             return;
           }
           const trimmed = directory.trim();
           if (!trimmed.length || trimmed === '.') {
-            addCandidate(`./${normalizedFilename}`);
-            addCandidate(normalizedFilename);
+            addCandidateWithBase(`./${normalizedFilename}`);
+            addCandidateWithBase(normalizedFilename);
             return;
           }
           const normalizedDirectory = trimmed.replace(/^\.\//, '').replace(/\/+$/, '');
           if (!normalizedDirectory.length) {
-            addCandidate(`./${normalizedFilename}`);
-            addCandidate(normalizedFilename);
+            addCandidateWithBase(`./${normalizedFilename}`);
+            addCandidateWithBase(normalizedFilename);
             return;
           }
-          addCandidate(`./${normalizedDirectory}/${normalizedFilename}`);
-          addCandidate(`${normalizedDirectory}/${normalizedFilename}`);
+          addCandidateWithBase(`./${normalizedDirectory}/${normalizedFilename}`);
+          addCandidateWithBase(`${normalizedDirectory}/${normalizedFilename}`);
         };
         directories.forEach(appendDirectoryCandidates);
-        addCandidate(`./${normalizedFilename}`);
-        addCandidate(normalizedFilename);
+        addCandidateWithBase(`./${normalizedFilename}`);
+        addCandidateWithBase(normalizedFilename);
         return candidates;
       }
 
@@ -2518,9 +2562,11 @@
           throw new Error('Web Workers are not supported in this environment.');
         }
         let lastError = null;
+        let lastResolvedCandidate = null;
         const candidates = getEngineWorkerCandidates();
         for (const candidate of candidates) {
           const absoluteCandidate = resolveWorkerCandidate(candidate);
+          lastResolvedCandidate = absoluteCandidate;
           try {
             const worker = new Worker(absoluteCandidate);
             worker.addEventListener('error', event => {
@@ -2532,7 +2578,14 @@
             lastError = error;
           }
         }
-        throw lastError || new Error('Unable to initialize Stockfish worker.');
+        const finalError = lastError || new Error('Unable to initialize Stockfish worker.');
+        if (lastResolvedCandidate && typeof finalError === 'object') {
+          finalError.stockfishWorkerUrl = lastResolvedCandidate;
+        }
+        if (lastResolvedCandidate) {
+          console.error(`Stockfish worker failed to load. Last tried URL: ${lastResolvedCandidate}`);
+        }
+        throw finalError;
       }
       if (advantageBarElement) {
         advantageBarElement.hidden = true;
