@@ -1693,25 +1693,29 @@
           ? normalizeEngineAssetPath(workerFilenameForDefault)
           : null;
         const requiresThreadedVariant = !!(variantForDefaultLocation && variantForDefaultLocation.requiresThreadSupport);
+        const defaultWasmFilename = (() => {
+          if (!workerFilenameForDefault) {
+            return null;
+          }
+          const wasmMatch = workerFilenameForDefault.match(/^(.*?)(?:\.worker)?\.js(\?.*)?$/i);
+          if (!wasmMatch) {
+            return null;
+          }
+          const [, baseName, query = ''] = wasmMatch;
+          return `${baseName}.wasm${query}`;
+        })();
+        let lastResolvedLocateFileUrl = null;
         const defaultEngineAssetMap = (() => {
           if (!workerFilenameForDefault) {
             return new Map();
           }
           const assets = new Map();
-          const wasmFilename = (() => {
-            const wasmMatch = workerFilenameForDefault.match(/^(.*?)(?:\.worker)?\.js(\?.*)?$/i);
-            if (!wasmMatch) {
-              return null;
-            }
-            const [, baseName, query = ''] = wasmMatch;
-            return `${baseName}.wasm${query}`;
-          })();
           assets.set(workerFilenameForDefault, normalizeEngineAssetPath(workerFilenameForDefault));
           if (requiresThreadedVariant) {
             assets.set('stockfish.worker.js', normalizeEngineAssetPath('stockfish.worker.js'));
           }
-          if (wasmFilename) {
-            assets.set(wasmFilename, normalizeEngineAssetPath(wasmFilename));
+          if (defaultWasmFilename) {
+            assets.set(defaultWasmFilename, normalizeEngineAssetPath(defaultWasmFilename));
           }
           return assets;
         })();
@@ -1744,13 +1748,16 @@
           if (!moduleConfig.locateFile) {
             moduleConfig.locateFile = (path, prefix) => {
               if (path && defaultEngineAssetMap.has(path)) {
-                return defaultEngineAssetMap.get(path);
+                const resolvedPath = defaultEngineAssetMap.get(path);
+                lastResolvedLocateFileUrl = resolvedPath;
+                return resolvedPath;
               }
               const normalizedPath = typeof path === 'string' ? path.trim() : '';
               if (!normalizedPath.length) {
                 return path;
               }
               const resolved = normalizeEngineAssetPath(normalizedPath);
+              lastResolvedLocateFileUrl = resolved || normalizedPath;
               return resolved || normalizedPath;
             };
           }
@@ -1921,8 +1928,22 @@
         const resolvedWorkerUrl = error && typeof error.stockfishWorkerUrl === 'string'
           ? error.stockfishWorkerUrl
           : null;
-        const resolvedWorkerDetail = resolvedWorkerUrl
-          ? `Last tried worker URL: ${resolvedWorkerUrl}.`
+        const resolvedLocateFileUrl = error && typeof error.stockfishLocateFileUrl === 'string'
+          ? error.stockfishLocateFileUrl
+          : null;
+        const resolvedWorkerDetail = resolvedWorkerUrl && !normalizedDetail.includes(resolvedWorkerUrl)
+          ? `Failed to fetch ${resolvedWorkerUrl}.`
+          : '';
+        const resolvedLocateFileDetail = resolvedLocateFileUrl
+          && resolvedLocateFileUrl !== resolvedWorkerUrl
+          && !normalizedDetail.includes(resolvedLocateFileUrl)
+          ? `Failed to fetch ${resolvedLocateFileUrl}.`
+          : '';
+        const defaultWorkerDetail = defaultWorkerLocation
+          ? `Default worker URL: ${defaultWorkerLocation}.`
+          : '';
+        const defaultWasmDetail = defaultWasmFilename
+          ? `Expected wasm file: ${defaultWasmFilename}.`
           : '';
         const resolvedVariantDetail = attemptedVariants
           ? `Tried worker variants: ${attemptedVariants}.`
@@ -1942,7 +1963,15 @@
             ? ' Threaded builds also require SharedArrayBuffer support. Serve the page with COOP/COEP headers so window.crossOriginIsolated is true, and ensure stockfish.worker.js and the NNUE wasm file are accessible next to the worker script.'
             : '';
           const guidance = `${baseGuidance}${threadedGuidance}`.trim();
-          const detailSegments = [normalizedDetail, resolvedVariantDetail, resolvedWorkerDetail, guidance].filter(Boolean);
+          const detailSegments = [
+            normalizedDetail,
+            resolvedVariantDetail,
+            resolvedWorkerDetail,
+            resolvedLocateFileDetail,
+            defaultWorkerDetail,
+            defaultWasmDetail,
+            guidance
+          ].filter(Boolean);
           return detailSegments.join(' ');
       }
 
@@ -2575,6 +2604,7 @@
         if (typeof Worker !== 'function') {
           throw new Error('Web Workers are not supported in this environment.');
         }
+        lastResolvedLocateFileUrl = null;
         let lastError = null;
         let lastResolvedCandidate = null;
         let lastVariantLabel = null;
@@ -2622,10 +2652,20 @@
               };
 
               const handleError = event => {
-                const message = event && event.message ? event.message : 'Failed to load Stockfish worker.';
+                const resolvedLocateFileUrl = lastResolvedLocateFileUrl;
+                const candidateMessageUrl = resolvedLocateFileUrl || absoluteCandidate;
+                const message = candidateMessageUrl
+                  ? `Failed to fetch ${candidateMessageUrl}`
+                  : (event && event.message ? event.message : 'Failed to load Stockfish worker.');
                 const error = event && event.error instanceof Error
                   ? event.error
                   : new Error(message);
+                if (error && typeof error === 'object') {
+                  error.stockfishWorkerUrl = absoluteCandidate;
+                  if (resolvedLocateFileUrl) {
+                    error.stockfishLocateFileUrl = resolvedLocateFileUrl;
+                  }
+                }
                 finalize('reject', error);
               };
 
