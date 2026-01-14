@@ -1587,9 +1587,9 @@
 
       updatePlayerSummaryDisplay();
         const STOCKFISH_WORKER_VARIANTS = [
-   
+          { filename: 'stockfish-17-lite-single.js', requiresThreadSupport: false },
+          { filename: 'stockfish-16.1-lite-single.js', requiresThreadSupport: false },
           { filename: 'stockfish-nnue-16-single.js', requiresThreadSupport: false },
-        
         ];
         const STOCKFISH_ENGINE_DIRECTORY = '.';
         const STOCKFISH_ENGINE_BASE_URL = (() => {
@@ -1912,12 +1912,21 @@
         const normalizedDetail = trimmedDetail.length
           ? (trimmedDetail.endsWith('.') ? trimmedDetail : `${trimmedDetail}.`)
           : '';
+        const attemptedVariant = error && typeof error.stockfishWorkerVariant === 'string'
+          ? error.stockfishWorkerVariant
+          : null;
+        const attemptedVariants = error && Array.isArray(error.stockfishWorkerVariantsTried)
+          ? error.stockfishWorkerVariantsTried.filter(Boolean).join(', ')
+          : '';
         const resolvedWorkerUrl = error && typeof error.stockfishWorkerUrl === 'string'
           ? error.stockfishWorkerUrl
           : null;
         const resolvedWorkerDetail = resolvedWorkerUrl
           ? `Last tried worker URL: ${resolvedWorkerUrl}.`
           : '';
+        const resolvedVariantDetail = attemptedVariants
+          ? `Tried worker variants: ${attemptedVariants}.`
+          : (attemptedVariant ? `Worker variant: ${attemptedVariant}.` : '');
         if (stage === 'runtime') {
           if (isMemoryAccessOutOfBoundsError(error)) {
             return 'Stockfish worker crashed. The engine ran out of memory while allocating its hash table. Reduce the Hash setting (e.g., 16 MB) and try again.';
@@ -1933,7 +1942,7 @@
             ? ' Threaded builds also require SharedArrayBuffer support. Serve the page with COOP/COEP headers so window.crossOriginIsolated is true, and ensure stockfish.worker.js and the NNUE wasm file are accessible next to the worker script.'
             : '';
           const guidance = `${baseGuidance}${threadedGuidance}`.trim();
-          const detailSegments = [normalizedDetail, resolvedWorkerDetail, guidance].filter(Boolean);
+          const detailSegments = [normalizedDetail, resolvedVariantDetail, resolvedWorkerDetail, guidance].filter(Boolean);
           return detailSegments.join(' ');
       }
 
@@ -2483,17 +2492,17 @@
         }
         const seen = new Set();
         const candidates = [];
-        const addCandidate = value => {
+        const addCandidate = (value, metadata = {}) => {
           if (!value || seen.has(value)) {
             return;
           }
           seen.add(value);
-          candidates.push(value);
+          candidates.push({ path: value, ...metadata });
         };
 
         const overrideCandidates = getStockfishWorkerOverrideCandidates();
         if (overrideCandidates && overrideCandidates.length) {
-          overrideCandidates.forEach(addCandidate);
+          overrideCandidates.forEach(candidate => addCandidate(candidate, { variantLabel: 'override path' }));
         }
 
         const variantsToConsider = (() => {
@@ -2520,18 +2529,21 @@
           if (requiresThreadSupport && !threadSupportAvailable) {
             continue;
           }
+          const variantLabel = typeof variant.label === 'string' && variant.label.trim().length
+            ? variant.label.trim()
+            : filename;
           const variantCandidates = buildWorkerCandidatePaths(filename);
           for (const candidate of variantCandidates) {
-            addCandidate(candidate);
+            addCandidate(candidate, { variantLabel });
           }
         }
 
         if (!candidates.length && overrideCandidates && overrideCandidates.length) {
-          overrideCandidates.forEach(addCandidate);
+          overrideCandidates.forEach(candidate => addCandidate(candidate, { variantLabel: 'override path' }));
         }
 
         if (!candidates.length && typeof defaultWorkerLocation === 'string' && defaultWorkerLocation.length) {
-          addCandidate(defaultWorkerLocation);
+          addCandidate(defaultWorkerLocation, { variantLabel: workerFilenameForDefault || 'default' });
         }
 
         engineWorkerCandidatesCache = candidates.slice();
@@ -2557,30 +2569,104 @@
         }
       }
 
-      function createStockfishWorker() {
+      const WORKER_LOAD_TIMEOUT_MS = 250;
+
+      async function createStockfishWorker() {
         if (typeof Worker !== 'function') {
           throw new Error('Web Workers are not supported in this environment.');
         }
         let lastError = null;
         let lastResolvedCandidate = null;
+        let lastVariantLabel = null;
+        const attemptedVariants = [];
         const candidates = getEngineWorkerCandidates();
-        for (const candidate of candidates) {
+        for (const candidateEntry of candidates) {
+          const candidate = candidateEntry && candidateEntry.path;
+          const variantLabel = candidateEntry && candidateEntry.variantLabel
+            ? String(candidateEntry.variantLabel)
+            : null;
           const absoluteCandidate = resolveWorkerCandidate(candidate);
           lastResolvedCandidate = absoluteCandidate;
+          lastVariantLabel = variantLabel;
+          if (variantLabel) {
+            attemptedVariants.push(variantLabel);
+          }
           try {
-            const worker = new Worker(absoluteCandidate);
+            const worker = await new Promise((resolve, reject) => {
+              let timeoutId = null;
+              let settled = false;
+              let workerInstance = null;
+
+              const finalize = (outcome, value) => {
+                if (settled) return;
+                settled = true;
+                if (timeoutId) {
+                  clearTimeout(timeoutId);
+                  timeoutId = null;
+                }
+                if (workerInstance) {
+                  workerInstance.removeEventListener('error', handleError);
+                }
+                if (outcome === 'resolve') {
+                  resolve(value);
+                } else {
+                  if (workerInstance) {
+                    try {
+                      workerInstance.terminate();
+                    } catch (terminateError) {
+                      console.warn('Failed to terminate errored Stockfish worker', terminateError);
+                    }
+                  }
+                  reject(value);
+                }
+              };
+
+              const handleError = event => {
+                const message = event && event.message ? event.message : 'Failed to load Stockfish worker.';
+                const error = event && event.error instanceof Error
+                  ? event.error
+                  : new Error(message);
+                finalize('reject', error);
+              };
+
+              try {
+                workerInstance = new Worker(absoluteCandidate);
+              } catch (error) {
+                finalize('reject', error);
+                return;
+              }
+
+              workerInstance.addEventListener('error', handleError);
+              timeoutId = setTimeout(() => {
+                finalize('resolve', workerInstance);
+              }, WORKER_LOAD_TIMEOUT_MS);
+            });
             worker.addEventListener('error', event => {
               console.error(`Stockfish worker error (${absoluteCandidate})`, event?.message || event);
             });
+            worker.stockfishWorkerVariant = variantLabel || null;
+            worker.stockfishWorkerUrl = absoluteCandidate;
             return worker;
           } catch (error) {
             console.error(`Failed to start Stockfish worker from ${absoluteCandidate}`, error);
+            if (error && typeof error === 'object') {
+              error.stockfishWorkerUrl = absoluteCandidate;
+              if (variantLabel) {
+                error.stockfishWorkerVariant = variantLabel;
+              }
+            }
             lastError = error;
           }
         }
         const finalError = lastError || new Error('Unable to initialize Stockfish worker.');
         if (lastResolvedCandidate && typeof finalError === 'object') {
           finalError.stockfishWorkerUrl = lastResolvedCandidate;
+        }
+        if (lastVariantLabel && typeof finalError === 'object') {
+          finalError.stockfishWorkerVariant = lastVariantLabel;
+        }
+        if (attemptedVariants.length && typeof finalError === 'object') {
+          finalError.stockfishWorkerVariantsTried = attemptedVariants.slice();
         }
         if (lastResolvedCandidate) {
           console.error(`Stockfish worker failed to load. Last tried URL: ${lastResolvedCandidate}`);
@@ -3626,7 +3712,7 @@
         backgroundEvaluationTotal = tasks.length;
         updateEvaluationProgressLabel();
         if (!backgroundEngine) {
-          initBackgroundEngine();
+          void initBackgroundEngine();
         }
         if (backgroundEngineReady && !backgroundPendingStart) {
           processBackgroundQueue();
@@ -3659,17 +3745,17 @@
         if (!engine) {
           return;
         }
-        initBackgroundEngine();
+        void initBackgroundEngine();
       }
 
-      function initBackgroundEngine() {
+      async function initBackgroundEngine() {
         if (backgroundEngine) return;
         backgroundEngineReady = false;
         backgroundPendingStart = false;
         backgroundCurrentTask = null;
         backgroundLastScore = null;
         try {
-          backgroundEngine = createStockfishWorker();
+          backgroundEngine = await createStockfishWorker();
         } catch (error) {
           const friendlyMessage = buildWorkerInitializationErrorMessage(error, { stage: 'load' });
           console.error('Failed to initialize background Stockfish worker', friendlyMessage, error);
@@ -3681,6 +3767,14 @@
           const errorForMessage = event && event.error instanceof Error
             ? event.error
             : new Error(message || 'Unknown background Stockfish worker error');
+          if (backgroundEngine && typeof errorForMessage === 'object') {
+            if (backgroundEngine.stockfishWorkerVariant) {
+              errorForMessage.stockfishWorkerVariant = backgroundEngine.stockfishWorkerVariant;
+            }
+            if (backgroundEngine.stockfishWorkerUrl) {
+              errorForMessage.stockfishWorkerUrl = backgroundEngine.stockfishWorkerUrl;
+            }
+          }
           const errorStage = determineWorkerErrorStage(event, message);
           const friendlyMessage = buildWorkerInitializationErrorMessage(errorForMessage, { stage: errorStage });
           if (errorStage === 'runtime' && isMemoryAccessOutOfBoundsError(errorForMessage)) {
@@ -4872,7 +4966,7 @@
     shutdownBackgroundEngine();
   }
 
-  function startEngine(options = {}) {
+  async function startEngine(options = {}) {
     const { autostart = false } = options || {};
     if (engineStarting) {
       return;
@@ -4891,7 +4985,7 @@
     updateEngineControls({ loading: true });
     let worker;
     try {
-      worker = createStockfishWorker();
+      worker = await createStockfishWorker();
     } catch (error) {
       console.error('Unable to initialize Stockfish worker', error);
       engineStarting = false;
@@ -4935,6 +5029,14 @@
         const errorForMessage = event && event.error instanceof Error
           ? event.error
           : new Error(message || 'Unknown Stockfish worker error');
+        if (worker && typeof errorForMessage === 'object') {
+          if (worker.stockfishWorkerVariant) {
+            errorForMessage.stockfishWorkerVariant = worker.stockfishWorkerVariant;
+          }
+          if (worker.stockfishWorkerUrl) {
+            errorForMessage.stockfishWorkerUrl = worker.stockfishWorkerUrl;
+          }
+        }
         const errorStage = determineWorkerErrorStage(event, message);
         const friendlyMessage = buildWorkerInitializationErrorMessage(errorForMessage, { stage: errorStage });
         if (errorStage === 'runtime' && isMemoryAccessOutOfBoundsError(errorForMessage)) {
