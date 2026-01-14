@@ -1381,6 +1381,8 @@
       let isPieceAnalysis = false;
       let freezeMode = false;
       let editMode = false;
+      let editedPositionValid = true;
+      let editedPositionMessage = null;
       let pieceMovesMode = false;
       let orientation = 'white';
       let latestAnalysisFen = null;
@@ -4226,25 +4228,107 @@
         return parts.join(' ');
       }
 
+      function getCastlingRightsFromGame(targetGame) {
+        if (!targetGame) return '-';
+        const whiteKing = targetGame.get('e1');
+        const blackKing = targetGame.get('e8');
+        let rights = '';
+        if (whiteKing && whiteKing.type === 'k' && whiteKing.color === 'w') {
+          const whiteKingsideRook = targetGame.get('h1');
+          const whiteQueensideRook = targetGame.get('a1');
+          if (whiteKingsideRook && whiteKingsideRook.type === 'r' && whiteKingsideRook.color === 'w') {
+            rights += 'K';
+          }
+          if (whiteQueensideRook && whiteQueensideRook.type === 'r' && whiteQueensideRook.color === 'w') {
+            rights += 'Q';
+          }
+        }
+        if (blackKing && blackKing.type === 'k' && blackKing.color === 'b') {
+          const blackKingsideRook = targetGame.get('h8');
+          const blackQueensideRook = targetGame.get('a8');
+          if (blackKingsideRook && blackKingsideRook.type === 'r' && blackKingsideRook.color === 'b') {
+            rights += 'k';
+          }
+          if (blackQueensideRook && blackQueensideRook.type === 'r' && blackQueensideRook.color === 'b') {
+            rights += 'q';
+          }
+        }
+        return rights.length ? rights : '-';
+      }
+
+      function sanitizeFenMetadataWithGame(fen, targetGame, { enforceCastling = false } = {}) {
+        if (typeof fen !== 'string') return fen;
+        const trimmed = fen.trim();
+        if (!trimmed.length) return fen;
+        const parts = trimmed.split(/\s+/);
+        if (parts.length < 4) return fen;
+        let updated = false;
+
+        if (enforceCastling) {
+          const castling = getCastlingRightsFromGame(targetGame);
+          if (parts[2] !== castling) {
+            parts[2] = castling;
+            updated = true;
+          }
+        }
+
+        const ep = parts[3];
+        if (ep !== '-') {
+          const hasEp = targetGame.moves({ verbose: true }).some(m => m.flags && m.flags.includes('e'));
+          if (!hasEp) {
+            parts[3] = '-';
+            updated = true;
+          }
+        }
+
+        return updated ? parts.join(' ') : trimmed;
+      }
+
       function sanitizeFenForStockfish(fen) {
         try {
           const g = new Chess();
           if (!g.load(fen)) return fen;
 
-          const parts = fen.trim().split(/\s+/);
-          if (parts.length < 4) return fen;
-
-          const ep = parts[3];
-          if (ep === '-') return fen;
-
-          const hasEp = g.moves({ verbose: true }).some(m => m.flags && m.flags.includes('e'));
-          if (!hasEp) {
-            parts[3] = '-';
-            return parts.join(' ');
-          }
-          return fen;
+          return sanitizeFenMetadataWithGame(fen, g, { enforceCastling: editMode });
         } catch {
           return fen;
+        }
+      }
+
+      function setEditedPositionValidity(isValid, message = null) {
+        const wasValid = editedPositionValid;
+        editedPositionValid = isValid;
+        editedPositionMessage = isValid ? null : message;
+        if (!isValid) {
+          setAdvantageBarLoading(false);
+          updateAdvantageBar(null, { neutral: true, message });
+        } else if (!wasValid && editMode) {
+          updateAdvantageBar(null, { neutral: true, message: 'Editing' });
+        }
+        updateStatus();
+      }
+
+      function validateEditedFen(fen, { applySanitized = false } = {}) {
+        const message = 'Invalid position. Fix the board before analysis.';
+        try {
+          const validator = new Chess();
+          if (!validator.load(fen)) {
+            setEditedPositionValidity(false, message);
+            return { valid: false, sanitizedFen: null };
+          }
+          const sanitizedFen = sanitizeFenMetadataWithGame(fen, validator, { enforceCastling: true });
+          if (applySanitized && sanitizedFen !== fen) {
+            const loaded = game.load(sanitizedFen);
+            if (!loaded) {
+              setEditedPositionValidity(false, message);
+              return { valid: false, sanitizedFen: null };
+            }
+          }
+          setEditedPositionValidity(true);
+          return { valid: true, sanitizedFen };
+        } catch {
+          setEditedPositionValidity(false, message);
+          return { valid: false, sanitizedFen: null };
         }
       }
 
@@ -4498,10 +4582,14 @@
 
   function commitEditedBoardState() {
     lastImportWasPgn = false;
+    const rawFen = game.fen();
+    const validation = validateEditedFen(rawFen, { applySanitized: true });
     resetHistory(game.fen());
     renderBoard();
     updateStatus();
-    requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
+    if (validation.valid) {
+      requestAnalysis({ highlight: shouldHighlightBest && bestMoveVisible, revealBest: bestMoveVisible });
+    }
   }
 
   function toggleEditingTurn() {
@@ -4769,7 +4857,9 @@
     const turnLabel = turnColor === 'white' ? 'White' : 'Black';
     let state = 'normal';
     let label = '';
-    if (game.in_checkmate()) {
+    if (editMode && !editedPositionValid && editedPositionMessage) {
+      label = editedPositionMessage;
+    } else if (game.in_checkmate()) {
       state = 'mate';
       label = `Game over, ${turnLabel} is checkmated.`;
     } else if (game.in_draw()) {
@@ -5315,7 +5405,15 @@
   }
 
   function requestAnalysis(options = {}) {
-    const currentFen = game.fen();
+    let currentFen = game.fen();
+    if (editMode || !editedPositionValid) {
+      const validation = validateEditedFen(currentFen, { applySanitized: true });
+      if (!validation.valid) {
+        latestAnalysisFen = null;
+        return;
+      }
+      currentFen = game.fen();
+    }
     if (lastObservedPositionFen !== currentFen) {
       invalidateAnalysisCache();
     }
