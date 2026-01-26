@@ -768,6 +768,44 @@
     color: #ff9aad;
   }
 
+  .export-modal__field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .export-modal__label {
+    font-size: 0.8rem;
+    color: #b1bcf3;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .export-modal__select {
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(17, 21, 32, 0.92);
+    color: #eef1ff;
+    padding: 10px 12px;
+    font-size: 0.95rem;
+  }
+
+  .export-modal__select:focus-visible {
+    outline: 2px solid rgba(122, 140, 255, 0.7);
+    outline-offset: 2px;
+  }
+
+  .export-modal__status {
+    margin: 0;
+    min-height: 1.2em;
+    font-size: 0.82rem;
+    color: #8fe1ff;
+  }
+
+  .export-modal__status[data-state="error"] {
+    color: #ff9aad;
+  }
+
   .archive-search__field {
     display: flex;
     flex-direction: column;
@@ -1211,6 +1249,10 @@
         <span class="control-button__label" aria-hidden="true">Input</span>
         <span class="visually-hidden">Load FEN or PGN</span>
       </button>
+      <button id="export-button" class="control-button" type="button" aria-label="Export game to clipboard">
+        <span class="control-button__label" aria-hidden="true">Export</span>
+        <span class="visually-hidden">Export game to clipboard</span>
+      </button>
           <button id="engine-button" class="control-button" type="button" aria-pressed="false" aria-label="Show engine settings">
             <span class="control-button__label" aria-hidden="true">Engine</span>
             <span class="visually-hidden">Show engine settings</span>
@@ -1280,6 +1322,28 @@
         </div>
       </div>
     </div>
+    <div id="export-modal" role="dialog" aria-modal="true" aria-labelledby="export-modal-title" aria-describedby="export-modal-description" aria-hidden="true" hidden>
+      <div class="input-modal__dialog">
+        <h2 id="export-modal-title" class="input-modal__title">Export game</h2>
+        <div class="input-modal__section">
+          <p id="export-modal-description" class="input-modal__description input-modal__hint">Choose a format and copy the current game to your clipboard.</p>
+          <label class="export-modal__field" for="export-format">
+            <span class="export-modal__label">Format</span>
+            <select id="export-format" class="export-modal__select">
+              <option value="pgn">PGN</option>
+              <option value="fen">FEN position</option>
+              <option value="uci">UCI move list</option>
+            </select>
+          </label>
+          <textarea id="export-output" class="input-modal__textarea" readonly aria-label="Export preview"></textarea>
+          <p id="export-status" class="export-modal__status" role="status" aria-live="polite"></p>
+        </div>
+        <div class="input-modal__actions">
+          <button type="button" id="export-close" class="input-modal__button input-modal__button--cancel">Close</button>
+          <button type="button" id="export-copy" class="input-modal__button input-modal__button--submit">Copy</button>
+        </div>
+      </div>
+    </div>
   </div>
   <script>
     (function setup() {
@@ -1323,6 +1387,7 @@
       const probabilityButtonElement = document.getElementById('probability-button');
       const pieceMovesButtonElement = document.getElementById('piece-moves-button');
       const fenButtonElement = document.getElementById('fen-button');
+      const exportButtonElement = document.getElementById('export-button');
       const editButtonElement = document.getElementById('edit-button');
       const engineButtonElement = document.getElementById('engine-button');
       const engineSettingsElement = document.getElementById('engine-settings');
@@ -1340,6 +1405,12 @@
       const inputModalApplyButton = document.getElementById('input-modal-apply');
       const inputModalCancelButton = document.getElementById('input-modal-cancel');
       const inputModalErrorElement = document.getElementById('input-modal-error');
+      const exportModalElement = document.getElementById('export-modal');
+      const exportFormatSelect = document.getElementById('export-format');
+      const exportOutputTextarea = document.getElementById('export-output');
+      const exportCopyButton = document.getElementById('export-copy');
+      const exportCloseButton = document.getElementById('export-close');
+      const exportStatusElement = document.getElementById('export-status');
       const archiveSearchSection = document.getElementById('archive-search-section');
       const archiveSearchInput = document.getElementById('archive-username');
       const archiveChesscomButton = document.getElementById('archive-search-chesscom');
@@ -3048,6 +3119,60 @@
         });
       }
 
+      function getExportModalFocusableElements() {
+        if (!exportModalElement) {
+          return [];
+        }
+        const selectors = [
+          'button:not([disabled])',
+          'input:not([disabled])',
+          'textarea:not([disabled])',
+          'select:not([disabled])',
+          '[tabindex]:not([tabindex="-1"])',
+          'a[href]'
+        ];
+        const candidates = Array.from(exportModalElement.querySelectorAll(selectors.join(',')));
+        return candidates.filter(element => {
+          if (!element || typeof element.focus !== 'function') {
+            return false;
+          }
+          if (element.getAttribute && element.getAttribute('aria-hidden') === 'true') {
+            return false;
+          }
+          if ('disabled' in element && element.disabled) {
+            return false;
+          }
+          if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
+            const style = window.getComputedStyle(element);
+            if (style && (style.visibility === 'hidden' || style.display === 'none')) {
+              return false;
+            }
+          }
+          return true;
+        });
+      }
+
+      function trapExportModalFocus(event) {
+        if (!exportModalElement || event.key !== 'Tab') {
+          return;
+        }
+        const focusable = getExportModalFocusableElements();
+        if (!focusable.length) {
+          return;
+        }
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey) {
+          if (document.activeElement === first || !focusable.includes(document.activeElement)) {
+            event.preventDefault();
+            last.focus();
+          }
+        } else if (document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+
       function isAbortError(error) {
         if (!error) {
           return false;
@@ -3386,6 +3511,145 @@
           lastFocusedElementBeforeModal.focus();
         }
         lastFocusedElementBeforeModal = null;
+      }
+
+      function setExportStatus(message, state = '') {
+        if (!exportStatusElement) {
+          return;
+        }
+        const text = typeof message === 'string' ? message : '';
+        exportStatusElement.textContent = text;
+        if (state) {
+          exportStatusElement.setAttribute('data-state', state);
+        } else {
+          exportStatusElement.removeAttribute('data-state');
+        }
+      }
+
+      function buildExportGame(limitIndex = navigationIndex) {
+        const exportGame = new Chess();
+        if (typeof baseFen === 'string' && baseFen.length) {
+          exportGame.load(baseFen);
+        }
+        const safeLimit = Math.max(0, Math.min(limitIndex, moveHistory.length));
+        for (let i = 0; i < safeLimit; i += 1) {
+          const entry = moveHistory[i];
+          if (!entry) continue;
+          const move = exportGame.move({
+            from: entry.from,
+            to: entry.to,
+            promotion: entry.promotion || 'q'
+          });
+          if (!move) {
+            break;
+          }
+        }
+        return exportGame;
+      }
+
+      function getUciMoveList(limitIndex = navigationIndex) {
+        const safeLimit = Math.max(0, Math.min(limitIndex, moveHistory.length));
+        return moveHistory
+          .slice(0, safeLimit)
+          .map(move => `${move.from}${move.to}${move.promotion ? move.promotion : ''}`)
+          .join('\n');
+      }
+
+      function getExportPayload(format) {
+        const exportGame = buildExportGame();
+        switch (format) {
+          case 'fen':
+            return exportGame.fen();
+          case 'uci':
+            return getUciMoveList();
+          case 'pgn':
+          default:
+            return exportGame.pgn();
+        }
+      }
+
+      function updateExportOutput() {
+        if (!exportFormatSelect || !exportOutputTextarea) {
+          return;
+        }
+        const format = exportFormatSelect.value;
+        const payload = getExportPayload(format);
+        exportOutputTextarea.value = payload;
+      }
+
+      async function copyTextToClipboard(text) {
+        if (typeof text !== 'string' || !text.length) {
+          return false;
+        }
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function' && window.isSecureContext) {
+          try {
+            await navigator.clipboard.writeText(text);
+            return true;
+          } catch {
+            // fallback below
+          }
+        }
+        const temp = document.createElement('textarea');
+        temp.value = text;
+        temp.setAttribute('readonly', '');
+        temp.style.position = 'fixed';
+        temp.style.top = '-9999px';
+        document.body.appendChild(temp);
+        temp.focus();
+        temp.select();
+        temp.setSelectionRange(0, temp.value.length);
+        let copied = false;
+        try {
+          copied = document.execCommand('copy');
+        } catch {
+          copied = false;
+        }
+        document.body.removeChild(temp);
+        return copied;
+      }
+
+      function openExportModal() {
+        if (!exportModalElement) return;
+        lastFocusedElementBeforeModal = document.activeElement && typeof document.activeElement.focus === 'function'
+          ? document.activeElement
+          : null;
+        exportModalElement.hidden = false;
+        exportModalElement.setAttribute('aria-hidden', 'false');
+        setExportStatus('');
+        updateExportOutput();
+        if (exportFormatSelect) {
+          requestAnimationFrame(() => {
+            exportFormatSelect.focus();
+          });
+        }
+      }
+
+      function closeExportModal(options = {}) {
+        if (!exportModalElement) return;
+        const { restoreFocus = true } = options || {};
+        exportModalElement.hidden = true;
+        exportModalElement.setAttribute('aria-hidden', 'true');
+        if (exportOutputTextarea) {
+          exportOutputTextarea.value = '';
+        }
+        setExportStatus('');
+        if (restoreFocus && lastFocusedElementBeforeModal && typeof lastFocusedElementBeforeModal.focus === 'function') {
+          lastFocusedElementBeforeModal.focus();
+        }
+        lastFocusedElementBeforeModal = null;
+      }
+
+      async function handleExportCopy() {
+        if (!exportOutputTextarea) {
+          return;
+        }
+        const payload = exportOutputTextarea.value || '';
+        const copied = await copyTextToClipboard(payload);
+        if (copied) {
+          setExportStatus('Copied to clipboard.');
+        } else {
+          setExportStatus('Unable to copy. Please select and copy manually.', 'error');
+        }
       }
 
       function handleInputModalSubmit() {
@@ -6072,6 +6336,9 @@
     const presetValue = lastImportWasPgn ? '' : game.fen();
     openInputModal(presetValue);
   });
+  $('#export-button').on('click', () => {
+    openExportModal();
+  });
 
   if (inputModalApplyButton) {
     inputModalApplyButton.addEventListener('click', handleInputModalSubmit);
@@ -6079,6 +6346,21 @@
 
   if (inputModalCancelButton) {
     inputModalCancelButton.addEventListener('click', () => closeInputModal());
+  }
+
+  if (exportFormatSelect) {
+    exportFormatSelect.addEventListener('change', () => {
+      updateExportOutput();
+      setExportStatus('');
+    });
+  }
+
+  if (exportCopyButton) {
+    exportCopyButton.addEventListener('click', handleExportCopy);
+  }
+
+  if (exportCloseButton) {
+    exportCloseButton.addEventListener('click', () => closeExportModal());
   }
 
   if (inputModalTextarea) {
@@ -6147,6 +6429,24 @@
       if (event.target === inputModalElement) {
         event.preventDefault();
         closeInputModal();
+      }
+    });
+  }
+  if (exportModalElement) {
+    exportModalElement.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeExportModal();
+        return;
+      }
+      if (event.key === 'Tab') {
+        trapExportModalFocus(event);
+      }
+    });
+    exportModalElement.addEventListener('mousedown', event => {
+      if (event.target === exportModalElement) {
+        event.preventDefault();
+        closeExportModal();
       }
     });
   }
