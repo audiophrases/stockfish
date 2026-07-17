@@ -6521,6 +6521,12 @@
         const result = importPositionFromText(raw);
         if (!result || result.success !== true) {
           console.warn('Could not load position from URL:', result && result.error);
+          return;
+        }
+        // Land on the position the link carried — the end of the movetext —
+        // rather than the start (the Input modal's default).
+        if (params.get('pgn') && moveHistory.length) {
+          rebuildPosition(moveHistory.length);
         }
       })();
       }
