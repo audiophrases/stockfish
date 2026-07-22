@@ -1487,6 +1487,7 @@
       let archiveSearchAbortController = null;
       let archiveSearchLastSource = ARCHIVE_SEARCH_SOURCES.CHESSCOM;
       const ENGINE_AUTOSTART_STORAGE_KEY = 'stockfish-ui:engine-autostart-disabled';
+      const ARCHIVE_USERNAME_STORAGE_KEY = 'stockfish-ui:archive-username';
       let baseFen = game.fen();
       let selectedSquare = null;
       let moveSourceSquare = null;
@@ -1991,6 +1992,32 @@
           const storage = window.localStorage;
           if (!storage) return;
           storage.setItem(ENGINE_AUTOSTART_STORAGE_KEY, engineAutostartDisabled ? 'true' : 'false');
+        } catch (error) {
+          // Ignore storage errors (e.g., blocked cookies).
+        }
+      }
+
+      function readStoredArchiveUsername() {
+        if (typeof window === 'undefined') {
+          return '';
+        }
+        try {
+          const storage = window.localStorage;
+          if (!storage) return '';
+          return storage.getItem(ARCHIVE_USERNAME_STORAGE_KEY) || '';
+        } catch (error) {
+          return '';
+        }
+      }
+
+      function persistArchiveUsername(username) {
+        if (typeof window === 'undefined') {
+          return;
+        }
+        try {
+          const storage = window.localStorage;
+          if (!storage) return;
+          storage.setItem(ARCHIVE_USERNAME_STORAGE_KEY, username);
         } catch (error) {
           // Ignore storage errors (e.g., blocked cookies).
         }
@@ -3426,6 +3453,7 @@
           return;
         }
         clearInputModalError();
+        persistArchiveUsername(username);
         if (archiveSearchAbortController && typeof archiveSearchAbortController.abort === 'function') {
           archiveSearchAbortController.abort();
         }
@@ -3520,6 +3548,9 @@
         }
         if (archiveResultsElement) {
           archiveResultsElement.hidden = archiveSearchEntries.length === 0;
+        }
+        if (archiveSearchInput && !archiveSearchInput.value.trim().length) {
+          archiveSearchInput.value = readStoredArchiveUsername();
         }
         if (inputModalTextarea) {
           inputModalTextarea.value = typeof presetText === 'string' ? presetText : '';
